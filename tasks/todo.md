@@ -99,13 +99,13 @@ Sizes: no task is L or larger.
 **Description:** Add `python scripts/stack.py init`, backed by an adapter in `src/adapters/`. It builds the config with Task 2, runs `besu operator generate-blockchain-config` in the pinned Besu image through Docker, and writes `network-config/genesis.json`, `network-config/validator-keys/validator-1..4/` (`key`, `key.pub`, `address.txt`, ordered by sorted address so the mapping is stable) and `network-config/static-nodes.json` (Task 3). It ignores the harmless `Output directory already exists` message but checks that the files really exist, and it refuses to overwrite existing files unless `--force` is given. Demo keys are committed (D-10); add a short `network-config/README.md` marking them demo-only.
 
 **Acceptance criteria:**
-- [ ] After `init`, `genesis.json` has a `qbft` block, `chainId` 20260916, `zeroBaseFee true`, and `extraData` containing all four validator addresses from `address.txt`
-- [ ] `static-nodes.json` lists four enodes whose public keys match the four `key.pub` files
-- [ ] Running `init` a second time without `--force` fails with a clear message and changes nothing; with `--force` it regenerates
+- [x] After `init`, `genesis.json` has a `qbft` block, `chainId` 20260916, `zeroBaseFee true`, and `extraData` containing all four validator addresses from `address.txt`
+- [x] `static-nodes.json` lists four enodes whose public keys match the four `key.pub` files
+- [x] Running `init` a second time without `--force` fails with a clear message and changes nothing; with `--force` it regenerates
 
 **Verification:**
-- [ ] Tests pass: `pytest tests/unit` and `pytest -m integration -k init` (the integration test runs the real Besu image)
-- [ ] Checks clean: `ruff check .` and `mypy .`
+- [x] Tests pass: `pytest tests/unit` and `pytest -m integration -k init` (the integration test runs the real Besu image)
+- [x] Checks clean: `ruff check .` and `mypy .`
 
 **Dependencies:** Tasks 2, 3
 
@@ -117,6 +117,8 @@ Sizes: no task is L or larger.
 - `tests/integration/test_init.py`
 
 **Size:** M
+
+**Status:** Done 2026-10-02. Test-first. 51 unit tests (fake Besu generator, no Docker) plus an integration test against the real `hyperledger/besu:26.8.1` image (init, refusal without `--force`, regeneration with it). The pure helpers are in `src/core/network/validators.py`; the Docker runner is injected so the file logic is testable. The generated `network-config/` is committed together with Task 5's wallets.
 
 ### Task 5: Demo wallet keys
 

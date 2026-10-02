@@ -1,0 +1,28 @@
+"""A stand-in for `besu operator generate-blockchain-config`, so unit tests need no Docker."""
+
+import json
+from collections.abc import Callable
+from pathlib import Path
+
+Generator = Callable[[Path, Path], None]
+
+
+def fake_generator(seed: int = 1, count: int = 4, omit_from_extra_data: bool = False) -> Generator:
+    """Write what `besu operator generate-blockchain-config` writes, with made-up keys."""
+
+    def run(config_file: Path, out_dir: Path) -> None:
+        requested = json.loads(config_file.read_text(encoding="utf-8"))["blockchain"]["nodes"]
+        assert requested["count"] == 4 and requested["generate"] is True
+        addresses = [f"0x{seed:02x}{i:02x}".ljust(42, "0") for i in range(count, 0, -1)]
+        out_dir.mkdir(parents=True)
+        listed = addresses[:-1] if omit_from_extra_data else addresses
+        extra = "0x" + "00" * 32 + "".join(a.removeprefix("0x") for a in listed)
+        genesis = {"config": {"chainId": 20260916, "qbft": {}}, "extraData": extra}
+        (out_dir / "genesis.json").write_text(json.dumps(genesis), encoding="utf-8")
+        for number, address in enumerate(addresses):
+            folder = out_dir / "keys" / address
+            folder.mkdir(parents=True)
+            (folder / "key").write_text("0x" + f"{seed}{number}".zfill(64), encoding="utf-8")
+            (folder / "key.pub").write_text("0x" + f"{seed}{number}".zfill(128), encoding="utf-8")
+
+    return run
