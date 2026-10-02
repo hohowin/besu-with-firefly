@@ -1,7 +1,7 @@
 # Tasks — Phase 1: Network
 
 > Source: `docs/plan.md` Phase 1 (M1.1, M1.2, M1.3), `docs/prd.md` US-002 and US-003, `docs/spike-results.md`. Decisions: D-01 (network shape), D-08 (London, Shanghai, `zeroBaseFee`), D-10 (demo keys are committed), D-16 (`python scripts/stack.py`, no Make). Phase 0 is signed off (2026-10-02).
-> **Status: approved by Howin on 2026-10-02 (all Open Questions answered as recommended). Tasks 1 to 11 are done; the human review of the three checkpoints is still waiting for Howin.**
+> **Status: approved by Howin on 2026-10-02 (all Open Questions answered as recommended). Tasks 1 to 11 are done; Howin reviewed all three checkpoints on 2026-10-02 and accepted them.**
 
 ## Overview
 
@@ -150,7 +150,7 @@ Sizes: no task is L or larger.
 - [x] `ruff check .`, `mypy .` and `pytest` are clean (64 unit tests, 2 integration tests)
 - [x] `python scripts/stack.py init --force` reproduces valid genesis, keys, static nodes and wallets from scratch
 - [x] M1.1 exit gate from `docs/plan.md` holds: `genesis.json` has a `qbft` block with all four validator addresses (the `docker compose config` half of that gate comes with Task 6, when the Compose file exists)
-- [ ] Human review before proceeding (**waiting for Howin**)
+- [x] Human review before proceeding (Howin, 2026-10-02: all checked, no changes requested)
 
 ---
 
@@ -209,7 +209,7 @@ Sizes: no task is L or larger.
 - [x] All four validators healthy, peered and producing blocks
 - [x] Killing a single validator does not halt block production (M1.2 exit gate). Proven for validator 4; Task 9 repeats it through the RPC nodes
 - [x] Anti-gate from `docs/plan.md` not triggered: one failed validator did not halt the chain
-- [ ] Human review before proceeding (**waiting for Howin**)
+- [x] Human review before proceeding (Howin, 2026-10-02: all checked, no changes requested)
 
 ---
 
@@ -295,7 +295,7 @@ Sizes: no task is L or larger.
 - [x] `pytest -m integration` network tests pass, three consecutive fresh-stack runs
 - [x] `ruff check .`, `mypy .` and `pytest` clean
 - [x] Anti-gate from `docs/plan.md`: if an RPC node cannot peer or diverges, stop before Phase 2
-- [ ] Human review before proceeding (**waiting for Howin**)
+- [x] Human review before proceeding (Howin, 2026-10-02: all checked, no changes requested)
 
 ---
 
