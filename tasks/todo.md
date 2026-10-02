@@ -129,7 +129,7 @@ Sizes: no task is L or larger. Tasks 7 and 9 are the largest (M).
 - [x] `python scripts/stack.py reset && python scripts/stack.py up` leaves 10 ready services and FireFly status ready, through `besu-rpc-anson`
 - [x] Phase 1 integration tests still pass: the whole `pytest -m integration` suite, 34 passed in 6 min on a freshly reset and started stack
 - [x] M2.1 exit gate from `docs/plan.md` step 1 holds
-- [ ] Human review before proceeding (**waiting for Howin**)
+- [x] Human review before proceeding (Howin, 2026-10-02: ok)
 
 ---
 
@@ -140,13 +140,13 @@ Sizes: no task is L or larger. Tasks 7 and 9 are the largest (M).
 **Description:** Pin `@tokenysolutions/t-rex` (4.1.6) and the OnchainID package it depends on in `contracts/package.json` (`npm ci`). Write the pure **deploy plan** in `src/core/trex/`: the ordered list of contracts to deploy (implementations, implementation authorities, OnchainID factory pieces, `TREXFactory`) with how each constructor argument is obtained from earlier addresses, plus the ABI and bytecode loader (an adapter). Find the order and arguments by reading the package's own deployment scripts and tests, and record the result in `docs/spike-results.md` under a new "Phase 2 findings" section. Check every deployed size against 24 576 bytes and every init size against 49 152.
 
 **Acceptance criteria:**
-- [ ] The plan lists every contract with its constructor arguments and the earlier contract each argument comes from; a unit test proves every reference points to something deployed earlier and no cycle exists
-- [ ] A test fails if any deployed size is over 24 576 bytes or any init size is over 49 152 (sizes read from the installed artifacts)
-- [ ] `docs/spike-results.md` records the order, the arguments and any size margin, and states clearly if the full suite cannot be deployed as planned (then stop and raise D-04; plan risk R3 fallback)
+- [x] The plan lists every contract with its constructor arguments and the earlier contract each argument comes from; a unit test proves every reference points to something deployed earlier and no cycle exists
+- [x] A test fails if any deployed size is over 24 576 bytes or any init size is over 49 152 (sizes read from the installed artifacts)
+- [x] `docs/spike-results.md` records the order, the arguments and any size margin, and states clearly if the full suite cannot be deployed as planned (then stop and raise D-04; plan risk R3 fallback)
 
 **Verification:**
-- [ ] Tests pass: `pytest tests/unit` (reads the installed artifacts, so the test runs after `npm ci`; it skips with a clear message if `contracts/node_modules` is missing)
-- [ ] Checks clean: `ruff check .` and `mypy .`
+- [x] Tests pass: `pytest tests/unit` (reads the installed artifacts, so the test runs after `npm ci`; it skips with a clear message if `contracts/node_modules` is missing)
+- [x] Checks clean: `ruff check .` and `mypy .`
 
 **Dependencies:** None (can start after Task 1; does not need FireFly)
 
@@ -157,6 +157,8 @@ Sizes: no task is L or larger. Tasks 7 and 9 are the largest (M).
 - `docs/spike-results.md`, `.gitignore` (`contracts/node_modules/`)
 
 **Size:** M
+
+**Status:** Done 2026-10-02. Test-first (42 unit tests, red before the code). **Finding:** `@tokenysolutions/t-rex` does not ship `IdFactory`, so `@onchain-id/solidity` 2.1.0 is pinned as well (its ABIs match what t-rex bundles; 2.2.x changes `Identity`). The plan has 12 deploys and 3 wiring calls (`addAndUseTREXVersion`, `setTREXFactory`, `addTokenFactory`); a test checks every constructor's argument count, every called method and its input count, and the size limits against the real artifacts. Largest is `TREXFactory`, 23,495 bytes, 1,081 under the limit. D-04 and R3 hold; order, arguments and the size table are in `docs/spike-results.md` "Phase 2 findings". The unit test module skips with a hint if `npm ci` was not run in `contracts/`.
 
 ### Task 6: Deploy the T-REX infrastructure contracts through FireFly
 

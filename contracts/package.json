@@ -1,0 +1,9 @@
+{
+  "name": "besu-with-firefly-contracts",
+  "private": true,
+  "description": "Pinned T-REX (ERC-3643) and OnchainID contract artifacts. Installed with `npm ci`, read by `python scripts/stack.py deploy`. Nothing is compiled here.",
+  "dependencies": {
+    "@onchain-id/solidity": "2.1.0",
+    "@tokenysolutions/t-rex": "4.1.6"
+  }
+}

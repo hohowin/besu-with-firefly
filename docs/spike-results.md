@@ -172,3 +172,43 @@ All resolved on 2026-10-02 when the developer signed off Phase 0 and asked for t
 1. **Task runner:** `make` is not installed on Windows, so the project uses a Python script, `python scripts/stack.py up|deploy|reset` (plan D-16). All docs were updated.
 2. **Docs updated from these results:** `README.md`, `docs/prd.md`, `docs/plan.md` (D-03, D-05, D-08, D-09, D-14, D-15, D-16, Phase 0, Phase 3 and 5 steps, open questions), `docs/architecture.md` (topology, Paladin and FireFly rows, TBD list), `docs/use-cases.md` (UC-01, UC-08, UC-10) and `docs/deliverables.md` (Phase 0 done, DL-3.x, Caliper notes).
 3. **Carried into later phases:** the full T-REX suite deployment in dependency order (Phase 2), the cross-platform stack script (Phase 1), and the real Caliper numbers (Phase 5).
+
+## Phase 2 findings
+
+Added during Phase 2 (Task 5, 2026-10-02). Evidence labelled **read** comes from the pinned packages' sources and artifacts; nothing here has been deployed yet (that is Tasks 6 and 7).
+
+### T-REX suite: what to deploy, and in what order (read)
+
+Pinned in `contracts/package.json`: `@tokenysolutions/t-rex` **4.1.6** and `@onchain-id/solidity` **2.1.0**, installed with `npm ci` (nothing is compiled; `contracts/node_modules/` is gitignored; both packages are licensed GPL-3.0 and ISC respectively, so no contract code is copied into this repo).
+
+- **The T-REX package alone is not enough.** It bundles compiled OnchainID `Identity`, `ClaimIssuer` and `ImplementationAuthority`, but **not `IdFactory`** (only its interface), and `TREXFactory` needs an IdFactory. So all OnchainID contracts are taken from `@onchain-id/solidity`.
+- **Version choice.** The OnchainID ABIs of `Identity`, `ClaimIssuer` and `ImplementationAuthority` are identical in 2.0.0, 2.0.1 and 2.1.0 and the same as the copies bundled in t-rex 4.1.6; 2.2.x changes the `Identity` ABI. So 2.1.0 is pinned. The bundled copies are compiled with other settings (bundled `Identity` is 9,253 bytes, the package's own is 16,186), so their bytecode differs; the project does not mix them.
+- **Order** (the plan in `src/core/trex/plan.py`, checked against the real ABIs by a test):
+  1. OnchainID `Identity` implementation `(admin, isLibrary=true)`, then `ImplementationAuthority(identity)`, then `IdFactory(authority)`.
+  2. The six T-REX implementations, no constructor arguments: `Token`, `ClaimTopicsRegistry`, `IdentityRegistry`, `IdentityRegistryStorage`, `TrustedIssuersRegistry`, `ModularCompliance`.
+  3. `TREXImplementationAuthority(referenceStatus=true, trexFactory=0x0, iaFactory=0x0)`. The factory needs the authority's address, so the factory is set afterwards.
+  4. `TREXFactory(trexAuthority, idFactory)`.
+  5. `ClaimIssuer(admin)`, so Admin is its management key and can sign KYC claims.
+  6. Wiring calls as Admin: `trexAuthority.addAndUseTREXVersion({4,1,6}, {the six implementations})`, `trexAuthority.setTREXFactory(factory)`, `idFactory.addTokenFactory(factory)`.
+- **Then** `TREXFactory.deployTREXSuite(salt, tokenDetails, claimDetails)` creates the token and its five proxies (token, IdentityRegistry, IdentityRegistryStorage, ClaimTopicsRegistry, TrustedIssuersRegistry, ModularCompliance) by CREATE2 and calls `IdFactory.createTokenIdentity`, which is why the factory must be a token factory of the IdFactory. It is `onlyOwner` (Admin deployed it) and takes at most 5 agents, 5 claim topics, 5 trusted issuers. `getToken(salt)` returns the token. That is Task 7.
+
+### Contract sizes (read)
+
+All deployed sizes are under the 24,576-byte limit and all init sizes under the 49,152-byte Shanghai limit. `TREXFactory` is the closest, with 1,081 bytes of headroom (it embeds the proxies' creation code). Its init size (25,125) is over 24,576 but allowed from Shanghai (EIP-3860), which this chain has from block 0.
+
+| Plan name | Contract | Deployed bytes | Init bytes | Headroom to 24,576 |
+|---|---|---|---|---|
+| identity-implementation | Identity | 16,186 | 17,589 | 8,390 |
+| identity-implementation-authority | ImplementationAuthority | 1,643 | 2,488 | 22,933 |
+| id-factory | IdFactory | 17,717 | 18,510 | 6,859 |
+| token-implementation | Token | 14,245 | 14,287 | 10,331 |
+| claim-topics-registry-implementation | ClaimTopicsRegistry | 1,987 | 2,019 | 22,589 |
+| identity-registry-implementation | IdentityRegistry | 6,910 | 6,942 | 17,666 |
+| identity-registry-storage-implementation | IdentityRegistryStorage | 4,534 | 4,566 | 20,042 |
+| trusted-issuers-registry-implementation | TrustedIssuersRegistry | 5,201 | 5,233 | 19,375 |
+| modular-compliance-implementation | ModularCompliance | 5,619 | 5,651 | 18,957 |
+| trex-implementation-authority | TREXImplementationAuthority | 8,995 | 9,462 | 15,581 |
+| trex-factory | TREXFactory | 23,495 | 25,125 | 1,081 |
+| claim-issuer | ClaimIssuer | 19,987 | 21,311 | 4,589 |
+
+**Verdict so far: the full suite fits and the deploy order is known. D-04 and risk R3 hold.** Not yet proven on the chain: the gas of `deployTREXSuite` and of the `TREXFactory` deployment on our Besu (Tasks 6 and 7).
