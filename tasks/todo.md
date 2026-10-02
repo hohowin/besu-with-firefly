@@ -1,7 +1,7 @@
 # Tasks — Phase 1: Network
 
 > Source: `docs/plan.md` Phase 1 (M1.1, M1.2, M1.3), `docs/prd.md` US-002 and US-003, `docs/spike-results.md`. Decisions: D-01 (network shape), D-08 (London, Shanghai, `zeroBaseFee`), D-10 (demo keys are committed), D-16 (`python scripts/stack.py`, no Make). Phase 0 is signed off (2026-10-02).
-> **Status: approved by Howin on 2026-10-02 (all Open Questions answered as recommended). No code has been written yet.**
+> **Status: approved by Howin on 2026-10-02 (all Open Questions answered as recommended). Tasks 1 to 11 are done; the human review of the three checkpoints is still waiting for Howin.**
 
 ## Overview
 
@@ -290,12 +290,12 @@ Sizes: no task is L or larger.
 
 ## Checkpoint: After Tasks 8–10 (Phase 1 exit gate)
 
-- [ ] All four validators healthy, peered, tolerant of one failure
-- [ ] Both RPC nodes healthy, consistent within 1 block, and `eth_gasPrice` is `0x0`
-- [ ] `pytest -m integration` network tests pass, three consecutive fresh-stack runs
-- [ ] `ruff check .`, `mypy .` and `pytest` clean
-- [ ] Anti-gate from `docs/plan.md`: if an RPC node cannot peer or diverges, stop before Phase 2
-- [ ] Human review before proceeding
+- [x] All four validators healthy, peered, tolerant of one failure
+- [x] Both RPC nodes healthy, consistent within 1 block, and `eth_gasPrice` is `0x0`
+- [x] `pytest -m integration` network tests pass, three consecutive fresh-stack runs
+- [x] `ruff check .`, `mypy .` and `pytest` clean
+- [x] Anti-gate from `docs/plan.md`: if an RPC node cannot peer or diverges, stop before Phase 2
+- [ ] Human review before proceeding (**waiting for Howin**)
 
 ---
 
@@ -306,13 +306,13 @@ Sizes: no task is L or larger.
 **Description:** Update `README.md` Getting started with the real Phase 1 commands, mark DL-1.x deliverables as done in `docs/deliverables.md` with the commands that were actually run, record the exit-gate results, and commit on the working branch.
 
 **Acceptance criteria:**
-- [ ] Following the README Getting started literally from a clean clone brings up the Phase 1 network and the tests pass
-- [ ] `docs/deliverables.md` DL-1.1 to DL-1.4 are marked `Done` and their "How to try it" steps match the real commands and ports
-- [ ] `docs/plan.md` Phase 1 is marked complete with the date
+- [x] Following the README Getting started literally from a clean clone brings up the Phase 1 network and the tests pass
+- [x] `docs/deliverables.md` DL-1.1 to DL-1.4 are marked `Done` and their "How to try it" steps match the real commands and ports
+- [x] `docs/plan.md` Phase 1 is marked complete with the date
 
 **Verification:**
-- [ ] Tests pass: `pytest` and `pytest -m integration`
-- [ ] Checks clean: `ruff check .` and `mypy .`
+- [x] Tests pass: `pytest` and `pytest -m integration`
+- [x] Checks clean: `ruff check .` and `mypy .`
 
 **Dependencies:** Tasks 1–10
 
@@ -322,6 +322,8 @@ Sizes: no task is L or larger.
 - `docs/plan.md`
 
 **Size:** XS
+
+**Status:** Done 2026-10-02. README, `docs/deliverables.md` (DL-1.1 to DL-1.4 Done, steps use the real commands) and `docs/plan.md` (Phase 1 complete) updated. Verified from a fresh clone with a new virtual environment, following the README: the first attempt was imperfect and the second was clean. First attempt: `up` timed out at 120 s with validators `unhealthy` while `pip install` was loading the machine (a plain second `up` was healthy; the first block took minutes because QBFT round timeouts back off on a slow cold start), and one integration test failed (`besu-validator-4` did not catch up within 90 s after a restart; re-run alone it passed, and three manual restarts caught up in 14 to 20 s; cause not found, not reproduced). Second attempt after `reset`: `up` healthy and `pytest -m integration` 26 passed. **Known risk:** a cold start on a busy machine can exceed the 120 s `up` timeout, and the validator rejoin test is intermittent once.
 
 ---
 
