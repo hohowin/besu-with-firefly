@@ -335,11 +335,11 @@ Sizes: no task is L or larger. Tasks 7 and 9 are the largest (M).
 
 ## Checkpoint: After Tasks 9–12
 
-- [ ] `ruff check .`, `mypy .` and `pytest` clean
-- [ ] Anson 1000 then 975, Beatrice 0 then 25, both verified; Admin unverified
-- [ ] The rejection is a real revert, balances unchanged (plan anti-gate for Phase 3 not triggered)
-- [ ] Re-running onboarding sends no redundant transaction
-- [ ] Human review before proceeding
+- [x] `ruff check .`, `mypy .` and `pytest` clean (275 unit tests)
+- [x] Anson 1000 then 975, Beatrice 0 then 25, both verified; Admin unverified (full `pytest -m integration` on a freshly reset, deployed stack: 63 passed in 7 min)
+- [x] The rejection is a real revert, balances unchanged (plan anti-gate for Phase 3 not triggered)
+- [x] Re-running onboarding sends no redundant transaction
+- [ ] Human review before proceeding (**waiting for Howin**)
 
 ---
 
