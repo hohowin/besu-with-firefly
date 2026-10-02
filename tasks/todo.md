@@ -27,13 +27,13 @@ Sizes: no task is L or larger.
 **Description:** Create the Python project skeleton so that lint, type checks and tests run on a trivial test: `pyproject.toml` (`requires-python >= 3.11`, ruff, strict mypy, pytest with an `integration` marker that is skipped by default), `src/core/`, `src/adapters/`, `tests/unit/`, `tests/integration/`, and `.gitignore` entries for Python caches and the virtual environment. Fill in the TODO Commands and Directory Layout sections of `PROJECT.md` with what now exists.
 
 **Acceptance criteria:**
-- [ ] `ruff check .`, `mypy .` and `pytest` all pass on a smoke test, with mypy in strict mode and no lint rule disabled to make them pass
-- [ ] `pytest -m integration` selects zero tests without error, and plain `pytest` does not run integration tests
-- [ ] `PROJECT.md` Commands lists install, lint, type-check, unit test and integration test commands, and Directory Layout matches the real folders
+- [x] `ruff check .`, `mypy .` and `pytest` all pass on a smoke test, with mypy in strict mode and no lint rule disabled to make them pass
+- [x] `pytest -m integration` selects zero tests without error, and plain `pytest` does not run integration tests
+- [x] `PROJECT.md` Commands lists install, lint, type-check, unit test and integration test commands, and Directory Layout matches the real folders
 
 **Verification:**
-- [ ] Tests pass: `pytest`
-- [ ] Checks clean: `ruff check .` and `mypy .`
+- [x] Tests pass: `pytest`
+- [x] Checks clean: `ruff check .` and `mypy .`
 
 **Dependencies:** None
 
@@ -45,6 +45,8 @@ Sizes: no task is L or larger.
 - `.gitignore`
 
 **Size:** M
+
+**Status:** Done 2026-10-02 on branch `phase-1-network`. Notes: `pytest -m integration` selects one real test (Docker engine reachable) instead of zero, so the command exits 0. Lint and type checks exclude only `_knowledge/`, `spike/`, `.agents/`, `.claude/` (not our code); no rule was disabled. Written test-first: the smoke test failed with `No module named 'src'` before the packages existed.
 
 ### Task 2: Pure QBFT genesis builder
 
