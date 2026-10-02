@@ -1,4 +1,4 @@
-"""The two RPC nodes: they join the network, agree on the chain and are not validators."""
+"""The network seen through its two RPC nodes: consensus, validator set and fault tolerance."""
 
 import time
 from functools import partial
@@ -6,6 +6,7 @@ from functools import partial
 import pytest
 
 from src.adapters.docker_stack import REPO_ROOT, DockerStack
+from src.core.network.besu_logs import latest_block_number
 from tests.support.polling import wait_for
 from tests.support.rpc import RPC_ANSON, RPC_BEATRICE, block_number, peer_count, rpc_call
 
@@ -72,3 +73,43 @@ def test_rpc_node_has_at_least_four_peers(stack: DockerStack, name: str) -> None
         timeout=90,
     )
     assert count >= 4, name
+
+
+def test_one_failed_validator_does_not_halt_the_chain_and_it_rejoins(
+    stack: DockerStack, restore_validators: None
+) -> None:
+    stack.stop("besu-validator-4")
+    at_stop = max(block_number(url) for url in RPC_NODES.values())
+
+    # 3 of 4 validators can still commit, so both RPC nodes must keep seeing new blocks.
+    for name, url in RPC_NODES.items():
+        wait_for(
+            partial(_reached, url, at_stop + 2),
+            describe=f"{name} to pass block #{at_stop + 1} with besu-validator-4 stopped",
+            timeout=30,
+            interval=1,
+        )
+
+    # The stopped validator rejoins, peers again and catches up with the chain.
+    stopped_at = latest_block_number(stack.logs("besu-validator-4")) or 0
+    stack.start("besu-validator-4")
+
+    def caught_up() -> int | None:
+        mine = latest_block_number(stack.logs("besu-validator-4")) or 0
+        return mine if mine > stopped_at and mine >= block_number(RPC_ANSON) - 3 else None
+
+    wait_for(caught_up, describe="besu-validator-4 to sync and keep up", timeout=90)
+    for name, url in RPC_NODES.items():
+        wait_for(
+            partial(_has_peers, url, 4),
+            describe=f"{name} to report 4 or more peers after the restart",
+            timeout=90,
+        )
+
+
+def _reached(url: str, block: int) -> bool:
+    return block_number(url) >= block
+
+
+def _has_peers(url: str, count: int) -> bool:
+    return peer_count(url) >= count

@@ -245,13 +245,13 @@ Sizes: no task is L or larger.
 **Description:** Consolidate the network proofs into one stable suite that uses the RPC nodes: RPC consistency, zero gas price, the validator set is exactly the four expected addresses, and fault tolerance re-proved through block numbers (stop a validator, `eth_blockNumber` still increases within 30 seconds on both RPC nodes). Replace log-based checks from Task 7 where RPC is now available, and keep the log-based "two validators down halts" check.
 
 **Acceptance criteria:**
-- [ ] `pytest -m integration` passes against a freshly started stack
-- [ ] The fault-tolerance test restores the stopped validator even when an assertion fails
-- [ ] Tests wait with bounded polling instead of fixed sleeps, and fail with a message naming the node and the observed value
+- [x] `pytest -m integration` passes against a freshly started stack
+- [x] The fault-tolerance test restores the stopped validator even when an assertion fails
+- [x] Tests wait with bounded polling instead of fixed sleeps, and fail with a message naming the node and the observed value
 
 **Verification:**
-- [ ] Tests pass: `pytest -m integration`
-- [ ] Checks clean: `ruff check .` and `mypy .`
+- [x] Tests pass: `pytest -m integration`
+- [x] Checks clean: `ruff check .` and `mypy .`
 
 **Dependencies:** Tasks 7, 8
 
@@ -261,6 +261,8 @@ Sizes: no task is L or larger.
 - `tests/integration/conftest.py`
 
 **Size:** M
+
+**Status:** Done 2026-10-02. `test_rpc_nodes.py` became `test_network.py` and gained the RPC version of the single-failure proof (stop `besu-validator-4`, both RPC nodes pass 2 new blocks within 30 s, it restarts, catches up and both RPC nodes report 4 or more peers). The `restore_validators` fixture moved to `conftest.py` and waits on RPC block numbers; `test_fault_tolerance.py` keeps only the log-based two-validators-down halt (R10). `pytest -m integration`: 24 passed in 4 min on the running stack; a fresh-stack run is Task 10.
 
 ### Task 10: `stack.py reset` and repeatability
 

@@ -1,6 +1,14 @@
+import contextlib
+from collections.abc import Iterator
+from functools import partial
+
 import pytest
 
-from src.adapters.docker_stack import DockerStack
+from src.adapters.docker_stack import DockerStack, StackError
+from tests.support.polling import wait_for
+from tests.support.rpc import RPC_ANSON, RPC_BEATRICE, block_number
+
+VALIDATORS = [f"besu-validator-{n}" for n in (1, 2, 3, 4)]
 
 
 @pytest.fixture(scope="session")
@@ -9,3 +17,25 @@ def stack() -> DockerStack:
     docker_stack = DockerStack()
     docker_stack.up(wait_timeout=180)
     return docker_stack
+
+
+@pytest.fixture
+def restore_validators(stack: DockerStack) -> Iterator[None]:
+    """Whatever a test stops, start it again, even if an assertion failed, so later tests
+    see a healthy network. Waits until both RPC nodes see new blocks again."""
+    yield
+    for name in VALIDATORS:
+        with contextlib.suppress(StackError):  # already running
+            stack.start(name)
+    stack.up(wait_timeout=120)
+    for node, url in {"besu-rpc-anson": RPC_ANSON, "besu-rpc-beatrice": RPC_BEATRICE}.items():
+        resumed_from = block_number(url)
+        wait_for(
+            partial(_advanced_past, url, resumed_from),
+            describe=f"{node} to see new blocks after restoring the validators",
+            timeout=90,
+        )
+
+
+def _advanced_past(url: str, block: int) -> bool:
+    return block_number(url) > block
