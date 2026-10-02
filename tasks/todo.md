@@ -55,13 +55,13 @@ Sizes: no task is L or larger. Tasks 7 and 9 are the largest (M).
 **Description:** Add `firefly-postgres`, `firefly-signer`, `firefly-evmconnect` and `firefly-core` to `docker-compose.yml`, images pinned by the digests in `docs/spike-results.md`, mounting the Task 1 files, on the existing `besu` network with fixed IPs outside the Besu range. Publish only FireFly's HTTP port `5000` (admin/SPI `5101` stays internal, Open Question 7). Service order: Postgres, signer, evmconnect, core. The signer must reach `besu-rpc-anson`; no Besu node of FireFly's own.
 
 **Acceptance criteria:**
-- [ ] `docker compose config -q` exits 0, and the four FireFly services reach `running` with no restart loop
-- [ ] `GET http://localhost:5000/api/v1/status` reports the `default` namespace ready with the `ethereum` blockchain plugin and `multiparty.enabled: false`
-- [ ] The signer's keystore holds the three keys (`admin`, `anson`, `beatrice`) and FireFly's default key is the admin address (read from the status document)
+- [x] `docker compose config -q` exits 0, and the four FireFly services reach `running` with no restart loop
+- [x] `GET http://localhost:5000/api/v1/status` reports the `default` namespace ready with the `ethereum` blockchain plugin and `multiparty.enabled: false`
+- [x] The signer holds the three keys (`admin`, `anson`, `beatrice`), asked through its own `eth_accounts`; the default key is the admin address in the generated config (FireFly's status document does not show it; Task 6's deploys sign with it)
 
 **Verification:**
-- [ ] Tests pass: `pytest -m integration -k firefly_status` (new test, red before the Compose change)
-- [ ] Checks clean: `docker compose config -q`, `ruff check .`, `mypy .`
+- [x] Tests pass: `pytest -m integration -k firefly_status` (new test, red before the Compose change)
+- [x] Checks clean: `docker compose config -q`, `ruff check .`, `mypy .`
 
 **Dependencies:** Task 1
 
@@ -72,11 +72,13 @@ Sizes: no task is L or larger. Tasks 7 and 9 are the largest (M).
 
 **Size:** M
 
+**Status:** Done 2026-10-02. Test-first (4 integration tests, red before the Compose change): the four containers are healthy, `/api/v1/status` shows the `default` namespace with the `ethereum` plugin and `multiparty` false, the signer's `eth_accounts` equals the three wallets, and the signer's chain id and height follow `besu-rpc-anson`. All four FireFly images have `curl`, so each has a real Compose healthcheck and `up` needs no change for them. FireFly containers use service names, not fixed IPs. **Found and fixed:** Besu's own image healthcheck (`[ -f /tmp/pid ]`, 1 s timeout, 5 s start period) made containers `unhealthy` during a busy cold start, which aborted `docker compose up` through `depends_on` and explains the failed `up` seen from the clean clone in Phase 1. `x-besu` now overrides it with the same check and patient limits (10 s timeout, 60 s start period, 30 retries). Three consecutive `reset` then `up`: exit 0 each time, about 106 s, first block immediately after. The 120 s default of `up --timeout` is now too tight (Task 3 raises it).
+
 ### Task 3: `stack.py up` brings FireFly up with no manual step
 
 **Description:** The FireFly images may have no Docker healthcheck, and `DockerStack.up` today treats "no health" as not healthy. Make `up` wait for each service by what it offers: Besu services as now, FireFly core by `GET /api/v1/status` ready, the others by `running` (or a healthcheck added in Compose where the image has the tooling). `up` stays idempotent and exits non-zero with the name of the service that is not ready. Update the Phase 1 integration `stack` fixture only if needed.
 
-**Added 2026-10-02 (found during Task 1):** on a cold start the QBFT chain can take minutes to produce its first block (round timeouts back off while the validators are still connecting; seen again on an idle machine, block #9 only 5 minutes after `up`). `deploy` needs a producing chain, so `up` must also wait until `eth_blockNumber` on both RPC nodes is at least 1, with a generous limit. Measure the stall over several `reset`/`up` runs and record it in the task status.
+**Added 2026-10-02 (found during Tasks 1 and 2):** raise the default `up --timeout` from 120 s to 300 s (a cold `up` with FireFly takes about 106 s). Also: on a cold start the QBFT chain can take minutes to produce its first block (round timeouts back off while the validators are still connecting; seen again on an idle machine, block #9 only 5 minutes after `up`). `deploy` needs a producing chain, so `up` must also wait until `eth_blockNumber` on both RPC nodes is at least 1, with a generous limit. Measure the stall over several `reset`/`up` runs and record it in the task status.
 
 **Acceptance criteria:**
 - [ ] `python scripts/stack.py reset` then `python scripts/stack.py up` ends with all 10 services ready, FireFly status ready and both RPC nodes past block 0, with no other command
