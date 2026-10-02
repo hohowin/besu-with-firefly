@@ -26,25 +26,29 @@ Python 3.11+ (developed on 3.13). Run these from the repo root inside the virtua
 | Lint | `ruff check .` |
 | Type-check | `mypy .` |
 | Unit tests | `pytest` (integration tests are skipped) |
-| Integration tests | `pytest -m integration` (needs Docker and, for most of them, a running stack) |
-| Stack | `python scripts/stack.py init\|up\|reset` (`deploy` arrives with the FireFly phases, plan D-16) |
+| Integration tests | `pytest -m integration` (needs Docker and a running stack; about 10 minutes, it stops and restarts validators) |
+| Contract packages | `cd contracts && npm ci` (the pinned T-REX and OnchainID artifacts; needed by `deploy` and by some unit tests, which skip without them) |
+| Stack | `python scripts/stack.py init\|up\|deploy\|onboard\|reset` (plan D-16). `deploy` and `onboard` only do what is missing |
 
 Lint and type checks skip `spike/`, `.agents/` and `.claude/` (Phase 0 evidence and installed third-party skills). They cover all our own code.
 
 ## Directory Layout
 
 ```
-src/core/          pure logic, no I/O (genesis and enode builders, onboarding logic later)
-src/adapters/      I/O: Docker, files, JSON-RPC, FireFly HTTP client, CLI
+src/core/          pure logic, no I/O (network/: genesis, enode, health; firefly/: config, keystore, request bodies; trex/: deploy plan, claims, onboarding, amounts)
+src/adapters/      I/O: Docker, files, JSON-RPC, the FireFly HTTP client, deploy and onboarding runners, the stack CLI
 scripts/           thin entry points (stack.py) that call into src/adapters
 tests/unit/        unit tests, mirror src/
 tests/integration/ tests that need Docker and a live stack (marker: integration)
-network-config/    generated genesis, validator keys, static-nodes.json, demo wallets (committed, demo only)
-docker-compose.yml the Besu network (FireFly and Paladin are added in later phases)
+tests/support/     helpers for tests (JSON-RPC, FireFly HTTP, polling, deploy)
+network-config/    generated genesis, validator keys, static-nodes.json, demo wallets, firefly/ (config and signer keystores) (committed, demo only)
+contracts/         package.json pinning the T-REX and OnchainID artifacts (node_modules is not committed)
+docker-compose.yml the Besu network and FireFly (Paladin is added in Phase 3)
+deployed-addresses.json  addresses written by `deploy` (not committed)
 docs/              PRD, architecture, plan, use cases, deliverables, spike results
 tasks/             task lists per phase
 spike/             Phase 0 evidence (archive, not part of the stack)
 perf/              Caliper benchmarks (Phase 5)
 ```
 
-Folders for later phases (`network-config/`, `docker-compose.yml`, `perf/`, `scripts/`) are created by their own tasks.
+`perf/` is created by Phase 5.

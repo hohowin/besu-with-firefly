@@ -6,7 +6,7 @@ Companion docs: [docs/plan.md](plan.md) · [docs/prd.md](prd.md) · [docs/archit
 
 This document is the single reference for what is deliverable and verifiable at the end of each project phase, and how to try each deliverable from a cold start.
 
-> **Read this first.** Phases 0 and 1 are built, and their commands were run for real: `python scripts/stack.py init|up|reset`, `docker compose`, `curl`, `pytest`, `ruff` and `mypy`. Everything for Phases 2 to 5 (`python scripts/stack.py deploy`, `besu-ff`, `perf/`, the FireFly and Paladin ports) is still a **planned name** from the PRD, to be checked against the repo when each phase is built. There is no web frontend, so there is no Playwright anywhere in this document.
+> **Read this first.** Phases 0, 1 and 2 are built, and their commands were run for real: `python scripts/stack.py init|up|deploy|onboard|reset`, `docker compose`, `curl`, `pytest`, `ruff` and `mypy`. Everything for Phases 3 to 5 (`besu-ff`, `perf/`, the Paladin ports) is still a **planned name** from the PRD, to be checked against the repo when each phase is built. There is no web frontend of our own, so there is no Playwright anywhere in this document; FireFly's own Explorer is at `http://localhost:5000/ui`.
 
 ---
 
@@ -20,12 +20,12 @@ This document is the single reference for what is deliverable and verifiable at 
 | DL-1.2 | Phase 1 — Network | M1.2 | infra | 4 QBFT validators in Compose | Done |
 | DL-1.3 | Phase 1 — Network | M1.3 | infra | 2 RPC nodes, zero-gas, consistent | Done |
 | DL-1.4 | Phase 1 — Network | M1.3 | test | Network integration tests | Done |
-| DL-2.1 | Phase 2 — FireFly + ERC-3643 | N/A | infra | FireFly (gateway mode) in Compose | Planned |
-| DL-2.2 | Phase 2 — FireFly + ERC-3643 | N/A | feature | T-REX deployed through FireFly as `COIN` | Planned |
-| DL-2.3 | Phase 2 — FireFly + ERC-3643 | N/A | api | Contract interface and API for `COIN` and IdentityRegistry | Planned |
-| DL-2.4 | Phase 2 — FireFly + ERC-3643 | N/A | feature | Onboarding and compliant transfer | Planned |
-| DL-2.5 | Phase 2 — FireFly + ERC-3643 | N/A | feature | On-chain compliance rejection | Planned |
-| DL-2.6 | Phase 2 — FireFly + ERC-3643 | N/A | test | `python scripts/stack.py reset` repeatability | Planned |
+| DL-2.1 | Phase 2 — FireFly + ERC-3643 | N/A | infra | FireFly (gateway mode) in Compose | Done |
+| DL-2.2 | Phase 2 — FireFly + ERC-3643 | N/A | feature | T-REX deployed through FireFly as `COIN` | Done |
+| DL-2.3 | Phase 2 — FireFly + ERC-3643 | N/A | api | Contract interface and API for `COIN` and IdentityRegistry | Done |
+| DL-2.4 | Phase 2 — FireFly + ERC-3643 | N/A | feature | Onboarding and compliant transfer | Done |
+| DL-2.5 | Phase 2 — FireFly + ERC-3643 | N/A | feature | On-chain compliance rejection | Done |
+| DL-2.6 | Phase 2 — FireFly + ERC-3643 | N/A | test | `python scripts/stack.py reset` repeatability | Partial |
 | DL-3.1 | Phase 3 — Paladin + Noto | N/A | infra | 3 Paladin nodes (notary, Anson, Beatrice) and Postgres in Compose | Planned |
 | DL-3.2 | Phase 3 — Paladin + Noto | N/A | feature | Noto deploy, mint, private transfer | Planned |
 | DL-3.3 | Phase 3 — Paladin + Noto | N/A | test | Privacy check and three-store reset | Planned |
@@ -272,10 +272,18 @@ This document is the single reference for what is deliverable and verifiable at 
 
 **Prerequisites**:
 ```
-- [ ] Phase 1 exit gate passed
-- [ ] Network running: `docker compose up -d`
-- [ ] FireFly images pinned per spike-results.md
-- [ ] T-REX contract sources and compile tooling in place (Node version per spike)
+- [x] Phase 1 exit gate passed
+- [ ] Docker Desktop running; Python 3.11+ with `pip install -e ".[dev]"`
+- [ ] Node.js 24 and the pinned contract packages: `cd contracts && npm ci`
+- [ ] Network and FireFly running: `python scripts/stack.py up`
+```
+
+Used by the examples below (bash). Wallet addresses come from `network-config/wallets.json`; 1 COIN is `10^18` base units, so 25 COIN is `25000000000000000000`:
+```
+ADMIN=$(python -c "import json;print(next(w['address'] for w in json.load(open('network-config/wallets.json'))['wallets'] if w['name']=='admin'))")
+ANSON=$(python -c "import json;print(next(w['address'] for w in json.load(open('network-config/wallets.json'))['wallets'] if w['name']=='anson'))")
+BEATRICE=$(python -c "import json;print(next(w['address'] for w in json.load(open('network-config/wallets.json'))['wallets'] if w['name']=='beatrice'))")
+FF=http://localhost:5000/api/v1/namespaces/default
 ```
 
 ### DL-2.1 — FireFly in Compose
@@ -288,23 +296,25 @@ This document is the single reference for what is deliverable and verifiable at 
 | **Traces to** | US-004, FR-3 |
 | **Demo surface** | `curl` and FireFly Explorer |
 
-**What it is**: FireFly core, evmconnect, signer and Postgres in gateway mode, with keys `admin`, `anson`, `beatrice`.
+**What it is**: FireFly core, evmconnect, signer and Postgres in gateway mode, with keys `admin`, `anson`, `beatrice`. FireFly reaches the chain through `besu-rpc-anson`; it has no Besu node of its own.
 
 **How to try it**:
 ```
-1. Start: `python scripts/stack.py up` (planned name)
-2. Check containers: `docker compose ps` -- FireFly services `running`
-3. Status: `curl -s http://localhost:5000/api/v1/status` (port per spike)
-   Expect a status document with the namespace ready.
-4. Open the FireFly Explorer in a browser at the FireFly port (UI path per spike)
+1. Start: `python scripts/stack.py up`
+   It waits until all 10 containers are healthy, FireFly is ready and both RPC nodes are past block 0.
+2. Check containers: `docker compose ps` -- 4 `firefly-*` services `running (healthy)`
+3. Status: `curl -s http://localhost:5000/api/v1/status`
+   Expect `"namespace":{"name":"default",...}` and `"multiparty":{"enabled":false}`.
+4. Open the Explorer in a browser: `http://localhost:5000/ui`
+   The Swagger UI for the whole FireFly API is at `http://localhost:5000/api`.
 ```
 
 **Verification checklist**:
-- [ ] FireFly status reports ready with no manual steps after `python scripts/stack.py up`
-- [ ] FireFly reaches the chain through `besu-rpc-*`, not a Besu node of its own
-- [ ] Three signing keys available
+- [x] FireFly status reports ready with no manual steps after `python scripts/stack.py up`
+- [x] FireFly reaches the chain through `besu-rpc-*`, not a Besu node of its own (the signer reports our chain id and follows `besu-rpc-anson`)
+- [x] Three signing keys available (the signer lists `admin`, `anson`, `beatrice`)
 
-**Known limitations at this phase**: no contracts yet (DL-2.2).
+**Known limitations at this phase**: only port `5000` is published; FireFly's admin port stays inside the Docker network. A cold `up` takes 2 to 3 minutes and can take longer on a busy machine (`up` waits up to 5 minutes).
 
 ### DL-2.2 — T-REX deployed through FireFly as `COIN`
 
@@ -316,26 +326,31 @@ This document is the single reference for what is deliverable and verifiable at 
 | **Traces to** | US-005, FR-4, UC-04 |
 | **Demo surface** | CLI and file on disk |
 
-**What it is**: Every T-REX contract needed for `COIN` is deployed using FireFly's deploy API, not a direct RPC signer.
+**What it is**: The official T-REX suite (`@tokenysolutions/t-rex` 4.1.6, with `@onchain-id/solidity` 2.1.0) is deployed with FireFly's deploy API, not a direct RPC signer: 12 contracts, 3 wiring calls, then `TREXFactory.deployTREXSuite` creates `COIN` (`Coin`, 18 decimals) with its identity registry, registry storage, claim topics registry, trusted issuers registry and modular compliance.
 
 **How to try it**:
 ```
-1. Run: `python scripts/stack.py deploy` (planned name)
-2. Open `deployed-addresses.json`
-   Expect every address to be non-zero.
-3. Confirm code on-chain for each address: `curl -s -X POST -H "Content-Type: application/json" --data '{"jsonrpc":"2.0","method":"eth_getCode","params":["ADDRESS","latest"],"id":1}' http://localhost:8545`
+1. Install the pinned packages once: `cd contracts && npm ci && cd ..`
+2. Run: `python scripts/stack.py deploy`
+   It prints each contract and its address, then registers the APIs, unpauses the token and onboards the investors (DL-2.3 and DL-2.4).
+3. Open `deployed-addresses.json` (not committed)
+   Expect 18 names (the 12 contracts plus token, identity-registry, identity-registry-storage, claim-topics-registry, trusted-issuers-registry, modular-compliance), every address non-zero.
+4. Confirm code on-chain for an address:
+   `curl -s -X POST -H "Content-Type: application/json" --data '{"jsonrpc":"2.0","method":"eth_getCode","params":["ADDRESS","latest"],"id":1}' http://localhost:8545`
    Expect a result longer than `0x`.
-4. Read the token name through the FireFly contract API (path per FireFly Swagger)
-   Expect `Coin`, symbol `COIN`.
+5. Read the token name through FireFly:
+   `curl -s -X POST -H "Content-Type: application/json" --data '{}' $FF/apis/coin/query/name`
+   Expect `{"output":"Coin"}`; the same for `symbol` gives `COIN`.
+6. List the deploy operations: `curl -s "$FF/operations?type=blockchain_deploy"` -- one `Succeeded` operation per deployed contract.
 ```
 
 **Verification checklist**:
-- [ ] All addresses non-zero and have code
-- [ ] FireFly shows a deploy operation for each contract
-- [ ] Token name reads `Coin`/`COIN`
-- [ ] Contracts compiled with the EVM target set in D-08
+- [x] All addresses non-zero and have code (checked by size against the pinned artifacts)
+- [x] FireFly shows a deploy operation for each contract
+- [x] Token name reads `Coin`/`COIN`
+- [x] Contracts are the published artifacts (Solidity 0.8.17, no Shanghai-only opcodes; every size is under the 24,576-byte limit, `TREXFactory` closest at 23,495)
 
-**Known limitations at this phase**: the full contract list and order come from Phase 0.
+**Known limitations at this phase**: the deploy order differs from what the sources suggest (the TREX authority's version must be added before the factory exists); it is recorded in `docs/spike-results.md`. A second `deploy` sends nothing; after a failed or interrupted run, running `deploy` again finishes the job.
 
 ### DL-2.3 — Contract interface and API
 
@@ -347,21 +362,24 @@ This document is the single reference for what is deliverable and verifiable at 
 | **Traces to** | US-006, FR-5 |
 | **Demo surface** | FireFly Swagger and `curl` |
 
-**What it is**: A FireFly contract interface and generated API for `COIN` and for the IdentityRegistry.
+**What it is**: A FireFly contract interface and generated API for `COIN` (`coin`) and for the IdentityRegistry (`identity-registry`). `deploy` also unpauses the token (a new T-REX token is paused) as Admin, through the `coin` API.
 
 **How to try it**:
 ```
-1. After `python scripts/stack.py deploy`, open FireFly's Swagger UI (path per spike)
-2. Find the generated APIs for `COIN` and the IdentityRegistry
-3. Call a read (`balanceOf`) and a write (`mint`) through them
-   Expect the read to return a balance and the write to return an operation id.
+1. After `python scripts/stack.py deploy`, open the generated Swagger UI for the token:
+   `http://localhost:5000/api/v1/namespaces/default/apis/coin/api`
+   (the one for the registry is the same with `identity-registry`)
+2. A read: `curl -s -X POST -H "Content-Type: application/json" --data "{\"input\":{\"_userAddress\":\"$ADMIN\"}}" $FF/apis/coin/query/balanceOf`
+   Expect `{"output":"0"}`.
+3. The write that `deploy` made: `curl -s -X POST -H "Content-Type: application/json" --data '{}' $FF/apis/coin/query/paused`
+   Expect `{"output":false}` (the token was paused until `deploy` called `unpause` through the API).
 ```
 
 **Verification checklist**:
-- [ ] A read and a write both succeed through the generated API
-- [ ] After `python scripts/stack.py reset && python scripts/stack.py up && python scripts/stack.py deploy`, the APIs exist again
+- [x] A read and a write both succeed through the generated API
+- [x] After `python scripts/stack.py reset && python scripts/stack.py up && python scripts/stack.py deploy`, the APIs exist again (and none survive the reset)
 
-**Known limitations at this phase**: calling raw FireFly is verbose; the CLI in Phase 4 wraps it.
+**Known limitations at this phase**: `mint` is not the write checked here (it is refused for an unverified recipient); it is proved in DL-2.4. Calling raw FireFly is verbose; the CLI in Phase 4 wraps it.
 
 ### DL-2.4 — Onboarding and compliant transfer
 
@@ -373,26 +391,29 @@ This document is the single reference for what is deliverable and verifiable at 
 | **Traces to** | US-007, US-008, FR-6, UC-05, UC-06 |
 | **Demo surface** | script or `pytest` (the CLI arrives in Phase 4) |
 
-**What it is**: Admin registers and verifies Anson and Beatrice, mints 1000 `COIN` to Anson, and Anson sends `COIN` to Beatrice.
+**What it is**: Admin gives Anson and Beatrice an OnchainID, registers them in the IdentityRegistry and, as the claim issuer, signs a KYC claim that each adds to their own identity, so both are verified. Admin then mints 1000 `COIN` to Anson, and Anson sends `COIN` to Beatrice with his own key.
 
 **How to try it**:
 ```
-1. Run the onboarding step of `python scripts/stack.py deploy`
-2. Check balances through the contract API
-   Expect Anson 1000, Beatrice 0, both verified.
-3. Transfer 25 from Anson to Beatrice through the contract API as the `anson` key
-4. Re-check balances
-   Expect Anson 975, Beatrice 25.
-5. Re-run onboarding
-   Expect no redundant transaction (no new operations for already-true steps).
+1. Onboarding is part of `python scripts/stack.py deploy`; `python scripts/stack.py onboard` repeats it alone.
+2. Check the state (right after a fresh deploy):
+   `curl -s -X POST -H "Content-Type: application/json" --data "{\"input\":{\"_userAddress\":\"$ANSON\"}}" $FF/apis/identity-registry/query/isVerified`  -- `true` (the same for `$BEATRICE`; for `$ADMIN` it is `false`)
+   `curl -s -X POST -H "Content-Type: application/json" --data "{\"input\":{\"_userAddress\":\"$ANSON\"}}" $FF/apis/coin/query/balanceOf`  -- `1000000000000000000000` (1000 COIN); Beatrice has `0`
+3. Transfer 25 COIN from Anson to Beatrice, signed with his key:
+   `curl -s -X POST -H "Content-Type: application/json" --data "{\"input\":{\"_to\":\"$BEATRICE\",\"_amount\":\"25000000000000000000\"},\"key\":\"$ANSON\"}" "$FF/apis/coin/invoke/transfer?confirm=true"`
+   Expect an operation with `"status":"Succeeded"`.
+4. Re-check the balances: Anson `975000000000000000000`, Beatrice `25000000000000000000`.
+5. Run onboarding again: `python scripts/stack.py onboard`
+   Expect no output and no new FireFly operation.
 ```
 
 **Verification checklist**:
-- [ ] Balances change by the transfer amount
-- [ ] Re-running register or claim sends no redundant transaction
-- [ ] `pytest -m integration -k "onboarding or transfer"` passes
+- [x] Balances change by exactly the transfer amount, the total supply stays 1000 COIN
+- [x] Re-running register, claim or mint sends no redundant transaction (`onboard` prints nothing and the operation count does not change)
+- [x] `pytest -m integration -k "onboarding or claims or transfer"` passes
+- [x] The claim signature is accepted by the ClaimIssuer contract, and one signed by another wallet is rejected
 
-**Known limitations at this phase**: driven by script and `pytest`; the CLI lands in DL-4.1.
+**Known limitations at this phase**: driven by script and `pytest`; the CLI lands in DL-4.1. Amounts are in base units (18 decimals).
 
 ### DL-2.5 — On-chain compliance rejection
 
@@ -404,24 +425,28 @@ This document is the single reference for what is deliverable and verifiable at 
 | **Traces to** | US-008, FR-7, UC-07 |
 | **Demo surface** | contract API and `pytest` |
 
-**What it is**: A transfer to an unverified recipient reverts, enforced by the contract.
+**What it is**: A transfer to an unverified recipient reverts, enforced by the token contract.
 
 **How to try it**:
 ```
-1. Confirm Admin is not verified (query `isVerified` through the contract API)
-2. Send 10 `COIN` from Anson to Admin through the contract API
-   Expect an operation `failed` with a revert reason about the recipient not being verified.
-3. Re-check balances
+1. Confirm Admin is not verified: `isVerified` for `$ADMIN` (as in DL-2.4) returns `{"output":false}`
+2. Send 10 COIN from Anson to Admin through the contract API:
+   `curl -s -X POST -H "Content-Type: application/json" --data "{\"input\":{\"_to\":\"$ADMIN\",\"_amount\":\"10000000000000000000\"},\"key\":\"$ANSON\"}" "$FF/apis/coin/invoke/transfer?confirm=true"`
+   Expect HTTP 500 with `EVM reverted: Error("Transfer not possible")`. Nothing is mined.
+3. A few seconds later, look at FireFly's record: `curl -s "$FF/operations?type=blockchain_invoke&limit=5"`
+   Expect an operation with `"status":"Failed"` and the same error text (it shows `Initialized` for a moment first).
+4. Re-check the balances
    Expect no change.
+5. Without FireFly: an `eth_call` of `transfer(admin, 1)` from Anson to the token on `http://localhost:8545` reverts with the same `Error(string)`, while the same call to Beatrice returns `true` (done in `tests/integration/test_compliance.py`).
 ```
 
 **Verification checklist**:
-- [ ] The operation fails with a revert reason
-- [ ] Balances unchanged
-- [ ] The same revert appears when calling the API directly, not only via a script
-- [ ] `pytest -m integration -k compliance_rejection` passes
+- [x] The operation fails with the contract's revert reason
+- [x] Balances and the total supply are unchanged
+- [x] The same revert appears when calling FireFly's API directly, not only through the project's client, and when calling Besu directly
+- [x] `pytest -m integration -k compliance` passes
 
-**Known limitations at this phase**: none.
+**Known limitations at this phase**: the reason text is T-REX's generic `Transfer not possible`; it does not say that the recipient is unverified.
 
 ### DL-2.6 — `python scripts/stack.py reset` repeatability
 
@@ -438,21 +463,23 @@ This document is the single reference for what is deliverable and verifiable at 
 **How to try it**:
 ```
 1. Run: `python scripts/stack.py reset && python scripts/stack.py up && python scripts/stack.py deploy`
+   `reset` lists what it removed, including `deployed-addresses.json`.
 2. Run: `pytest -m integration`
 3. Repeat steps 1-2 two more times
 ```
 
 **Verification checklist**:
-- [ ] Three consecutive runs all pass
-- [ ] After reset, no stale contract addresses remain in FireFly
+- [x] After reset, no container or volume remains, `deployed-addresses.json` is gone, and no contract interface or API is left in FireFly
+- [x] An interrupted `deploy` (killed in the middle of the plan) is finished by running `deploy` again, with one token and no duplicate
+- [ ] Three consecutive runs all pass: see the result recorded in `tasks/todo.md` Task 13 (not met as written)
 
-**Known limitations at this phase**: Paladin DB is added to reset in DL-3.3.
+**Known limitations at this phase**: Paladin's database is added to `reset` in DL-3.3. The fault-injection tests stop validators, so with 4 validators and `f=1` the 3 that remain are exactly the quorum: if one of them is slow, QBFT's round timer doubles (4, 8, 16, 32, 64 s) and block production can pause for minutes. This is an accepted risk of the 30-second assertion (see `docs/spike-results.md`), and it makes a run of the whole suite fail now and then on a busy machine.
 
 **Phase exit gate summary** (from plan.md):
-- [ ] All DL-2.x deliverables verified
-- [ ] Integration tests (onboarding, transfer, rejection) pass
-- [ ] Re-running register or claim sends no redundant transaction
-- [ ] Reset repeatability proven
+- [x] All DL-2.x deliverables verified
+- [x] Integration tests (onboarding, transfer, rejection) pass
+- [x] Re-running register or claim sends no redundant transaction
+- [ ] Reset repeatability proven: three consecutive full runs (see the note above)
 
 ---
 
