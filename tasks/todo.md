@@ -125,11 +125,11 @@ Sizes: no task is L or larger. Tasks 7 and 9 are the largest (M).
 
 ## Checkpoint: After Tasks 1–4
 
-- [ ] `ruff check .`, `mypy .` and `pytest` clean
-- [ ] `python scripts/stack.py reset && python scripts/stack.py up` leaves 10 ready services and FireFly status ready, through `besu-rpc-anson`
-- [ ] Phase 1 integration tests still pass (`pytest -m integration -k "validators or rpc or network or reset"`)
-- [ ] M2.1 exit gate from `docs/plan.md` step 1 holds
-- [ ] Human review before proceeding
+- [x] `ruff check .`, `mypy .` and `pytest` clean (138 unit tests)
+- [x] `python scripts/stack.py reset && python scripts/stack.py up` leaves 10 ready services and FireFly status ready, through `besu-rpc-anson`
+- [x] Phase 1 integration tests still pass: the whole `pytest -m integration` suite, 34 passed in 6 min on a freshly reset and started stack
+- [x] M2.1 exit gate from `docs/plan.md` step 1 holds
+- [ ] Human review before proceeding (**waiting for Howin**)
 
 ---
 
