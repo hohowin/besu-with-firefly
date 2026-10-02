@@ -1,0 +1,45 @@
+# Throwaway Phase 0 spike: FireFly gateway mode attached to the external spike Besu (host port 8545).
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: spike-ff-postgres
+    environment:
+      POSTGRES_PASSWORD: f1refly
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      retries: 12
+  ethsigner:
+    image: ghcr.io/hyperledger-firefly/signer@sha256:412236dfab0416ae3d60f4fecb311b067664a9dd4f16073856eb79a25f4c532f
+    container_name: spike-ff-ethsigner
+    user: root
+    volumes:
+      - ./signer-data:/data
+      - ./config/ethsigner.yaml:/etc/firefly/firefly.ffsigner.yaml:ro
+    ports:
+      - "5100:8545"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+  evmconnect:
+    image: ghcr.io/hyperledger-firefly/evmconnect@sha256:ca6e3860c784477cd800bcbf00506310a31992468bd5b2c1f4bd2a1317d2b03b
+    container_name: spike-ff-evmconnect
+    command: -f /evmconnect/config.yaml
+    volumes:
+      - ./config/evmconnect.yaml:/evmconnect/config.yaml:ro
+    ports:
+      - "5102:5008"
+    depends_on:
+      - ethsigner
+  firefly_core:
+    image: ghcr.io/hyperledger-firefly/firefly@sha256:d321bcd8c567430498b7e330e075f97b9aa1888e166c76a95b4b2df161b105b8
+    container_name: spike-ff-core
+    volumes:
+      - ./config/firefly_core.yml:/etc/firefly/firefly.core.yml:ro
+    ports:
+      - "5000:5000"
+      - "5101:5101"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      evmconnect:
+        condition: service_started

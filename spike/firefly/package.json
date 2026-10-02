@@ -1,0 +1,1 @@
+{"name":"spike-firefly-keys","private":true,"type":"module","dependencies":{"ethers":"6.13.4","solc":"^0.8.24"}}

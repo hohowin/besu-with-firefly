@@ -1,0 +1,10 @@
+import { readFileSync } from "node:fs";
+const addrs = JSON.parse(readFileSync("demo-addresses.json"));
+const address = process.argv[2], who = process.argv[3], val = Number(process.argv[4]);
+const base = "http://localhost:5000/api/v1/namespaces/default";
+const post = async (p, b) => { const r = await fetch(base + p, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }); return [r.status, await r.text()]; };
+const u256 = { type: "integer", details: { type: "uint256" } };
+let [s, t] = await post("/contracts/invoke?confirm=true", { location: { address }, method: { name: "set", params: [{ name: "v", schema: u256 }], returns: [] }, input: { v: val }, key: addrs[who] });
+const j = JSON.parse(t); console.log("invoke", who, "HTTP", s, "status", j.status ?? j, "tx", j.tx);
+[s, t] = await post("/contracts/query", { location: { address }, method: { name: "get", params: [], returns: [{ name: "", schema: u256 }] }, input: {} });
+console.log("query HTTP", s, t.slice(0, 200));

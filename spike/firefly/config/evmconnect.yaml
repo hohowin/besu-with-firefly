@@ -1,0 +1,21 @@
+log:
+  level: debug
+connector:
+  url: http://ethsigner:8545
+persistence:
+  leveldb:
+    path: /evmconnect/data/leveldb
+ffcore:
+  url: http://firefly_core:5000
+  namespaces:
+    - default
+confirmations:
+  required: 0
+policyengine.simple:
+  fixedGasPrice: 0
+  gasOracle:
+    mode: fixed
+api:
+  port: 5008
+  address: 0.0.0.0
+  publicURL: http://127.0.0.1:5102

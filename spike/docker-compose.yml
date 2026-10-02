@@ -1,0 +1,25 @@
+# Throwaway Phase 0 spike. One QBFT validator, zero-gas. Deleted or archived after Phase 0.
+services:
+  besu:
+    image: hyperledger/besu:26.8.1
+    container_name: spike-besu
+    command:
+      - --data-path=/opt/besu/data
+      - --genesis-file=/config/genesis.json
+      - --node-private-key-file=/config/key
+      - --min-gas-price=0
+      - --host-allowlist=*
+      - --p2p-host=0.0.0.0
+      - --rpc-http-enabled
+      - --rpc-http-host=0.0.0.0
+      - --rpc-http-cors-origins=*
+      - --rpc-http-api=ETH,NET,WEB3,QBFT,ADMIN,TXPOOL
+      - --rpc-ws-enabled
+      - --rpc-ws-host=0.0.0.0
+      - --rpc-ws-api=ETH,NET,WEB3
+    volumes:
+      - ./qbft/out/genesis.json:/config/genesis.json:ro
+      - ./qbft/out/keys/0x163f625372a80c5d2b79f3ae17bfe3f9266ca975/key:/config/key:ro
+    ports:
+      - "8545:8545"
+      - "8546:8546"
