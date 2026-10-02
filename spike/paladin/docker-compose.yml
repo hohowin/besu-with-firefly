@@ -1,0 +1,52 @@
+# Throwaway Phase 0 spike: three Paladin nodes (node1 notary and registry admin, node2 Anson, node3 Beatrice)
+# attached to the spike Besu on the host. Demo certificates and keys only.
+x-paladin: &paladin
+  image: lfdecentralizedtrust/paladin:v1.0.0
+  command: ["/app/config/pldconf.paladin.yaml", "engine", "--logtostderr=true", "--v=4"]
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
+  tmpfs:
+    - /app/jna:exec,mode=1777
+  depends_on:
+    postgres:
+      condition: service_healthy
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: paladin-postgres
+    environment:
+      POSTGRES_PASSWORD: spike-pw
+    command: ["postgres", "-c", "max_connections=200"]
+    volumes:
+      - ./postgres-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 3s
+      retries: 20
+  node1:
+    <<: *paladin
+    container_name: paladin-node1
+    volumes:
+      - ./config/node1:/app/config:ro
+      - ./certs/node1:/certs:ro
+    ports:
+      - "8548:8548"
+      - "8549:8549"
+  node2:
+    <<: *paladin
+    container_name: paladin-node2
+    volumes:
+      - ./config/node2:/app/config:ro
+      - ./certs/node2:/certs:ro
+    ports:
+      - "8648:8548"
+      - "8649:8549"
+  node3:
+    <<: *paladin
+    container_name: paladin-node3
+    volumes:
+      - ./config/node3:/app/config:ro
+      - ./certs/node3:/certs:ro
+    ports:
+      - "8748:8548"
+      - "8749:8549"

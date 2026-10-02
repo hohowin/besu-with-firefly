@@ -1,0 +1,8 @@
+{
+  "caliper": { "blockchain": "./connector/firefly-connector.js" },
+  "firefly": {
+    "url": "http://localhost:5000",
+    "contractAddress": "0x6308abb3f5d5a97400b1cb7c794e42d141d8c3c2",
+    "key": "0x86B6f13762a3E9208C6D87D882eAaB25fDE69E9d"
+  }
+}

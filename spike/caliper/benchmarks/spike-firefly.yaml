@@ -1,0 +1,15 @@
+test:
+  name: spike-firefly-layer
+  description: FireFly layer (SpikeStore.set via FireFly contract invoke API)
+  workers:
+    type: local
+    number: 1
+  rounds:
+    - label: set-20tps
+      txNumber: 60
+      rateControl:
+        type: fixed-rate
+        opts:
+          tps: 20
+      workload:
+        module: workload/set.js

@@ -1,0 +1,22 @@
+{
+  "caliper": {
+    "blockchain": "ethereum"
+  },
+  "ethereum": {
+    "url": "ws://localhost:8546",
+    "contractDeployerAddress": "0x3710d3861FC66BCbd6098D1366e4c2001464A493",
+    "contractDeployerAddressPrivateKey": "0x4a38af6e0db3b69ee8103d84e1f699a46040c34de8cda2107dbf409c6852d999",
+    "fromAddress": "0x3710d3861FC66BCbd6098D1366e4c2001464A493",
+    "fromAddressPrivateKey": "0x4a38af6e0db3b69ee8103d84e1f699a46040c34de8cda2107dbf409c6852d999",
+    "transactionConfirmationBlocks": 1,
+    "contracts": {
+      "SpikeStore": {
+        "path": "contracts/SpikeStore.json",
+        "estimateGas": true,
+        "gas": {
+          "set": 100000
+        }
+      }
+    }
+  }
+}

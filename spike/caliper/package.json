@@ -1,0 +1,1 @@
+{"name":"spike-caliper","private":true,"version":"0.0.0","dependencies":{"@hyperledger/caliper-cli":"^0.6.0"}}

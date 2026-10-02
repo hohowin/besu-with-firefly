@@ -16,6 +16,14 @@ Throwaway experiments that answered the Phase 0 risks. Results and verdicts are 
 | `firefly/gen-keys.mjs`, `signer-data/` | Generates and holds the admin / anson / beatrice keystores |
 | `firefly/compile.mjs`, `contracts/SpikeStore.sol` | Compiles a tiny test contract (Shanghai and Berlin targets) |
 | `firefly/deploy.mjs`, `deploy-artifact.mjs`, `invoke.mjs`, `idem.mjs` | Deploy, invoke, query and idempotency tests against FireFly's API |
+| `paladin/docker-compose.yml`, `config/node1..3/` | Three Paladin nodes (`lfdecentralizedtrust/paladin:v1.0.0`) plus Postgres, attached to the Besu on the host. Configs hold demo BIP39 mnemonics and a demo DB password |
+| `paladin/certs/` | Demo self-signed TLS certificates and keys, CN = node name (generated with `openssl` from the Paladin image) |
+| `paladin/gen-nodes.mjs` | Writes the three node configs from `deployed.json` |
+| `paladin/deploy-noto.mjs`, `artifacts/`, `deployed.json` | Deploys the registry and Noto contracts through node1 (artifacts from the Paladin v1.0.0 release) |
+| `paladin/register-nodes.mjs` | Registers the three nodes and their gRPC transport details in the EVM registry |
+| `paladin/noto-3node.mjs`, `coins-by-node.mjs` | Cross-node Noto flow, and a per-node view of which coin amounts each node can see (needs `NOTO_ABIS` pointing at the `abis.tar.gz` contents) |
+| `paladin/noto-demo.mjs` | Earlier single-node Noto flow (kept for reference) |
+| `caliper/` | Caliper 0.6.0 benchmark: chain layer (`network/ethereum.json`, `workload/set.js`) and FireFly layer (`connector/firefly-connector.js`, `network/firefly.json`). Install web3 by hand: `npm install --no-save web3@1.3.0` |
 
 ## Re-run it
 

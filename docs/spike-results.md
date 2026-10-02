@@ -1,6 +1,6 @@
 # Spike Results — Phase 0
 
-> **Status: in progress (3 of 6 risks answered).** Started 2026-10-01. Deliverable DL-0.2 in `docs/deliverables.md`. Evidence labelled **run** was observed on a live container. **read** means taken from generated files or tool output. Throwaway spike files are in `spike/`.
+> **Status: all 6 risks answered. Signed off by Howin Ho on 2026-10-02.** Started 2026-10-01. Deliverable DL-0.2 in `docs/deliverables.md`. Evidence labelled **run** was observed on a live container. **read** means taken from generated files or tool output. Throwaway spike files are in `spike/`.
 
 ## Environment (checked 2026-10-01)
 
@@ -18,10 +18,10 @@
 |---|---|---|---|
 | 1 | FireFly on an external Besu, evmconnect on a zero-gas chain | **Feasible** (run) | FireFly's own Clique chain for FireFly only |
 | 3 | T-REX through FireFly's deploy API, contract size | **Feasible for size and a first deploy** (run). Full suite deploy is a Phase 2 task | Trim the suite, record as a change to D-04 |
-| 4 | EVM fork level (D-08) | **Shanghai confirmed working** (run). Paladin's own need is still unknown | Revise D-08 |
+| 4 | EVM fork level (D-08) | **Shanghai confirmed working** for FireFly, T-REX and Paladin Noto (run). Berlin not tried for Paladin | Revise D-08 |
 | 7 | FireFly invoke idempotency and status names | **Answered** (run) | `core` checks state before every write |
-| 2 | Paladin hand-written config on external Besu, Noto | **Not started** | Paladin on `kind` (not its own devnet Besu) |
-| 5 | Caliper Besu connector and Node version | **Not started** | Custom workload or another load tool |
+| 2 | Paladin hand-written config on external Besu, Noto | **Feasible** with three nodes, Postgres, mTLS and the EVM registry (run) | Paladin on `kind` (not its own devnet Besu) |
+| 5 | Caliper Besu connector and Node version | **Feasible with Caliper 0.6.0** (run). Caliper 0.7.1 dropped the Ethereum and Besu connectors. FireFly layer works through a custom connector (run) | Another load tool |
 
 ## Risk 1 — FireFly on an external Besu: feasible
 
@@ -46,6 +46,41 @@
 
 **Verdict: feasible.** FireFly attaches to our own externally-run QBFT Besu and writes to it on a zero-gas, London+Shanghai chain.
 
+## Risk 2 — Paladin with hand-written config: feasible, three nodes with privacy proven
+
+**How Paladin is built (read from the v1.0.0 image and the operator source):** the image is Ubuntu 24.04 running `java ... -jar /app/libs/paladin.jar`. The operator starts it with args `/app/config/pldconf.paladin.yaml engine --logtostderr=true --v=4`, so a plain Compose service can do the same. Native plugins ship in the image: `/app/domains/libnoto.so`, `/app/registries/libevm.so`, `/app/transports/libgrpc.so`, and DB migrations under `/app/db/migrations/{sqlite,postgres}`. Ports: 8548 (HTTP RPC), 8549 (WS RPC), 6100 (metrics).
+
+**What was run (single node, SQLite, Compose in `spike/paladin/`):**
+1. Hand-written `pldconf.paladin.yaml` with `nodeName`, `blockchain.http.url` and `blockchain.ws.url` (our Besu on the host), `db` (sqlite, `autoMigrate`, `migrationsDir`), `rpcServer`, and one `wallets` entry (static keystore holding a BIP39 mnemonic, `keyDerivation.type: bip32`, `seedKey.name: seed`). Result: the node starts, subscribes to Besu over WebSocket and indexes blocks. `transport_nodeName` returns `node1`. (run)
+2. Key manager works: `keymgr_resolveKey` for `registry.operator` and `noto.operator` returns Ethereum addresses derived on BIP32 paths. Algorithm and verifier names are `ecdsa:secp256k1` and `eth_address`. (run)
+3. **Contract deployment through Paladin's own RPC**, signed by its derived keys, in the operator's order: `registry` (constructor arg `[false]`) then `noto`, then `noto-factory`, then `noto-factory-proxy` (constructor args: the factory address and `0xc4d66de8000000000000000000000000` + the noto address, which calls `initialize(noto)`). All four succeeded on the zero-gas London/Shanghai chain. Method: `ptx_sendTransaction` with `{type: "public", from, abi, bytecode, data}`, then poll `ptx_getTransactionReceipt`. (run)
+4. Added `domains.noto` (`plugin.type c-shared`, `library /app/domains/libnoto.so`, `config.factoryVersion 2`, `registryAddress` = the noto-factory-proxy address) and `registries.evm-registry` (`libevm.so`, `config.contractAddress` = the registry address). After a restart the Noto domain initialised (`domain initialization complete`, `domain_listDomains` returns `["noto"]`). (run)
+5. **Noto end to end on one node:** deploy token (`type: private`, `domain: noto`, `from: notary@node1`, a constructor ABI with `notary` and `notaryMode: "basic"`; without the constructor ABI the call fails with `PD200007: Parameter 'notary' is required`), `mint` 100 to `anson@node1`, `transfer` 40 to `beatrice@node1`. Balances read back through `ptx_call balanceOf`: anson 60, beatrice 40. (run)
+6. **Public chain check:** the Noto token emitted 4 logs. Scanning all 39 32-byte words in their data and topics found none equal to 100, 40 or 60. Mint and transfer logs carry a transaction id, state hashes, a proof and opaque data. (run)
+
+**Config facts that matter:**
+- The image runs as uid 1001. `/app/jna` must be writable **and executable** (a Docker `tmpfs` is `noexec` by default and the node dies with `failed to map segment from shared object`). Use `tmpfs: /app/jna:exec,mode=1777`.
+- `/db` for SQLite must be writable by uid 1001. A `tmpfs` loses state on container recreate; use a volume in the real stack.
+- Registry and domain contracts must be deployed **before** the domain config is written, so bootstrapping is two-phase: start with no domains, deploy, write the addresses into config, restart.
+- Names used in the key paths come from the operator (`registry.operator`, `noto.operator`, `noto_factory.operator`, `noto_factory_proxy.operator`). They are only labels for derived keys, so any names work.
+- Paladin's artifact YAML files (ABI plus bytecode) come from the release asset `artifacts.tar.gz`. The private Noto ABIs (`INotoPrivate.json`, `mint`, `transfer`, `balanceOf`) come from `abis.tar.gz`. Both are Apache-2.0 release assets, copied into `spike/paladin/artifacts/` where needed.
+
+**Three-node setup (run), in `spike/paladin/`:** node1 = notary and registry admin, node2 = Anson, node3 = Beatrice, plus one Postgres container with a database per node.
+
+1. **Transport.** Each node has `transports.grpc` with `plugin.library /app/transports/libgrpc.so` and `config` `{port 9000, address 0.0.0.0, externalHostname paladin-nodeN, tls {enabled, clientAuth, certFile, keyFile, caFile}}`. TLS is required. The transport identifies a peer by the **certificate subject CN = the node name**, requires **exactly one leaf certificate**, and verifies it against the issuer certificate that the peer published in the registry. A self-signed certificate per node works (`openssl req -x509`, CN = `node1`, with `basicConstraints CA:TRUE`, `keyUsage digitalSignature,keyCertSign`, `extendedKeyUsage serverAuth,clientAuth`, `ca.crt` = the same certificate). Server and client `TLS handshake completed` appeared between node1/node2 and node2/node3. The Paladin image has `openssl` for generating them.
+2. **Registry registration** (mirrors the operator's `PaladinRegistration`): node1's `registry.operator` key calls `registerIdentity(parentIdentityHash = 0x00..00, name = nodeN, owner = nodeN's registry.nodeN key address)`. Then each node calls `setIdentityProperty(identityHash, "transport.grpc", <transport_localTransportDetails("grpc")>)` with its own `registry.nodeN` key. The identity hash comes from `reg_queryEntries`. Transport details are `{"endpoint":"dns:///paladin-nodeN:9000","issuers":"<PEM>"}`.
+3. **Cross-node Noto.** Deploy the token on node1 with `notary: notary@node1`, `notaryMode: basic`. Mint 100 to `anson@node2` (submitted on node1). Transfer 40 from `anson@node2` to `beatrice@node3` (submitted on node2). Balances: Anson 60 on node2, Beatrice 40 on node3. (run)
+4. **Privacy, measured by the coin amounts each node can see** after the transfer: node1 (notary) 40, 60, 100. node2 (Anson) 40, 60, 100. **node3 (Beatrice) 40 only.** Before the transfer, right after the mint, node3 saw no states at all. On-chain, the token's 4 logs contain no plain 100, 40 or 60. So D-05 holds: the receiving party sees only its own coin, a non-party sees nothing, and the notary sees everything (which is how Noto's notary model works). (run)
+
+**More config facts:**
+- **SQLite stalls under multi-node load; use Postgres.** With SQLite, node1's block indexer stopped at block 17106 right after the coordinator dispatched a public transaction, `ptx_queryPublicTransactions` timed out after 120 s with `context deadline exceeded`, and the transfer never completed. The same flow completed first time on Postgres. This matches the Paladin operator, whose default is a sidecar Postgres. Config: `db.type: postgres`, `db.postgres.dsn: postgres://USER:PASSWORD@postgres:5432/NODE?sslmode=disable`, `autoMigrate: true`, `migrationsDir: /app/db/migrations/postgres`. One server with one database per node is enough.
+- **Key derivation is not reproducible from the mnemonic alone.** Paladin assigns the BIP32 path index of each identifier segment (`registry`, `noto`, ...) in the order it first resolves them, and stores that mapping in its DB. After a DB wipe, `registry.operator` resolved to a different address, which made `registerIdentity` revert with `Forbidden` because the registry's root owner was the old address. Keep the DB (a volume) between restarts, and in the bootstrap script deploy the registry and factory after the DB is created, not before.
+- A fresh node indexes the whole chain from block 0 (about 1 500 blocks per 12 s on Postgres), so the first start of a long-lived chain takes a while. The chain here was about 17 400 blocks.
+- `ptx_sendTransaction` for a deploy needs the constructor ABI for private domains. Names such as `registry.nodeN` are free labels.
+- Bootstrap order that worked: start nodes (domain config can point at any valid factory address), deploy registry and Noto contracts through node1, write the new addresses into every node's config, restart, register nodes in the registry, then use Noto.
+
+**Verdict: feasible.** A hand-written Compose with three Paladin nodes, Postgres and self-signed certificates attaches to our own Besu and runs Noto with real party privacy. The operator-only parts (CRDs, cert-manager, Kubernetes) are not needed. Still untested: Zeto and Pente (out of MVP), and the EVM version Paladin needs below Shanghai.
+
 ## Risk 3 — T-REX size and deploy: feasible for size, first deploy done
 
 **What was run:** `@tokenysolutions/t-rex` 4.1.6 (npm) ships compiled artifacts (Solidity 0.8.17). Deployed bytecode sizes against the 24 576-byte limit (read from the artifacts):
@@ -69,13 +104,60 @@ All deployed sizes are under the limit; `TREXFactory` is the closest at about 1 
 
 A contract compiled with `solc` 0.8.24 for `evmVersion: shanghai` (its bytecode begins with `5f`, which is PUSH0) deployed and ran correctly through FireFly on the London + Shanghai + `zeroBaseFee` genesis. The official T-REX artifacts are compiled with 0.8.17 and contain no PUSH0, so they run at any fork. (run)
 
-**Still open:** the EVM version Paladin's own contracts need. That is answered in the Paladin spike (Risk 2). Until then D-08 stays as written (Shanghai or later with `zeroBaseFee`).
+**Paladin:** its registry and Noto contracts deployed and ran on this Shanghai genesis (see Risk 2). Whether they would also run on Berlin was not tried, so D-08 stays as written (Shanghai or later with `zeroBaseFee`).
 
 ## Risk 7 — Idempotency and status names: answered
 
 - FireFly accepts `idempotencyKey` in the invoke body. A second request with the same key returns **HTTP 409** with `FF10431: Idempotency key '...' already used for transaction '<original tx id>'`. The second write was not executed (the stored value stayed at the first request's value). (run)
 - Operation/transaction status as returned in the response: `"status":"Succeeded"`. The failure value was not observed yet (revert test comes in Phase 2). (run)
 - Implication for `core`: write calls should pass a stable `idempotencyKey`, and a 409 with FF10431 should be read as "already submitted", not as an error. The `core` rule "check state before every write" still applies to onboarding.
+
+## Risk 5 — Caliper: feasible with 0.6.0, not 0.7.1
+
+**What was run (`spike/caliper/`, Node v24.11.1, npm 11.6.2, Windows):**
+1. **Caliper 0.7.1** (`@hyperledger/caliper-cli`, latest) needs Node >= 22 and npm >= 11.5.1, which this machine meets, **but its CLI no longer knows the `ethereum` or `besu` SUT** (`caliper bind` fails with `Unknown SUT type`). The last published Ethereum connector is `@hyperledger/caliper-ethereum` **0.6.0**. (run)
+2. **Caliper 0.6.0** (`caliper-cli`, `caliper-core`, `caliper-ethereum` all 0.6.0, engines Node >= 18.19) accepts `besu` and `ethereum`, and runs on Node 24. (run)
+3. **`caliper bind` is broken on Windows** with `spawn EINVAL` (Node's security change for spawning `.cmd` files). `bind` only runs `npm install web3@1.3.0`, so install that by hand: `npm install --no-save web3@1.3.0`, and do not pass `--caliper-bind-sut` to `launch`. (run)
+4. **Chain-layer round works.** `SpikeStore.set()` sent directly to Besu through the Ethereum connector. Command: `npx caliper launch manager --caliper-workspace . --caliper-benchconfig benchmarks/spike.yaml --caliper-networkconfig network/ethereum.json --caliper-flow-skip-start --caliper-flow-skip-end`. (run)
+5. **FireFly-layer round works through a custom connector.** Caliper has no FireFly connector, and a plain workload cannot record results by itself. A ~40-line connector (`connector/firefly-connector.js`, extends `ConnectorBase`, `_sendSingleRequest` returns a `TxStatus`) calls FireFly's `contracts/invoke?confirm=true`. It is selected with `"caliper": {"blockchain": "./connector/firefly-connector.js"}` in a separate network config. The same workload module is reused. (run)
+
+**Connector facts that matter:**
+- The Ethereum connector **requires a `ws://` URL**; an `http(s)` URL is rejected. Besu must have `--rpc-ws-enabled`.
+- Contract deployment happens in Caliper's **install** step, so do not use `--caliper-flow-skip-install` for the chain-layer round.
+- The deploy gas comes from a `gas` property **inside the contract JSON file** (`{name, abi, bytecode, gas}`), not from the network config. The per-method gas (`gas: {set: 100000}`) goes in the network config.
+- Transaction confirmation is `transactionConfirmationBlocks: 1`; the account needs no balance on this zero-gas chain.
+- Caliper 0.6.0 pulls deprecated dependencies (web3 1.3.0, old `glob`, `core-js` 2). That is acceptable for a local demo, but pin the exact versions.
+
+**Indicative numbers only, not a benchmark** (one local worker, 60 transactions, 20 TPS offered, a single-validator Besu with 2 s blocks, one signing key, one run):
+
+| Layer | Succeeded | Avg latency | Max latency | Throughput |
+|---|---|---|---|---|
+| Chain (direct JSON-RPC) | 60 / 60 | 0.96 s | 2.05 s | 12.4 TPS |
+| FireFly (`invoke?confirm=true`) | 60 / 60 | 2.68 s | 4.50 s | 9.8 TPS |
+
+These prove the method works and that FireFly adds measurable latency. They are not a result: the sample is tiny, the network is one validator, and numbers will change with 4 validators, more workers and more keys. Phase 5 produces the real numbers.
+
+**Verdict: feasible.** Use Caliper 0.6.0 with a manual `web3@1.3.0` install. The FireFly layer needs the small custom connector (D-14 should say "custom connector", not "custom HTTP workload").
+
+## Versions to pin
+
+| Component | Version used in the spike |
+|---|---|
+| Besu | `hyperledger/besu:26.8.1` |
+| FireFly core | `ghcr.io/hyperledger-firefly/firefly@sha256:d321bcd8c567430498b7e330e075f97b9aa1888e166c76a95b4b2df161b105b8` (the `latest` tag when generated; a `v1.5.0` release exists) |
+| evmconnect | v1.5.1, `@sha256:ca6e3860c784477cd800bcbf00506310a31992468bd5b2c1f4bd2a1317d2b03b` |
+| FireFly signer | v1.2.1, `@sha256:412236dfab0416ae3d60f4fecb311b067664a9dd4f16073856eb79a25f4c532f` |
+| FireFly Postgres | `postgres:16-alpine` |
+| Paladin | `lfdecentralizedtrust/paladin:v1.0.0` (v1.0.1-rc.1 exists, not used) |
+| Paladin Postgres | `postgres:17-alpine` |
+| T-REX contracts | `@tokenysolutions/t-rex` 4.1.6 (artifacts compiled with Solidity 0.8.17) |
+| Caliper | `@hyperledger/caliper-cli`, `caliper-core`, `caliper-ethereum` 0.6.0, plus `web3@1.3.0` |
+| FireFly CLI (optional reference) | `ff` v1.5.0, built with `go install github.com/hyperledger-firefly/cli/ff@v1.5.0` |
+| Node.js / npm | v24.11.1 / 11.6.2 |
+| Python | 3.13.3 |
+| Docker engine | 29.5.2 (Docker Desktop) |
+| ethers (demo keys) | 6.13.4 |
+| solc (test contract) | 0.8.24 |
 
 ## Other findings
 
@@ -85,6 +167,8 @@ A contract compiled with `solc` 0.8.24 for `evmVersion: shanghai` (its bytecode 
 
 ## Open items and decisions needed
 
-1. **`make` on Windows:** install `make`, or replace the Make targets with a cross-platform script (for example a small Python entry point). Pending the user's decision.
-2. **Docs updated from these results (2026-10-01):** `docs/plan.md` (D-03, Phase 0 step 1, open questions 1 and 7), `docs/deliverables.md` (prerequisites, DL-0.1 step 5) and `README.md` (prerequisites) now say: hand-written Compose, `ff` optional, `ff start` not used. **Still to update, with the user's approval:** `docs/prd.md` (US-001 criterion (a) and open question 1 mention `--remote-node-url`), `docs/use-cases.md` UC-01 ("attach with remote-node-url") and `docs/architecture.md` §9 (add the evmconnect and signer config facts, and drop "`evmconnect` is the default connector in `ff init`").
-3. **Remaining spike work:** Risk 2 (Paladin), Risk 5 (Caliper), then sign-off.
+All resolved on 2026-10-02 when the developer signed off Phase 0 and asked for the follow-up changes:
+
+1. **Task runner:** `make` is not installed on Windows, so the project uses a Python script, `python scripts/stack.py up|deploy|reset` (plan D-16). All docs were updated.
+2. **Docs updated from these results:** `README.md`, `docs/prd.md`, `docs/plan.md` (D-03, D-05, D-08, D-09, D-14, D-15, D-16, Phase 0, Phase 3 and 5 steps, open questions), `docs/architecture.md` (topology, Paladin and FireFly rows, TBD list), `docs/use-cases.md` (UC-01, UC-08, UC-10) and `docs/deliverables.md` (Phase 0 done, DL-3.x, Caliper notes).
+3. **Carried into later phases:** the full T-REX suite deployment in dependency order (Phase 2), the cross-platform stack script (Phase 1), and the real Caliper numbers (Phase 5).

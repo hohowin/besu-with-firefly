@@ -1,0 +1,15 @@
+test:
+  name: spike-chain-layer
+  description: Chain-layer baseline against the spike Besu (SpikeStore.set via JSON-RPC)
+  workers:
+    type: local
+    number: 1
+  rounds:
+    - label: set-20tps
+      txNumber: 60
+      rateControl:
+        type: fixed-rate
+        opts:
+          tps: 20
+      workload:
+        module: workload/set.js

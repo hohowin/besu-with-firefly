@@ -1,0 +1,66 @@
+nodeName: node2
+log:
+  level: debug
+blockchain:
+  http:
+    url: http://host.docker.internal:8545
+  ws:
+    url: ws://host.docker.internal:8546
+db:
+  type: postgres
+  postgres:
+    dsn: "postgres://postgres:spike-pw@postgres:5432/node2?sslmode=disable"
+    autoMigrate: true
+    migrationsDir: /app/db/migrations/postgres
+rpcServer:
+  http:
+    address: 0.0.0.0
+    port: 8548
+  ws:
+    address: 0.0.0.0
+    port: 8549
+wallets:
+- name: wallet1
+  keySelector: ".*"
+  signer:
+    keyDerivation:
+      type: bip32
+      seedKey:
+        name: seed
+    keyStore:
+      type: static
+      static:
+        keys:
+          seed:
+            encoding: none
+            inline: "health smart hundred spirit spirit close fiber average couple thunder idea actor"
+domains:
+  noto:
+    plugin:
+      type: c-shared
+      library: /app/domains/libnoto.so
+    config:
+      factoryVersion: 2
+    registryAddress: 0xe8ae187f69f1f880374fb6f4b3eeda464903467e
+registries:
+  evm-registry:
+    plugin:
+      type: c-shared
+      library: /app/registries/libevm.so
+    config:
+      contractAddress: 0xff615586511addd352fccf47bf674f4e5070d0cf
+transports:
+  grpc:
+    plugin:
+      type: c-shared
+      library: /app/transports/libgrpc.so
+    config:
+      port: 9000
+      address: 0.0.0.0
+      externalHostname: paladin-node2
+      tls:
+        enabled: true
+        clientAuth: true
+        certFile: /certs/tls.crt
+        keyFile: /certs/tls.key
+        caFile: /certs/ca.crt
