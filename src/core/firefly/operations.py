@@ -14,6 +14,8 @@ SUCCEEDED = "Succeeded"
 FAILED = "Failed"
 
 _IDEMPOTENCY_CONFLICT = re.compile(r"FF10431\b.*?transaction '([^']+)'")
+_REVERT = re.compile(r"EVM reverted")
+_REVERT_REASON = re.compile(r'EVM reverted: Error\("(.*)"\)')
 
 
 @dataclass(frozen=True)
@@ -137,3 +139,15 @@ def is_transient(message: str) -> bool:
     connection), so sending the same request again is reasonable. A revert is not transient."""
     text = message.lower()
     return any(marker in text for marker in _TRANSIENT)
+
+
+def revert_reason(message: str) -> str | None:
+    """The revert reason in FireFly's error text, or None when the failure is not a revert.
+
+    FireFly reports a reverted transaction as `... EVM reverted: Error("<reason>")`, found while
+    estimating gas, so nothing is mined. A revert with no reason string gives a placeholder.
+    """
+    if not _REVERT.search(message):
+        return None
+    match = _REVERT_REASON.search(message)
+    return match.group(1) if match else "(no reason given)"

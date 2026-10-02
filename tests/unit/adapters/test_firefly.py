@@ -220,3 +220,35 @@ def test_api_invoke_posts_with_confirm_and_returns_the_operation() -> None:
         "/api/v1/namespaces/default/apis/coin/invoke/unpause?confirm=true",
     )
     assert body == {"input": {}, "key": "0xk"}
+
+
+REVERT = {
+    "error": (
+        "FF10111: Error from ethereum connector: "
+        'FF23021: EVM reverted: Error("Transfer not possible")'
+    )
+}
+
+
+def test_a_revert_is_its_own_error_with_the_reason_and_is_not_transient() -> None:
+    from src.adapters.firefly import Reverted
+    from src.core.firefly.operations import is_transient
+
+    with pytest.raises(Reverted) as raised:
+        client(FakeTransport((500, REVERT))).invoke(ADDRESS, METHOD, {}, key="0xk")
+    assert raised.value.reason == "Transfer not possible"
+    assert "EVM reverted" in str(raised.value)
+    assert not is_transient(str(raised.value))
+
+
+def test_a_revert_through_a_contract_api_is_also_reverted() -> None:
+    from src.adapters.firefly import Reverted
+
+    with pytest.raises(Reverted, match="Transfer not possible"):
+        client(FakeTransport((500, REVERT))).api_invoke("coin", "transfer", {}, key="0xk")
+
+
+def test_a_reverted_error_is_still_a_firefly_error() -> None:
+    from src.adapters.firefly import Reverted
+
+    assert issubclass(Reverted, FireflyError)

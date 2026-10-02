@@ -217,6 +217,15 @@ All deployed sizes are under the 24,576-byte limit and all init sizes under the 
 
 `TREXFactory.deployTREXSuite("coin", tokenDetails, claimDetails)` is one FireFly invoke as Admin. It succeeded on the first try on our Besu (about 6 seconds, one transaction), creating the token and its identity registry, identity registry storage, claim topics registry, trusted issuers registry and modular compliance as proxies, all code-checked on chain. The token's details are `Coin`, `COIN`, 18 decimals, owner Admin, Admin as agent of both the registry and the token, one claim topic (`1`, KYC) and the `ClaimIssuer` as trusted issuer for it; no compliance modules. The addresses are read back, not assumed: `factory.getToken("coin")`, then `token.identityRegistry()` and `token.compliance()`, then `identityRegistry.identityStorage()`, `.topicsRegistry()` and `.issuersRegistry()` (the registry getter is `identityStorage`, not `identityRegistryStorage`; a test checks every name read against the real ABIs). Gas was not an issue: the genesis gas limit is `0x1fffffffffffff` and evmconnect estimates it.
 
+### Compliance rejection (run, Task 12)
+
+A transfer from Anson to the unverified Admin is refused **by the token contract**, not by this project's code:
+
+- Straight to Besu, `eth_call` of `transfer(admin, 1)` from Anson reverts with `Error("Transfer not possible")` (selector `0x08c379a0`), while the same call to the verified Beatrice returns `true`.
+- Through FireFly's generated API, with or without `?confirm=true`, the answer is **HTTP 500** with `{"error": "FF10111: Error from ethereum connector: FF23021: EVM reverted: Error(\"Transfer not possible\")"}`. The revert is found while estimating gas, so **nothing is mined**: balances and total supply are unchanged.
+- FireFly still records the attempt: an operation of type `blockchain_invoke` with **status `Failed`** and the same text in its `error` field. This closes the Risk 7 gap: the failure status is `Failed`.
+- The revert reason is T-REX's generic `Transfer not possible`; it does not say which check failed (here: the recipient is not verified, which the Anson to Beatrice contrast shows). The client turns this into a `Reverted` error with `reason`, which Phase 4's CLI can show as a compliance error.
+
 ### Identities and KYC claims (run, Tasks 9 and 10)
 
 - `IdFactory.createIdentity(wallet, salt)` (owner only, so Admin) creates the wallet's OnchainID proxy; the wallet becomes its management key. `IdFactory.getIdentity(wallet)` returns the zero address when there is none. `IdentityRegistry.registerIdentity(wallet, identity, country)` works for Admin because the factory made Admin a registry agent; `contains(wallet)` is the "is registered" read.

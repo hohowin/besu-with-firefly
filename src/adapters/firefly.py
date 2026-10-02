@@ -21,6 +21,7 @@ from src.core.firefly.operations import (
     invoke_body,
     parse_operation,
     query_body,
+    revert_reason,
 )
 
 # (HTTP method, path, JSON body or None) -> (HTTP status, parsed JSON or text).
@@ -29,6 +30,14 @@ Transport = Callable[[str, str, Any], tuple[int, Any]]
 
 class FireflyError(Exception):
     """A FireFly call failed. The message carries FireFly's own error text."""
+
+
+class Reverted(FireflyError):
+    """The contract refused the call (a revert). `reason` is the contract's own message."""
+
+    def __init__(self, reason: str, message: str) -> None:
+        super().__init__(message)
+        self.reason = reason
 
 
 class OperationFailed(FireflyError):
@@ -258,4 +267,8 @@ class FireflyClient:
         if 200 <= status < 300:
             return
         message = body.get("error") if isinstance(body, Mapping) else body
-        raise FireflyError(f"HTTP {status}: {message}")
+        text = f"HTTP {status}: {message}"
+        reason = revert_reason(str(message))
+        if reason is not None:
+            raise Reverted(reason, text)
+        raise FireflyError(text)

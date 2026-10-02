@@ -117,3 +117,27 @@ def test_timeouts_and_dropped_connections_are_transient_but_reverts_are_not() ->
         'HTTP 500: FF10111: Error from ethereum connector: FF23021: EVM reverted: Error("no")'
     )
     assert not is_transient("HTTP 400: FF10111: bad input")
+
+
+def test_revert_reason_is_read_from_fireflys_error_text() -> None:
+    from src.core.firefly.operations import revert_reason
+
+    text = (
+        "FF10111: Error from ethereum connector: "
+        'FF23021: EVM reverted: Error("Transfer not possible")'
+    )
+    assert revert_reason(text) == "Transfer not possible"
+    assert revert_reason("HTTP 500: " + text) == "Transfer not possible"
+
+
+def test_a_revert_without_a_reason_is_still_a_revert() -> None:
+    from src.core.firefly.operations import revert_reason
+
+    assert revert_reason("FF10111: FF23021: EVM reverted: 0x") == "(no reason given)"
+
+
+def test_other_errors_have_no_revert_reason() -> None:
+    from src.core.firefly.operations import revert_reason
+
+    assert revert_reason("HTTP 400: FF10111: bad input") is None
+    assert revert_reason("context deadline exceeded") is None

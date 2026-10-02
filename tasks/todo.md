@@ -315,13 +315,13 @@ Sizes: no task is L or larger. Tasks 7 and 9 are the largest (M).
 **Description:** Prove the contract, not our code, refuses a transfer to an unverified recipient: `isVerified(admin)` is false, Anson sends 10 `COIN` to Admin through the contract API, and the operation ends `Failed` with a revert reason about the recipient. Record the real failed-status name and error text (spike Risk 7 gap) in `docs/spike-results.md`. Also repeat the call **directly through FireFly's contract API**, not through our client, and show the same revert. Balances are unchanged. The plan's anti-gate applies: if this does not actually revert, stop before Phase 3.
 
 **Acceptance criteria:**
-- [ ] The operation is `Failed` with a revert reason that names the unverified recipient, and Anson's and Admin's balances are unchanged
-- [ ] The same revert appears through a plain HTTP call to FireFly's generated API (no project code in between)
-- [ ] The observed failed-status value and revert text are recorded in `docs/spike-results.md`
+- [x] The operation is `Failed` with the contract's revert reason (`Transfer not possible`; T-REX does not name the recipient in its message) and Anson's and Admin's balances and the total supply are unchanged
+- [x] The same revert appears through a plain HTTP call to FireFly's generated API (no project code in between)
+- [x] The observed failed-status value and revert text are recorded in `docs/spike-results.md`
 
 **Verification:**
-- [ ] Tests pass: `pytest -m integration -k compliance_rejection`
-- [ ] Checks clean: `ruff check .` and `mypy .`
+- [x] Tests pass: `pytest -m integration -k compliance_rejection`
+- [x] Checks clean: `ruff check .` and `mypy .`
 
 **Dependencies:** Task 11
 
@@ -330,6 +330,8 @@ Sizes: no task is L or larger. Tasks 7 and 9 are the largest (M).
 - `docs/spike-results.md`
 
 **Size:** S
+
+**Status:** Done 2026-10-02. Test-first for the client change (`Reverted` error with the parsed `reason`, pure `revert_reason`), then 5 integration tests that passed first time: Admin is not verified; the project client raises `Reverted` and no balance changes; a plain HTTP call to FireFly's API returns HTTP 500 with `EVM reverted` and the reason; FireFly records a `Failed` operation with that text; and Besu `eth_call` without FireFly shows the contract itself reverts `Error("Transfer not possible")` for Admin while the same call to Beatrice returns true. **The plan's anti-gate is not triggered: the rejection really reverts.** The failure status value and the reason text are recorded in `docs/spike-results.md` (a revert is HTTP 500 and nothing is mined, because it is caught at gas estimation).
 
 ## Checkpoint: After Tasks 9–12
 
