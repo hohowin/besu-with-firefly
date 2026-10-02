@@ -1,347 +1,396 @@
-# Tasks — Phase 1: Network
+# Tasks — Phase 2: FireFly + ERC-3643
 
-> Source: `docs/plan.md` Phase 1 (M1.1, M1.2, M1.3), `docs/prd.md` US-002 and US-003, `docs/spike-results.md`. Decisions: D-01 (network shape), D-08 (London, Shanghai, `zeroBaseFee`), D-10 (demo keys are committed), D-16 (`python scripts/stack.py`, no Make). Phase 0 is signed off (2026-10-02).
-> **Status: approved by Howin on 2026-10-02 (all Open Questions answered as recommended). Tasks 1 to 11 are done; Howin reviewed all three checkpoints on 2026-10-02 and accepted them.**
+> Source: `docs/plan.md` Phase 2 (steps 1 to 7), `docs/prd.md` US-004 to US-008, FR-3 to FR-7 and FR-11, `docs/deliverables.md` DL-2.1 to DL-2.6, `docs/use-cases.md` UC-04 to UC-07, `docs/spike-results.md` (Risks 1, 3, 4, 7 and "Versions to pin"). Decisions: D-02 (FireFly gateway mode), D-03 (hand-written Compose), D-04 (official T-REX, deployed through FireFly), D-07 (register, claim, mint, transfer), D-08 (Shanghai, `zeroBaseFee`), D-10 (demo keys committed), D-16 (`python scripts/stack.py`). Phase 1 is complete and reviewed; its task list is `tasks/phase-1-network.md`.
+> **Status: draft, waiting for Howin's approval. No Phase 2 code has been written.**
 
 ## Overview
 
-Phase 1 delivers a 4-validator QBFT Besu network with two RPC nodes, generated from scripts and proven by tests. Work is sliced bottom-up: first a Python project scaffold and the pure logic (genesis and enode builders, no I/O, per `PROJECT.md`), then the generator adapter that runs Besu's own tool, then the Compose stack in the three plan milestones (validators, fault tolerance, RPC nodes), then the integration tests and a repeatability check.
+Phase 2 attaches FireFly (gateway mode) to the Besu network from Phase 1, deploys the official ERC-3643 (T-REX) suite through FireFly's deploy API as `COIN`, registers a contract interface and API for it, then proves onboarding, a compliant transfer and an on-chain rejection. Work is sliced so the riskiest unknown, the dependency order and constructor arguments of the full T-REX suite (never done end to end; plan risk R3), is hit as early as FireFly can carry it, and every later task builds on a working `deploy`.
 
 Design choices that apply to every task:
-- **Pure logic in `src/core/`, I/O in adapters.** The genesis and enode builders are pure functions. Running Docker, writing files and calling JSON-RPC live in adapters (`src/adapters/`, `scripts/stack.py`).
-- **Keys and genesis are committed** (D-10), so a fresh clone runs `docker compose up` without a generation step. `init` exists to regenerate them and refuses to overwrite without `--force`.
-- **`docker-compose.yml` is hand-written**, not generated. Only genesis, keys and `static-nodes.json` are generated.
-- **Validators publish no ports.** RPC nodes publish `8545/8546` (Anson) and `8555/8556` (Beatrice). Validators are observed through their logs until the RPC nodes exist, then through the RPC nodes.
-- **Line endings are LF** (`.gitattributes`). Files mounted into containers must stay LF.
-- **Besu 26.8.1**, chainId `20260916`, `blockperiodseconds` 2, `requesttimeoutseconds` 4, `zeroBaseFee: true`, empty `alloc`, `--min-gas-price=0`.
-- **Verification commands** (named in `PROJECT.md` Commands, whose section is still a TODO, see Open Questions): `ruff check .`, `mypy .`, `pytest`, and `pytest -m integration` for tests that need Docker. The integration marker is created in Task 1.
+- **Layers (`PROJECT.md`).** Pure logic in `src/core/` (the deploy plan and its ordering, skip-if-already-true decisions, claim hashing and signing, config and keystore builders). I/O in `src/adapters/` (FireFly HTTP client, file writing, Docker) and `scripts/stack.py`.
+- **FireFly is the only writer for `COIN` traffic.** Contracts are deployed and called through FireFly, never through a direct RPC signer (D-04, architecture §7 B). Direct JSON-RPC is used only to read and check (`eth_getCode`).
+- **Hand-written Compose, four FireFly containers** (Postgres, signer, evmconnect, core), pinned by digest as in the spike. No data exchange, no IPFS, no `ff start`. FireFly's signer points at `besu-rpc-anson` on the shared Compose network, not `host.docker.internal`.
+- **Config and keystores are generated, then committed** (D-10). The three demo wallets already exist in `network-config/wallets.json`; `init` derives the signer keystores and the FireFly config (`defaultKey` = admin) from them, so `init --force` stays consistent.
+- **Contract artifacts come from the pinned `@tokenysolutions/t-rex` and OnchainID npm packages** (Solidity 0.8.17, no PUSH0, sizes already checked in the spike). They are installed with `npm ci`, not copied into the repo. See Open Questions 1 and 2.
+- **Write calls pass a stable `idempotencyKey`.** HTTP 409 with `FF10431` means "already submitted", not an error (spike Risk 7). Onboarding also checks state first (skip-if-already-true).
+- **Facts to confirm early (spike gaps).** The status value of a *reverted* operation was never observed (it is observed in Task 12). The exact T-REX deploy order and constructor arguments are found in Task 5, before any code depends on them.
+- **Tests.** Unit tests need no Docker. Integration tests use the real stack. A session fixture runs `deploy` once, so the 5-minute suite does not deploy per test.
+- **Verification commands** (from `PROJECT.md`): `ruff check .`, `mypy .`, `pytest`, `pytest -m integration`, `docker compose config -q`.
+- **Working branch:** `main`, committing per task (as in Phase 1).
 
-Sizes: no task is L or larger.
+Sizes: no task is L or larger. Tasks 7 and 9 are the largest (M).
 
 ---
 
-## Group A — Foundations (M1.1 part 1)
+## Group A — FireFly runs (plan step 1, DL-2.1)
 
-### Task 1: Python scaffold and project commands
+### Task 1: `init` generates the FireFly signer keystores and core config
 
-**Description:** Create the Python project skeleton so that lint, type checks and tests run on a trivial test: `pyproject.toml` (`requires-python >= 3.11`, ruff, strict mypy, pytest with an `integration` marker that is skipped by default), `src/core/`, `src/adapters/`, `tests/unit/`, `tests/integration/`, and `.gitignore` entries for Python caches and the virtual environment. Fill in the TODO Commands and Directory Layout sections of `PROJECT.md` with what now exists.
+**Description:** Extend `stack.py init` so that, from `network-config/wallets.json`, it writes the FireFly signer keystore for `admin`, `anson` and `beatrice` (per key an Ethereum keystore JSON named by address, a `.toml` pointing at it, and a shared `password` file, spike Risk 1), plus `firefly/` config files for core, evmconnect and signer. Core's `namespaces` block is the working gateway-mode block from the spike with `defaultKey` = the admin address, `multiparty.enabled: false`. evmconnect gets `fixedGasPrice: 0`, `gasOracle.mode: fixed`, `confirmations.required: 0`. The signer's backend is `http://besu-rpc-anson:8545`, chainId `20260916`. Builders are pure (`src/core/firefly/`), writing is in the existing init adapter. Same refuse-without-`--force` rule as Phase 1.
 
 **Acceptance criteria:**
-- [x] `ruff check .`, `mypy .` and `pytest` all pass on a smoke test, with mypy in strict mode and no lint rule disabled to make them pass
-- [x] `pytest -m integration` selects zero tests without error, and plain `pytest` does not run integration tests
-- [x] `PROJECT.md` Commands lists install, lint, type-check, unit test and integration test commands, and Directory Layout matches the real folders
+- [ ] For each wallet, the keystore decrypts with the shared password to the private key in `wallets.json`, and the file is named by the wallet's address (tested by re-deriving the address)
+- [ ] The generated core config has `defaultKey` equal to the admin address, and the signer config's backend is `besu-rpc-anson`, not `host.docker.internal` (tested on the pure builders)
+- [ ] `init` without `--force` still refuses and changes nothing; with `--force` it regenerates everything consistently
 
 **Verification:**
-- [x] Tests pass: `pytest`
-- [x] Checks clean: `ruff check .` and `mypy .`
+- [ ] Tests pass: `pytest tests/unit` and `pytest -m integration -k init`
+- [ ] Checks clean: `ruff check .` and `mypy .`
 
-**Dependencies:** None
+**Dependencies:** None (Phase 1 done)
 
 **Files likely touched:**
-- `pyproject.toml`
-- `src/core/__init__.py`, `src/adapters/__init__.py`
-- `tests/unit/test_smoke.py`
-- `PROJECT.md`
+- `src/core/firefly/config.py`, `src/core/firefly/keystore.py`
+- `src/adapters/besu_config.py` (or a sibling adapter for the FireFly files)
+- `firefly/` (generated, committed, demo only), `network-config/README.md`
+- `tests/unit/core/test_firefly_config.py`, `tests/unit/core/test_keystore.py`
+
+**Size:** M
+
+### Task 2: FireFly containers start and report ready
+
+**Description:** Add `firefly-postgres`, `firefly-signer`, `firefly-evmconnect` and `firefly-core` to `docker-compose.yml`, images pinned by the digests in `docs/spike-results.md`, mounting the Task 1 files, on the existing `besu` network with fixed IPs outside the Besu range. Publish only FireFly's HTTP port `5000` (admin/SPI `5101` stays internal, Open Question 7). Service order: Postgres, signer, evmconnect, core. The signer must reach `besu-rpc-anson`; no Besu node of FireFly's own.
+
+**Acceptance criteria:**
+- [ ] `docker compose config -q` exits 0, and the four FireFly services reach `running` with no restart loop
+- [ ] `GET http://localhost:5000/api/v1/status` reports the `default` namespace ready with the `ethereum` blockchain plugin and `multiparty.enabled: false`
+- [ ] The signer's keystore holds the three keys (`admin`, `anson`, `beatrice`) and FireFly's default key is the admin address (read from the status document)
+
+**Verification:**
+- [ ] Tests pass: `pytest -m integration -k firefly_status` (new test, red before the Compose change)
+- [ ] Checks clean: `docker compose config -q`, `ruff check .`, `mypy .`
+
+**Dependencies:** Task 1
+
+**Files likely touched:**
+- `docker-compose.yml`
+- `tests/integration/test_firefly_status.py`
+- `tests/support/firefly.py` (a tiny stdlib HTTP helper for tests; the real adapter is Task 4)
+
+**Size:** M
+
+### Task 3: `stack.py up` brings FireFly up with no manual step
+
+**Description:** The FireFly images may have no Docker healthcheck, and `DockerStack.up` today treats "no health" as not healthy. Make `up` wait for each service by what it offers: Besu services as now, FireFly core by `GET /api/v1/status` ready, the others by `running` (or a healthcheck added in Compose where the image has the tooling). `up` stays idempotent and exits non-zero with the name of the service that is not ready. Update the Phase 1 integration `stack` fixture only if needed.
+
+**Acceptance criteria:**
+- [ ] `python scripts/stack.py reset` then `python scripts/stack.py up` ends with all 10 services ready and FireFly status ready, with no other command
+- [ ] A service that never becomes ready makes `up` exit 1 and name that service (unit-tested with a fake runner)
+- [ ] Running `up` twice is harmless
+
+**Verification:**
+- [ ] Tests pass: `pytest tests/unit` and `pytest -m integration -k "validators or rpc or firefly"`
+- [ ] Checks clean: `ruff check .` and `mypy .`
+
+**Dependencies:** Task 2
+
+**Files likely touched:**
+- `src/core/network/health.py`, `src/adapters/docker_stack.py`, `src/adapters/stack_cli.py`
+- `tests/unit/core/test_health.py`, `tests/unit/adapters/test_docker_stack.py`
+
+**Size:** S
+
+### Task 4: FireFly HTTP client adapter
+
+**Description:** A small adapter in `src/adapters/firefly.py` (standard library `urllib`, Open Question 3) for the calls Phase 2 needs: status, contract deploy, contract invoke, contract query, interface and API registration, and reading an operation's final status with bounded polling. Deploy and invoke accept an `idempotencyKey`; a 409 `FF10431` is returned as "already submitted" with the original transaction id (spike Risk 7). Errors carry FireFly's message. The pure parts (status classification, request bodies, `FF10431` parsing) are in `src/core/firefly/`; the HTTP transport is injected so the unit tests need no Docker.
+
+**Acceptance criteria:**
+- [ ] A fake transport proves: bodies are built correctly, a 409 `FF10431` is classified as already-submitted (not an error), a `Succeeded` operation returns, a `Failed` operation raises with FireFly's error text, and a never-final operation times out with the operation id
+- [ ] Against the live stack, `status()` returns ready and a trivial query round-trips (no deploy needed)
+- [ ] The module has no hidden global state and no `print`
+
+**Verification:**
+- [ ] Tests pass: `pytest tests/unit` and `pytest -m integration -k firefly_client`
+- [ ] Checks clean: `ruff check .` and `mypy .`
+
+**Dependencies:** Task 3
+
+**Files likely touched:**
+- `src/core/firefly/operations.py`, `src/adapters/firefly.py`
+- `tests/unit/core/test_operations.py`, `tests/unit/adapters/test_firefly.py`
+- `tests/integration/test_firefly_client.py`
+
+**Size:** M
+
+## Checkpoint: After Tasks 1–4
+
+- [ ] `ruff check .`, `mypy .` and `pytest` clean
+- [ ] `python scripts/stack.py reset && python scripts/stack.py up` leaves 10 ready services and FireFly status ready, through `besu-rpc-anson`
+- [ ] Phase 1 integration tests still pass (`pytest -m integration -k "validators or rpc or network or reset"`)
+- [ ] M2.1 exit gate from `docs/plan.md` step 1 holds
+- [ ] Human review before proceeding
+
+---
+
+## Group B — T-REX deployed as `COIN` (plan steps 2 to 4, DL-2.2, DL-2.3)
+
+### Task 5: T-REX artifacts, deploy order and sizes (the fail-fast task)
+
+**Description:** Pin `@tokenysolutions/t-rex` (4.1.6) and the OnchainID package it depends on in `contracts/package.json` (`npm ci`). Write the pure **deploy plan** in `src/core/trex/`: the ordered list of contracts to deploy (implementations, implementation authorities, OnchainID factory pieces, `TREXFactory`) with how each constructor argument is obtained from earlier addresses, plus the ABI and bytecode loader (an adapter). Find the order and arguments by reading the package's own deployment scripts and tests, and record the result in `docs/spike-results.md` under a new "Phase 2 findings" section. Check every deployed size against 24 576 bytes and every init size against 49 152.
+
+**Acceptance criteria:**
+- [ ] The plan lists every contract with its constructor arguments and the earlier contract each argument comes from; a unit test proves every reference points to something deployed earlier and no cycle exists
+- [ ] A test fails if any deployed size is over 24 576 bytes or any init size is over 49 152 (sizes read from the installed artifacts)
+- [ ] `docs/spike-results.md` records the order, the arguments and any size margin, and states clearly if the full suite cannot be deployed as planned (then stop and raise D-04; plan risk R3 fallback)
+
+**Verification:**
+- [ ] Tests pass: `pytest tests/unit` (reads the installed artifacts, so the test runs after `npm ci`; it skips with a clear message if `contracts/node_modules` is missing)
+- [ ] Checks clean: `ruff check .` and `mypy .`
+
+**Dependencies:** None (can start after Task 1; does not need FireFly)
+
+**Files likely touched:**
+- `contracts/package.json`, `contracts/package-lock.json`
+- `src/core/trex/plan.py`, `src/adapters/trex_artifacts.py`
+- `tests/unit/core/test_trex_plan.py`, `tests/unit/adapters/test_trex_artifacts.py`
+- `docs/spike-results.md`, `.gitignore` (`contracts/node_modules/`)
+
+**Size:** M
+
+### Task 6: Deploy the T-REX infrastructure contracts through FireFly
+
+**Description:** Add `python scripts/stack.py deploy`, which loads the Task 5 plan and deploys the infrastructure contracts in order through the Task 4 client (`POST /contracts/deploy`, key `admin`), checking each address against `eth_getCode` as it goes. Stop at the first failure and name the contract and FireFly's error. It writes `deployed-addresses.json` (gitignored, Open Question 6) after each success. Everything up to, but not including, creating the `COIN` token.
+
+**Acceptance criteria:**
+- [ ] Every deployed address is non-zero and has code on-chain (`eth_getCode`), and FireFly shows a deploy operation per contract
+- [ ] A deploy failure stops the run, names the contract, prints FireFly's error, and exits non-zero (unit-tested with a fake client)
+- [ ] The contracts are deployed through FireFly, not a direct RPC signer (the integration test lists FireFly's operations and sees one per contract)
+
+**Verification:**
+- [ ] Tests pass: `pytest tests/unit` and `pytest -m integration -k deploy_infrastructure`
+- [ ] Checks clean: `ruff check .` and `mypy .`
+
+**Dependencies:** Tasks 4, 5
+
+**Files likely touched:**
+- `src/adapters/stack_cli.py`, `src/adapters/trex_deploy.py`
+- `tests/unit/adapters/test_trex_deploy.py`, `tests/integration/test_deploy.py`
 - `.gitignore`
 
 **Size:** M
 
-**Status:** Done 2026-10-02 on branch `phase-1-network`. Notes: `pytest -m integration` selects one real test (Docker engine reachable) instead of zero, so the command exits 0. Lint and type checks exclude only `_knowledge/`, `spike/`, `.agents/`, `.claude/` (not our code); no rule was disabled. Written test-first: the smoke test failed with `No module named 'src'` before the packages existed.
+### Task 7: Create the `COIN` token through the factory
 
-### Task 2: Pure QBFT genesis builder
-
-**Description:** In `src/core/network/`, add a pure function that builds the input for `besu operator generate-blockchain-config` from parameters (chainId, block period, request timeout, fork settings, validator count). The output is a plain dict equal to the spike's `qbft-config.json`: `berlinBlock 0`, `londonBlock 0`, `zeroBaseFee true`, `shanghaiTime 0`, the `qbft` block, `alloc {}`, `blockchain.nodes.generate true` and `count`. It validates inputs (count at least 4 for `f=1`, positive timing values). No file or Docker access.
+**Description:** Use the deployed `TREXFactory` to create the token suite for `COIN`: call `deployTREXSuite` through FireFly's invoke API as `admin` with token details (name `Coin`, symbol `COIN`, 18 decimals), claim topics (KYC), trusted issuers, and the compliance setup, then read the created token, IdentityRegistry, IdentityRegistryStorage, ClaimTopicsRegistry, TrustedIssuersRegistry and ModularCompliance addresses from the factory (`getToken(salt)` and the proxies' own getters) and add them to `deployed-addresses.json`. Add the deployment of the `ClaimIssuer` contract that Admin will use to sign KYC claims (needed in Task 10). If the factory call cannot fit the plan, raise it as a change to D-04.
 
 **Acceptance criteria:**
-- [x] With the project defaults, the result equals the spike's `spike/qbft/qbft-config.json` except `count` 4
-- [x] A validator count below 4 raises a clear error that names the `n = 3f + 1` rule
-- [x] The module has no imports of `os`, `subprocess`, `pathlib` I/O calls or `print`
+- [ ] `deployed-addresses.json` contains the token and every registry address, all non-zero, each with code on-chain
+- [ ] `name()` and `symbol()` on the token read back `Coin` and `COIN` (read through FireFly's query API with an inline ABI, since the interface is registered in Task 8)
+- [ ] The token's IdentityRegistry, ClaimTopicsRegistry and TrustedIssuersRegistry are the contracts in `deployed-addresses.json` (read from the token, not assumed)
 
 **Verification:**
-- [x] Tests pass: `pytest tests/unit/core/test_genesis.py`
-- [x] Checks clean: `ruff check .` and `mypy .`
-
-**Dependencies:** Task 1
-
-**Files likely touched:**
-- `src/core/network/genesis.py`
-- `tests/unit/core/test_genesis.py`
-
-**Size:** S
-
-**Status:** Done 2026-10-02. Written test-first (collection failed with `No module named 'src.core.network'`). Output verified identical to `spike/qbft/qbft-config.json` with count 4. 11 unit tests.
-
-### Task 3: Pure enode and static-nodes builder
-
-**Description:** In `src/core/network/`, add pure functions that turn a validator public key (128 hex characters, with or without `0x`) plus an IP and port into `enode://PUBKEY@IP:30303`, and build the `static-nodes.json` list from the four validators with their fixed IPs. The subnet and per-node IPs come from a small configuration value object (default subnet `172.28.0.0/16`, validators `.11` to `.14`, RPC nodes `.21` and `.22`).
-
-**Acceptance criteria:**
-- [x] A known public key and IP produce the exact expected enode string
-- [x] A public key that is not 128 hex characters raises a clear error
-- [x] The validator and RPC addresses are all inside the configured subnet and unique, checked by a unit test
-
-**Verification:**
-- [x] Tests pass: `pytest tests/unit/core/test_enode.py`
-- [x] Checks clean: `ruff check .` and `mypy .`
-
-**Dependencies:** Task 1
-
-**Files likely touched:**
-- `src/core/network/enode.py`
-- `tests/unit/core/test_enode.py`
-
-**Size:** S
-
-**Status:** Done 2026-10-02. Written test-first. 13 unit tests.
-
-### Task 4: `stack.py init` generates genesis, validator keys and static nodes
-
-**Description:** Add `python scripts/stack.py init`, backed by an adapter in `src/adapters/`. It builds the config with Task 2, runs `besu operator generate-blockchain-config` in the pinned Besu image through Docker, and writes `network-config/genesis.json`, `network-config/validator-keys/validator-1..4/` (`key`, `key.pub`, `address.txt`, ordered by sorted address so the mapping is stable) and `network-config/static-nodes.json` (Task 3). It ignores the harmless `Output directory already exists` message but checks that the files really exist, and it refuses to overwrite existing files unless `--force` is given. Demo keys are committed (D-10); add a short `network-config/README.md` marking them demo-only.
-
-**Acceptance criteria:**
-- [x] After `init`, `genesis.json` has a `qbft` block, `chainId` 20260916, `zeroBaseFee true`, and `extraData` containing all four validator addresses from `address.txt`
-- [x] `static-nodes.json` lists four enodes whose public keys match the four `key.pub` files
-- [x] Running `init` a second time without `--force` fails with a clear message and changes nothing; with `--force` it regenerates
-
-**Verification:**
-- [x] Tests pass: `pytest tests/unit` and `pytest -m integration -k init` (the integration test runs the real Besu image)
-- [x] Checks clean: `ruff check .` and `mypy .`
-
-**Dependencies:** Tasks 2, 3
-
-**Files likely touched:**
-- `scripts/stack.py`
-- `src/adapters/besu_config.py`
-- `network-config/` (generated, committed)
-- `network-config/README.md`
-- `tests/integration/test_init.py`
-
-**Size:** M
-
-**Status:** Done 2026-10-02. Test-first. 51 unit tests (fake Besu generator, no Docker) plus an integration test against the real `hyperledger/besu:26.8.1` image (init, refusal without `--force`, regeneration with it). The pure helpers are in `src/core/network/validators.py`; the Docker runner is injected so the file logic is testable. The generated `network-config/` is committed together with Task 5's wallets.
-
-### Task 5: Demo wallet keys
-
-**Description:** Extend `init` to generate the `admin`, `anson` and `beatrice` demo wallets and write them to `network-config/wallets.json` (name, address, private key) with a demo-only banner. FireFly keystores come later (Phase 2). The secp256k1 library choice is an Open Question.
-
-**Acceptance criteria:**
-- [x] `wallets.json` has three entries, each address derived from its private key, and a test re-derives every address
-- [x] The file is committed, and `network-config/README.md` states that these keys are demo-only (D-10)
-- [x] Re-running `init` without `--force` leaves the wallets unchanged
-
-**Verification:**
-- [x] Tests pass: `pytest tests/unit` and `pytest -m integration -k init`
-- [x] Checks clean: `ruff check .` and `mypy .`
-
-**Dependencies:** Task 4, and an answer to Open Question 3
-
-**Files likely touched:**
-- `src/core/network/wallets.py` (pure address derivation check)
-- `src/adapters/besu_config.py`
-- `network-config/wallets.json`
-- `tests/unit/core/test_wallets.py`
-
-**Size:** S
-
-**Status:** Done 2026-10-02. Test-first, with `eth-account` 0.14 (new dependency, approved). Core (`src/core/network/wallets.py`) does the pure address derivation and checks; the adapter creates the random wallets. Verified against the well-known Ethereum test vector. `init` now also rewrites the generated README every run (it had gone stale after `--force`; covered by a test). 64 unit tests plus 2 integration tests.
-
-## Checkpoint: After Tasks 1–5
-
-- [x] `ruff check .`, `mypy .` and `pytest` are clean (64 unit tests, 2 integration tests)
-- [x] `python scripts/stack.py init --force` reproduces valid genesis, keys, static nodes and wallets from scratch
-- [x] M1.1 exit gate from `docs/plan.md` holds: `genesis.json` has a `qbft` block with all four validator addresses (the `docker compose config` half of that gate comes with Task 6, when the Compose file exists)
-- [x] Human review before proceeding (Howin, 2026-10-02: all checked, no changes requested)
-
----
-
-## Group B — Validators (M1.2)
-
-### Task 6: Four validators run and produce blocks
-
-**Description:** Write `docker-compose.yml` with `besu-validator-1..4` on a bridge network with fixed IPs (the subnet from Task 3), each mounting the shared genesis, its own key as `--node-private-key-file`, and `static-nodes.json` in its data path. Flags follow `docs/spike-results.md`: `--min-gas-price=0`, `--host-allowlist=*`, `--p2p-host=0.0.0.0`, no published ports. Add `python scripts/stack.py up`, which runs `docker compose up -d` and waits until the containers are healthy.
-
-**Acceptance criteria:**
-- [x] `docker compose config` exits 0, and `python scripts/stack.py up` brings all four validators to `healthy` with no restart loop
-- [x] Each validator log shows at least 3 peers, and `Produced #N` lines appear every ~2 seconds
-- [x] The chosen subnet does not collide with an existing Docker network on this machine (checked at the start of the task)
-
-**Verification:**
-- [x] Tests pass: `pytest -m integration -k validators` (the test reads container health and logs through the Docker CLI)
-- [x] Checks clean: `docker compose config`, `ruff check .`, `mypy .`
-
-**Dependencies:** Task 4
-
-**Files likely touched:**
-- `docker-compose.yml`
-- `scripts/stack.py`
-- `src/adapters/docker_stack.py`
-- `tests/integration/test_validators.py`
-
-**Size:** M
-
-**Status:** Done 2026-10-02. Test-first. `docker compose config` is valid, `python scripts/stack.py up` cold-starts all four validators to `healthy` in about 30 seconds and is idempotent. Subnet `172.28.0.0/16` collides with no existing Docker network (checked: 172.17 to 172.20 are in use). Besu's built-in healthcheck only checks a pid file, so `healthy` means started; block production and peers are proven from the logs (`Produced #N` or `Imported empty block #N` every ~2 s, `Currently checking 3 peers`). New pure helpers `besu_logs.py` and `health.py` in `src/core/network/`, plus `DockerStack` with injected runner, sleep and clock. 87 unit tests and 12 validator integration tests (health, 3 peers each, blocks advance, no restart, no published ports).
-
-### Task 7: One validator can fail without halting the chain
-
-**Description:** Prove `f=1` using the validators only: stop one validator, check that block production continues in the others' logs within 30 seconds, restart it, and check that it rejoins. Wrap this as an integration test so it stays proven. Also stop a second validator once and record that the chain halts, to document risk R10 (accepted, not a defect).
-
-**Acceptance criteria:**
-- [x] With `besu-validator-4` stopped, a new `Produced #` line appears on another validator within 30 seconds
-- [x] After `docker start besu-validator-4`, its log shows it syncing and peering again
-- [x] With two validators stopped, no new block appears within 30 seconds (documented as R10); the test restores the stack afterwards
-
-**Verification:**
-- [x] Tests pass: `pytest -m integration -k fault`
-- [x] Checks clean: `ruff check .` and `mypy .`
+- [ ] Tests pass: `pytest tests/unit` and `pytest -m integration -k "deploy and coin"`
+- [ ] Checks clean: `ruff check .` and `mypy .`
 
 **Dependencies:** Task 6
 
 **Files likely touched:**
-- `tests/integration/test_fault_tolerance.py`
-- `src/adapters/docker_stack.py`
+- `src/core/trex/plan.py` (token suite arguments), `src/adapters/trex_deploy.py`
+- `tests/integration/test_deploy.py`, `tests/unit/core/test_trex_plan.py`
 
-**Size:** S
+**Size:** M
 
-**Status:** Done 2026-10-02. `DockerStack.stop` and `start` written test-first. Two integration tests, 150 s together: with `besu-validator-4` stopped, two new blocks appeared on validator 1 within 30 s, and after `docker start` it synced and kept up; with validators 3 and 4 stopped, no new block appeared for 30 s (R10, as expected). A fixture restores every validator after each test, even on failure.
+### Task 8: Register the contract interface and API for `COIN` and the IdentityRegistry
 
-## Checkpoint: After Tasks 6–7
+**Description:** Generate a FireFly contract interface from each needed ABI (Token, IdentityRegistry; plus what Tasks 10 to 12 call), register it, and create a contract API per deployed address (`coin`, `identity-registry`) through the Task 4 client. Registration is part of `deploy` and is idempotent (an already-registered interface or API is reused, not an error). The plan's gate asks for a write through the API; `mint` needs a verified recipient, so the write checked here is `unpause()` on the token (Open Question 5), which also has to happen before any transfer. `mint` through the API is proved in Task 11.
 
-- [x] All four validators healthy, peered and producing blocks
-- [x] Killing a single validator does not halt block production (M1.2 exit gate). Proven for validator 4; Task 9 repeats it through the RPC nodes
-- [x] Anti-gate from `docs/plan.md` not triggered: one failed validator did not halt the chain
-- [x] Human review before proceeding (Howin, 2026-10-02: all checked, no changes requested)
+**Acceptance criteria:**
+- [ ] A read (`balanceOf`, `name`) and a write (`unpause`, then `paused` reads `false`) both succeed through the generated API as `admin`
+- [ ] The APIs appear in FireFly (`GET /apis`) and the interfaces carry the ABIs
+- [ ] Running `deploy` again does not create duplicates and does not fail
+
+**Verification:**
+- [ ] Tests pass: `pytest tests/unit` and `pytest -m integration -k "deploy and api"`
+- [ ] Checks clean: `ruff check .` and `mypy .`
+
+**Dependencies:** Task 7
+
+**Files likely touched:**
+- `src/core/firefly/interfaces.py` (pure ABI to interface request builder), `src/adapters/firefly.py`, `src/adapters/trex_deploy.py`
+- `tests/unit/core/test_interfaces.py`, `tests/integration/test_deploy.py`
+
+**Size:** M
+
+## Checkpoint: After Tasks 5–8
+
+- [ ] `ruff check .`, `mypy .` and `pytest` clean
+- [ ] `python scripts/stack.py up && python scripts/stack.py deploy` gives a working `COIN`: addresses non-zero with code, `Coin`/`COIN`, read and write through the API
+- [ ] The Task 5 findings are in `docs/spike-results.md`, and no plan assumption (D-04, R3) was broken
+- [ ] Human review before proceeding
 
 ---
 
-## Group C — RPC nodes (M1.3)
+## Group C — Onboarding, transfer, rejection (plan steps 5 and 6, DL-2.4, DL-2.5)
 
-### Task 8: Two RPC nodes join and agree
+### Task 9: Register identities (OnchainID and IdentityRegistry), skip if already true
 
-**Description:** Add `besu-rpc-anson` (`8545` HTTP, `8546` WS) and `besu-rpc-beatrice` (`8555` HTTP, `8556` WS) to the Compose file as non-validating nodes (no `--node-private-key-file`), statically peered to the four validators, with HTTP and WS RPC enabled and the `ETH,NET,WEB3,QBFT,ADMIN` APIs. Extend `stack.py up` to wait for both.
+**Description:** Pure onboarding logic in `src/core/trex/onboarding.py`: given the observed state (`isRegistered`), return the list of steps still needed, so a second run sends nothing. Adapter: for Anson and Beatrice, create an OnchainID through the OnchainID factory (`createIdentity(wallet, salt)`), then `registerIdentity(wallet, identity, country)` on the IdentityRegistry as Admin (the token's registered agent), all through FireFly. A step runs only if the state says it is missing. Add `python scripts/stack.py onboard` (or an `onboard` step of `deploy`, decided with Open Question 8) so it can be re-run.
 
 **Acceptance criteria:**
-- [x] `eth_blockNumber` on `:8545` and `:8555` agree within 1 block when read 5 seconds apart
-- [x] `eth_gasPrice` returns `0x0` on both
-- [x] Neither RPC node's address is in `qbft_getValidatorsByBlockNumber`, and each reports at least 4 peers (`net_peerCount`)
+- [ ] After the step, `isRegistered` is true for Anson and Beatrice and false for Admin
+- [ ] A second run sends **no** FireFly write (the integration test counts FireFly operations before and after)
+- [ ] The pure logic is unit-tested for each state (nothing done, partly done, all done)
 
 **Verification:**
-- [x] Tests pass: `pytest -m integration -k rpc`
-- [x] Checks clean: `docker compose config`, `ruff check .`, `mypy .`
+- [ ] Tests pass: `pytest tests/unit` and `pytest -m integration -k onboarding_register`
+- [ ] Checks clean: `ruff check .` and `mypy .`
 
-**Dependencies:** Task 6
+**Dependencies:** Task 8
 
 **Files likely touched:**
-- `docker-compose.yml`
-- `scripts/stack.py`
-- `tests/integration/test_rpc_nodes.py`
-- `tests/support/rpc.py` (a small JSON-RPC helper using the standard library)
+- `src/core/trex/onboarding.py`, `src/adapters/trex_onboard.py`, `src/adapters/stack_cli.py`
+- `tests/unit/core/test_onboarding.py`, `tests/integration/test_onboarding.py`
 
 **Size:** M
 
-**Status:** Done 2026-10-02. Test-first (8 integration tests, red before the Compose change). `stack.py up` needed no change: it already waits for every Compose service. `eth_coinbase` does not exist on a non-mining Besu, so "not a validator" is checked through the validator set plus the node id (`admin_nodeInfo`) against the four `key.pub` files. Side fix: the Task 6 peer test read only the last 200 log lines and failed once the stack had run a while; `peer_count` now also reads `Peers: N` and the test reads the whole log.
+### Task 10: Issue and add KYC claims so identities become verified
 
-### Task 9: Network integration suite
-
-**Description:** Consolidate the network proofs into one stable suite that uses the RPC nodes: RPC consistency, zero gas price, the validator set is exactly the four expected addresses, and fault tolerance re-proved through block numbers (stop a validator, `eth_blockNumber` still increases within 30 seconds on both RPC nodes). Replace log-based checks from Task 7 where RPC is now available, and keep the log-based "two validators down halts" check.
+**Description:** Admin, through a `ClaimIssuer` listed in the TrustedIssuersRegistry, signs a KYC claim for each identity. Pure code in `src/core/trex/claims.py` builds the claim hash (`keccak256(abi.encode(identity, topic, data))`) and signs it with Admin's key (`eth-account`, already a dependency), checked against a known test vector. The identity owner (`anson`, `beatrice`, whose FireFly keys exist) then calls `addClaim` on their own OnchainID through FireFly. Skip a claim if `isVerified` is already true.
 
 **Acceptance criteria:**
-- [x] `pytest -m integration` passes against a freshly started stack
-- [x] The fault-tolerance test restores the stopped validator even when an assertion fails
-- [x] Tests wait with bounded polling instead of fixed sleeps, and fail with a message naming the node and the observed value
+- [ ] `isVerified` is true for Anson and Beatrice and false for Admin after the step
+- [ ] The claim signature is accepted by the ClaimIssuer on-chain (`isClaimValid` true), and a signature from any other key is rejected (tested)
+- [ ] Re-running sends no write, as in Task 9
 
 **Verification:**
-- [x] Tests pass: `pytest -m integration`
-- [x] Checks clean: `ruff check .` and `mypy .`
-
-**Dependencies:** Tasks 7, 8
-
-**Files likely touched:**
-- `tests/integration/test_network.py`
-- `tests/support/rpc.py`
-- `tests/integration/conftest.py`
-
-**Size:** M
-
-**Status:** Done 2026-10-02. `test_rpc_nodes.py` became `test_network.py` and gained the RPC version of the single-failure proof (stop `besu-validator-4`, both RPC nodes pass 2 new blocks within 30 s, it restarts, catches up and both RPC nodes report 4 or more peers). The `restore_validators` fixture moved to `conftest.py` and waits on RPC block numbers; `test_fault_tolerance.py` keeps only the log-based two-validators-down halt (R10). `pytest -m integration`: 24 passed in 4 min on the running stack; a fresh-stack run is Task 10.
-
-### Task 10: `stack.py reset` and repeatability
-
-**Description:** Add `python scripts/stack.py reset` for the Phase 1 scope (`docker compose down -v`, so the chain returns to genesis). Prove repeatability: reset, up, and the integration suite pass three times in a row.
-
-**Acceptance criteria:**
-- [x] After `reset`, no Besu container or volume remains and a new `up` starts again from block 0
-- [x] `reset && up` followed by `pytest -m integration` passes in three consecutive runs
-- [x] `reset` prints what it removed and exits non-zero if Docker is not reachable
-
-**Verification:**
-- [x] Tests pass: `pytest -m integration` three times after `python scripts/stack.py reset && python scripts/stack.py up`
-- [x] Checks clean: `ruff check .` and `mypy .`
+- [ ] Tests pass: `pytest tests/unit` and `pytest -m integration -k onboarding_claim`
+- [ ] Checks clean: `ruff check .` and `mypy .`
 
 **Dependencies:** Task 9
 
 **Files likely touched:**
-- `scripts/stack.py`
-- `src/adapters/docker_stack.py`
-- `tests/integration/test_reset.py`
+- `src/core/trex/claims.py`, `src/adapters/trex_onboard.py`
+- `tests/unit/core/test_claims.py`, `tests/integration/test_onboarding.py`
+
+**Size:** M
+
+### Task 11: Mint to Anson and a compliant transfer to Beatrice
+
+**Description:** Complete onboarding and add the first compliant transfer: after Tasks 9 and 10, mint 1000 `COIN` to Anson as Admin (through the contract API, waiting for the final status), then transfer 25 from Anson to Beatrice as the `anson` key. Mint is skipped if Anson already holds the target amount.
+
+**Acceptance criteria:**
+- [ ] After onboarding: Anson 1000, Beatrice 0, both verified (DL-2.4)
+- [ ] After the transfer: Anson 975, Beatrice 25 (both balances change by the amount)
+- [ ] Re-running onboarding sends no redundant mint, register or claim
+
+**Verification:**
+- [ ] Tests pass: `pytest -m integration -k "onboarding or transfer"`
+- [ ] Checks clean: `ruff check .` and `mypy .`
+
+**Dependencies:** Task 10
+
+**Files likely touched:**
+- `src/adapters/trex_onboard.py`, `src/core/trex/onboarding.py`
+- `tests/integration/test_transfer.py`
 
 **Size:** S
 
-**Status:** Done 2026-10-02. `DockerStack.reset()` and `stack.py reset` written test-first (`docker compose down --volumes --remove-orphans`; prints the removed services; exits 1 when Docker is unreachable, checked for real with a bogus `DOCKER_HOST`). `test_reset.py` proves no container or volume remains and that the new chain starts below block 10 again. Three consecutive `reset`, `up`, `pytest -m integration` runs: 26 passed each (about 5 min per run). The first attempt exposed a flaw in the Task 6 peer test: Besu only logs a peer count at start-up if it happens to have no sync target yet, so a validator that peers at once logs nothing. **Deviation from Task 6's wording:** each validator is now shown to be peered through the RPC nodes' `admin_peers` (validators still publish no RPC), and the log-based `peer_count` was removed.
+### Task 12: On-chain compliance rejection
 
-## Checkpoint: After Tasks 8–10 (Phase 1 exit gate)
+**Description:** Prove the contract, not our code, refuses a transfer to an unverified recipient: `isVerified(admin)` is false, Anson sends 10 `COIN` to Admin through the contract API, and the operation ends `Failed` with a revert reason about the recipient. Record the real failed-status name and error text (spike Risk 7 gap) in `docs/spike-results.md`. Also repeat the call **directly through FireFly's contract API**, not through our client, and show the same revert. Balances are unchanged. The plan's anti-gate applies: if this does not actually revert, stop before Phase 3.
 
-- [x] All four validators healthy, peered, tolerant of one failure
-- [x] Both RPC nodes healthy, consistent within 1 block, and `eth_gasPrice` is `0x0`
-- [x] `pytest -m integration` network tests pass, three consecutive fresh-stack runs
-- [x] `ruff check .`, `mypy .` and `pytest` clean
-- [x] Anti-gate from `docs/plan.md`: if an RPC node cannot peer or diverges, stop before Phase 2
-- [x] Human review before proceeding (Howin, 2026-10-02: all checked, no changes requested)
+**Acceptance criteria:**
+- [ ] The operation is `Failed` with a revert reason that names the unverified recipient, and Anson's and Admin's balances are unchanged
+- [ ] The same revert appears through a plain HTTP call to FireFly's generated API (no project code in between)
+- [ ] The observed failed-status value and revert text are recorded in `docs/spike-results.md`
+
+**Verification:**
+- [ ] Tests pass: `pytest -m integration -k compliance_rejection`
+- [ ] Checks clean: `ruff check .` and `mypy .`
+
+**Dependencies:** Task 11
+
+**Files likely touched:**
+- `tests/integration/test_compliance.py`
+- `docs/spike-results.md`
+
+**Size:** S
+
+## Checkpoint: After Tasks 9–12
+
+- [ ] `ruff check .`, `mypy .` and `pytest` clean
+- [ ] Anson 1000 then 975, Beatrice 0 then 25, both verified; Admin unverified
+- [ ] The rejection is a real revert, balances unchanged (plan anti-gate for Phase 3 not triggered)
+- [ ] Re-running onboarding sends no redundant transaction
+- [ ] Human review before proceeding
 
 ---
 
-## Group D — Close-out
+## Group D — Repeatability and close-out (plan step 7, DL-2.6)
 
-### Task 11: Phase 1 documentation and sign-off
+### Task 13: `reset`, `up`, `deploy` repeatability
 
-**Description:** Update `README.md` Getting started with the real Phase 1 commands, mark DL-1.x deliverables as done in `docs/deliverables.md` with the commands that were actually run, record the exit-gate results, and commit on the working branch.
+**Description:** Make the whole Phase 2 path repeatable from nothing: `python scripts/stack.py reset && python scripts/stack.py up && python scripts/stack.py deploy` (deploy includes registration, onboarding and the token) leaves a working `COIN`. `reset` also clears FireFly's Postgres and signer state (volumes) and removes a stale `deployed-addresses.json`. A session fixture runs `deploy` once per test session. Prove it three times in a row, with the whole `pytest -m integration` suite.
 
 **Acceptance criteria:**
-- [x] Following the README Getting started literally from a clean clone brings up the Phase 1 network and the tests pass
-- [x] `docs/deliverables.md` DL-1.1 to DL-1.4 are marked `Done` and their "How to try it" steps match the real commands and ports
-- [x] `docs/plan.md` Phase 1 is marked complete with the date
+- [ ] After `reset`, no FireFly container or volume remains and no stale `deployed-addresses.json` or FireFly contract API exists
+- [ ] `reset && up && deploy` followed by `pytest -m integration` passes in three consecutive runs
+- [ ] A partial failure message of `deploy` names the step; running `deploy` again after fixing it completes (re-entrant)
 
 **Verification:**
-- [x] Tests pass: `pytest` and `pytest -m integration`
-- [x] Checks clean: `ruff check .` and `mypy .`
+- [ ] Tests pass: `pytest -m integration` three times after `python scripts/stack.py reset && python scripts/stack.py up && python scripts/stack.py deploy`
+- [ ] Checks clean: `ruff check .` and `mypy .`
 
-**Dependencies:** Tasks 1–10
+**Dependencies:** Tasks 3, 11, 12
 
 **Files likely touched:**
-- `README.md`
-- `docs/deliverables.md`
-- `docs/plan.md`
+- `src/adapters/docker_stack.py`, `src/adapters/stack_cli.py`
+- `tests/integration/conftest.py`, `tests/integration/test_reset.py`
+
+**Size:** M
+
+### Task 14: Phase 2 documentation and sign-off
+
+**Description:** Update `README.md` Getting started (including `npm ci` in `contracts/` and `deploy`), mark DL-2.1 to DL-2.6 `Done` in `docs/deliverables.md` with the commands actually run, record the exit-gate results, mark Phase 2 complete in `docs/plan.md`, and verify the README from a fresh clone as in Phase 1.
+
+**Acceptance criteria:**
+- [ ] Following the README literally from a clean clone brings up the stack, deploys `COIN` and the integration tests pass
+- [ ] `docs/deliverables.md` DL-2.1 to DL-2.6 are `Done` and their "How to try it" steps match the real commands and ports
+- [ ] `docs/plan.md` Phase 2 is marked complete with the date
+
+**Verification:**
+- [ ] Tests pass: `pytest` and `pytest -m integration`
+- [ ] Checks clean: `ruff check .` and `mypy .`
+
+**Dependencies:** Tasks 1–13
+
+**Files likely touched:**
+- `README.md`, `docs/deliverables.md`, `docs/plan.md`, `PROJECT.md`
 
 **Size:** XS
 
-**Status:** Done 2026-10-02. README, `docs/deliverables.md` (DL-1.1 to DL-1.4 Done, steps use the real commands) and `docs/plan.md` (Phase 1 complete) updated. Verified from a fresh clone with a new virtual environment, following the README: the first attempt was imperfect and the second was clean. First attempt: `up` timed out at 120 s with validators `unhealthy` while `pip install` was loading the machine (a plain second `up` was healthy; the first block took minutes because QBFT round timeouts back off on a slow cold start), and one integration test failed (`besu-validator-4` did not catch up within 90 s after a restart; re-run alone it passed, and three manual restarts caught up in 14 to 20 s; cause not found, not reproduced). Second attempt after `reset`: `up` healthy and `pytest -m integration` 26 passed. **Known risk:** a cold start on a busy machine can exceed the 120 s `up` timeout, and the validator rejoin test is intermittent once.
+## Checkpoint: After Tasks 13–14 (Phase 2 exit gate)
+
+- [ ] Integration tests (onboarding, transfer, rejection) pass
+- [ ] Re-running register or claim sends no redundant transaction
+- [ ] `reset && up && deploy` then `pytest -m integration` passes three times in a row
+- [ ] `ruff check .`, `mypy .` and `pytest` clean
+- [ ] Anti-gate from `docs/plan.md`: if the rejection does not revert, stop before Phase 3
+- [ ] Human review before proceeding
 
 ---
 
 ## Open Questions
 
-All answered by Howin on 2026-10-02 ("all follow the recommendation").
+Each has a recommended default; nothing starts until Howin approves or changes these.
 
-| # | Question | Owner | Needed by | Decision |
-|---|----------|-------|-----------|----------|
-| 1 | `PROJECT.md` Commands and Directory Layout are still TODO. Is it OK for Task 1 to fill them in? | Howin | Task 1 | **Yes.** Task 1 fills them in |
-| 2 | Docker subnet for the stack. Default `172.28.0.0/16`; other Compose projects (for example `jungle-chess`) already run on this machine | Howin | Task 6 | **Keep the default.** Task 6 checks `docker network ls` for a collision and picks another subnet only if needed |
-| 3 | Which Python library derives wallet addresses from keys (new dependency)? | Howin | Task 5 | **`eth-account`.** Phase 2 needs keystores for the FireFly signer anyway |
-| 4 | Wallet key format in Phase 1 | Howin | Task 5 | **Plain `wallets.json` now**, FireFly signer keystores in Phase 2 |
-| 5 | Should validators expose RPC (unpublished)? | Howin | Task 6 | **No.** Validators stay closed; Tasks 6–7 read logs, Task 8 onward uses the RPC nodes |
-| 6 | Python version | Howin | Task 1 | **`requires-python >= 3.11`**, develop on 3.13 |
+| # | Question | Owner | Needed by | Recommendation |
+|---|----------|-------|-----------|----------------|
+| 1 | Contract artifacts: plan step 2 says "compile the T-REX suite with the EVM target from the spike". The official npm package ships compiled artifacts (0.8.17, no PUSH0, run at any fork, sizes already checked). Use them, or compile from source with Hardhat 3? | Howin | Task 5 | **Use the published artifacts** (no compiler, no Hardhat dependency). CLAUDE.md §12: reuse before writing. The "EVM target compatible" criterion in US-005 is met because they contain no Shanghai-only opcodes. Switch to Hardhat only if Task 5 finds a missing piece |
+| 2 | Is `npm ci` in `contracts/` an accepted prerequisite for `deploy` (Node 24 is already listed in the README)? Alternative is vendoring the artifacts into the repo, which copies GPL-licensed T-REX and OnchainID output into it | Howin | Task 5 | **`npm ci` as a prerequisite**, `node_modules` gitignored. No licensed code copied |
+| 3 | HTTP client for the FireFly adapter: standard library `urllib` or a new dependency (`httpx`, `requests`)? | Howin | Task 4 | **Standard library** (CLAUDE.md §12, and the tests already use it). Revisit in Phase 4 if the CLI needs more |
+| 4 | Generate the signer keystores and FireFly config in `init` and commit them (demo keys, D-10)? | Howin | Task 1 | **Yes**, so a fresh clone needs no generation step, as for `network-config/` |
+| 5 | Plan step 4 gate asks for a `mint` write through the generated API, but T-REX refuses `mint` to an unverified recipient, so it cannot be the first write. Use `unpause()` as the Task 8 write and prove `mint` in Task 11? | Howin | Task 8 | **Yes** (a paused token must be unpaused before any transfer anyway) |
+| 6 | `deployed-addresses.json`: committed or gitignored? Addresses change on every reset | Howin | Task 6 | **Gitignored**, regenerated by `deploy` |
+| 7 | Publish FireFly's admin/SPI port `5101`, or only HTTP `5000`? | Howin | Task 2 | **Only `5000`** (API, Swagger, Explorer). `5101` stays inside the network |
+| 8 | Is onboarding part of `deploy` (one command, as in plan step 7 and DL-2.4 step 1) with a separate `onboard` command for re-running, or only inside `deploy`? | Howin | Task 9 | **Both**: `deploy` runs it, and `python scripts/stack.py onboard` repeats it alone |
+| 9 | FireFly core image: the spike pinned the digest of the `latest` tag at generation time (a `v1.5.0` tag also exists). Keep the digest? | Howin | Task 2 | **Keep the digests from `docs/spike-results.md`** (exactly what was run) |
 
 ## Notes for review
 
-- No task is sized L or larger. The largest are M: Tasks 1, 4, 6, 8, 9.
-- No verification command is `TBD`. `ruff`, `mypy` and `pytest` come from `PROJECT.md`; the `integration` marker and `scripts/stack.py` are created by Tasks 1 and 4.
-- Out of scope for Phase 1: FireFly, Paladin, T-REX, the CLI and Caliper (plan §4 Phase 1 "Out of scope").
+- No task is sized L or larger. M: Tasks 1, 2, 4, 5, 6, 7, 8, 9, 10 and 13. Tasks 3, 11 and 12 are S, Task 14 is XS.
+- No verification command is `TBD`; all come from `PROJECT.md`. The new `deploy` and `onboard` subcommands are created in Tasks 6 and 9.
+- Highest risks are early: Task 5 (the full T-REX suite and its order, plan R3) and Task 7 (`deployTREXSuite` through FireFly). If either breaks D-04, stop and re-plan before Task 8.
+- Out of scope for Phase 2: Paladin, the Python CLI and Caliper (plan §4 Phase 2 "Out of scope").
+- Phase 2 needs about 5 to 8 days (plan). The integration suite grows to about 8 minutes once `deploy` is part of the session.

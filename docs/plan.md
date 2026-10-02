@@ -95,7 +95,7 @@ Timelines are rough estimates for a solo developer, not commitments.
 
 **Goal**: The 4-validator QBFT Besu network with 2 RPC nodes, zero-gas, generated from scripts.
 
-**Status**: Complete 2026-10-02 (exit gate passed; reviewed and accepted by the developer). Evidence: `tasks/todo.md` and `pytest -m integration`, 26 passed in three consecutive fresh-stack runs.
+**Status**: Complete 2026-10-02 (exit gate passed; reviewed and accepted by the developer). Evidence: `tasks/phase-1-network.md` and `pytest -m integration`, 26 passed in three consecutive fresh-stack runs.
 
 **Scope**:
 - Genesis, key and `static-nodes.json` generator; Compose for validators and RPC nodes
