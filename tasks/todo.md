@@ -30,13 +30,13 @@ Sizes: no task is L or larger. Tasks 7 and 9 are the largest (M).
 **Description:** Extend `stack.py init` so that, from `network-config/wallets.json`, it writes the FireFly signer keystore for `admin`, `anson` and `beatrice` (per key an Ethereum keystore JSON named by address, a `.toml` pointing at it, and a shared `password` file, spike Risk 1), plus `firefly/` config files for core, evmconnect and signer. Core's `namespaces` block is the working gateway-mode block from the spike with `defaultKey` = the admin address, `multiparty.enabled: false`. evmconnect gets `fixedGasPrice: 0`, `gasOracle.mode: fixed`, `confirmations.required: 0`. The signer's backend is `http://besu-rpc-anson:8545`, chainId `20260916`. Builders are pure (`src/core/firefly/`), writing is in the existing init adapter. Same refuse-without-`--force` rule as Phase 1.
 
 **Acceptance criteria:**
-- [ ] For each wallet, the keystore decrypts with the shared password to the private key in `wallets.json`, and the file is named by the wallet's address (tested by re-deriving the address)
-- [ ] The generated core config has `defaultKey` equal to the admin address, and the signer config's backend is `besu-rpc-anson`, not `host.docker.internal` (tested on the pure builders)
-- [ ] `init` without `--force` still refuses and changes nothing; with `--force` it regenerates everything consistently
+- [x] For each wallet, the keystore decrypts with the shared password to the private key in `wallets.json`, and the file is named by the wallet's address (tested by re-deriving the address)
+- [x] The generated core config has `defaultKey` equal to the admin address, and the signer config's backend is `besu-rpc-anson`, not `host.docker.internal` (tested on the pure builders)
+- [x] `init` without `--force` still refuses and changes nothing; with `--force` it regenerates everything consistently
 
 **Verification:**
-- [ ] Tests pass: `pytest tests/unit` and `pytest -m integration -k init`
-- [ ] Checks clean: `ruff check .` and `mypy .`
+- [x] Tests pass: `pytest tests/unit` and `pytest -m integration -k init`
+- [x] Checks clean: `ruff check .` and `mypy .`
 
 **Dependencies:** None (Phase 1 done)
 
@@ -47,6 +47,8 @@ Sizes: no task is L or larger. Tasks 7 and 9 are the largest (M).
 - `tests/unit/core/test_firefly_config.py`, `tests/unit/core/test_keystore.py`
 
 **Size:** M
+
+**Status:** Done 2026-10-02. Test-first. Files are generated under `network-config/firefly/` (not a top-level `firefly/`), so `init` stays the single owner of everything it generates and its tests use a temporary folder. The signer keystores use scrypt with `n=4096` (public demo keys; full cost makes the signer start slowly). `init --force` was re-run, so every committed key, the genesis and the wallets are new; the real keystores decrypt to the keys in `wallets.json` and `defaultKey` is the admin address. 108 unit tests, `ruff` and `mypy` clean, `init` integration test passes, and the Phase 1 network tests (21) pass on the new keys.
 
 ### Task 2: FireFly containers start and report ready
 
@@ -74,8 +76,10 @@ Sizes: no task is L or larger. Tasks 7 and 9 are the largest (M).
 
 **Description:** The FireFly images may have no Docker healthcheck, and `DockerStack.up` today treats "no health" as not healthy. Make `up` wait for each service by what it offers: Besu services as now, FireFly core by `GET /api/v1/status` ready, the others by `running` (or a healthcheck added in Compose where the image has the tooling). `up` stays idempotent and exits non-zero with the name of the service that is not ready. Update the Phase 1 integration `stack` fixture only if needed.
 
+**Added 2026-10-02 (found during Task 1):** on a cold start the QBFT chain can take minutes to produce its first block (round timeouts back off while the validators are still connecting; seen again on an idle machine, block #9 only 5 minutes after `up`). `deploy` needs a producing chain, so `up` must also wait until `eth_blockNumber` on both RPC nodes is at least 1, with a generous limit. Measure the stall over several `reset`/`up` runs and record it in the task status.
+
 **Acceptance criteria:**
-- [ ] `python scripts/stack.py reset` then `python scripts/stack.py up` ends with all 10 services ready and FireFly status ready, with no other command
+- [ ] `python scripts/stack.py reset` then `python scripts/stack.py up` ends with all 10 services ready, FireFly status ready and both RPC nodes past block 0, with no other command
 - [ ] A service that never becomes ready makes `up` exit 1 and name that service (unit-tested with a fake runner)
 - [ ] Running `up` twice is harmless
 
@@ -86,7 +90,7 @@ Sizes: no task is L or larger. Tasks 7 and 9 are the largest (M).
 **Dependencies:** Task 2
 
 **Files likely touched:**
-- `src/core/network/health.py`, `src/adapters/docker_stack.py`, `src/adapters/stack_cli.py`
+- `src/core/network/health.py`, `src/adapters/docker_stack.py`, `src/adapters/stack_cli.py`, a small JSON-RPC reader in `src/adapters/`
 - `tests/unit/core/test_health.py`, `tests/unit/adapters/test_docker_stack.py`
 
 **Size:** S

@@ -1,0 +1,7 @@
+[metadata]
+description = "File based configuration"
+
+[signing]
+type = "file-based-signer"
+key-file = "/data/keystore/fa8f0b57721943aa560b809f6309ff2bfecc8f2f"
+password-file = "/data/password"

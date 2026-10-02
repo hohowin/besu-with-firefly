@@ -1,0 +1,15 @@
+server:
+  port: 8545
+  address: 0.0.0.0
+backend:
+  chainId: 20260916
+  url: http://besu-rpc-anson:8545
+fileWallet:
+  path: /data/keystore
+  filenames:
+    primaryExt: .toml
+  metadata:
+    keyFileProperty: '{{ index .signing "key-file" }}'
+    passwordFileProperty: '{{ index .signing "password-file" }}'
+log:
+  level: info

@@ -1,0 +1,41 @@
+log:
+  level: info
+http:
+  port: 5000
+  address: 0.0.0.0
+  publicURL: http://127.0.0.1:5000
+admin:
+  port: 5101
+  address: 0.0.0.0
+  enabled: true
+spi:
+  port: 5101
+  address: 0.0.0.0
+  enabled: true
+event:
+  dbevents:
+    bufferSize: 10000
+plugins:
+  database:
+  - name: database0
+    type: postgres
+    postgres:
+      url: postgres://postgres:f1refly@firefly-postgres:5432?sslmode=disable
+      migrations:
+        auto: true
+  blockchain:
+  - name: blockchain0
+    type: ethereum
+    ethereum:
+      ethconnect:
+        url: http://firefly-evmconnect:5008
+        topic: "0"
+namespaces:
+  default: default
+  predefined:
+  - name: default
+    description: Default predefined namespace
+    defaultKey: 0xd11858978201f77ae5a863043a967d7ba1ae3b7c
+    plugins: [database0, blockchain0]
+    multiparty:
+      enabled: false

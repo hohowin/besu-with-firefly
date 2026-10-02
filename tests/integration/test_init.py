@@ -26,6 +26,14 @@ def test_init_with_the_real_besu_tool(tmp_path: Path) -> None:
         pub = (tmp_path / "validator-keys" / f"validator-{number}" / "key.pub").read_text("utf-8")
         assert enode.startswith("enode://" + pub.strip().removeprefix("0x") + "@172.28.0.")
 
+    document = json.loads((tmp_path / "wallets.json").read_text(encoding="utf-8"))
+    firefly = tmp_path / "firefly"
+    assert len(list((firefly / "signer-data" / "keystore").glob("*.toml"))) == len(
+        document["wallets"]
+    )
+    admin = next(w for w in document["wallets"] if w["name"] == "admin")
+    assert admin["address"] in (firefly / "core.yml").read_text(encoding="utf-8")
+
     first_keys = (tmp_path / "validator-keys" / "validator-1" / "key").read_bytes()
     with pytest.raises(AlreadyInitialisedError):
         init_network(tmp_path, generator=docker_generator())

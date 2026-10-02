@@ -122,3 +122,50 @@ def test_force_rewrites_a_stale_readme(tmp_path: Path) -> None:
     (tmp_path / "README.md").write_text("old text", encoding="utf-8")
     init_network(tmp_path, generator=fake_generator(seed=2), force=True)
     assert "wallets.json" in (tmp_path / "README.md").read_text(encoding="utf-8")
+
+
+def test_init_writes_the_firefly_config_and_signer_keystores(tmp_path: Path) -> None:
+    init_network(tmp_path, generator=fake_generator())
+    firefly = tmp_path / "firefly"
+    for name in ("core.yml", "evmconnect.yml", "signer.yml"):
+        assert (firefly / name).is_file(), name
+    document = json.loads((tmp_path / "wallets.json").read_text(encoding="utf-8"))
+    admin = next(w for w in document["wallets"] if w["name"] == "admin")
+    assert f"defaultKey: {admin['address']}" in (firefly / "core.yml").read_text(encoding="utf-8")
+    for wallet in document["wallets"]:
+        stem = wallet["address"].removeprefix("0x")
+        assert (firefly / "signer-data" / "keystore" / stem).is_file()
+        assert (firefly / "signer-data" / "keystore" / f"{stem}.toml").is_file()
+    assert (firefly / "signer-data" / "password").is_file()
+
+
+def test_firefly_files_use_lf_line_endings(tmp_path: Path) -> None:
+    init_network(tmp_path, generator=fake_generator())
+    for path in (tmp_path / "firefly").rglob("*"):
+        if path.is_file():
+            assert b"\r" not in path.read_bytes(), path
+
+
+def test_second_run_without_force_leaves_the_firefly_files_unchanged(tmp_path: Path) -> None:
+    init_network(tmp_path, generator=fake_generator(seed=1))
+    before = (tmp_path / "firefly" / "core.yml").read_bytes()
+    with pytest.raises(AlreadyInitialisedError):
+        init_network(tmp_path, generator=fake_generator(seed=2))
+    assert (tmp_path / "firefly" / "core.yml").read_bytes() == before
+
+
+def test_force_regenerates_the_firefly_files_for_the_new_wallets(tmp_path: Path) -> None:
+    init_network(tmp_path, generator=fake_generator(seed=1))
+    old = {p.name for p in (tmp_path / "firefly" / "signer-data" / "keystore").iterdir()}
+    init_network(tmp_path, generator=fake_generator(seed=2), force=True)
+    new = {p.name for p in (tmp_path / "firefly" / "signer-data" / "keystore").iterdir()}
+    assert old.isdisjoint(new), "stale keystores of the old wallets were left behind"
+    assert len(new) == 6  # 3 wallets, a key file and a .toml each
+    document = json.loads((tmp_path / "wallets.json").read_text(encoding="utf-8"))
+    admin = next(w for w in document["wallets"] if w["name"] == "admin")
+    assert admin["address"] in (tmp_path / "firefly" / "core.yml").read_text(encoding="utf-8")
+
+
+def test_readme_mentions_the_firefly_files(tmp_path: Path) -> None:
+    init_network(tmp_path, generator=fake_generator())
+    assert "firefly/" in (tmp_path / "README.md").read_text(encoding="utf-8")
