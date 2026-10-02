@@ -34,8 +34,15 @@ class FakeClient:
         fail_on: str | None = None,
         already: set[str] | None = None,
         original_status: str = "Succeeded",
+        original_address: str | None = None,
+        transient_first: set[str] | None = None,
+        pending_polls: int = 0,
     ) -> None:
         self.original_status = original_status
+        self.original_address = original_address
+        self.transient_first = transient_first or set()
+        self.pending_polls = pending_polls
+        self.deploy_calls: list[str] = []
         self.deployed: list[tuple[str, list[Any], str | None, str | None]] = []
         self.invoked: list[tuple[str, str, dict[str, Any], str | None, str | None]] = []
         self.fail_on = fail_on
@@ -46,6 +53,14 @@ class FakeClient:
                key: str | None = None, idempotency_key: str | None = None,
                timeout: float = 0) -> DeployResult:
         name = (idempotency_key or "").removeprefix("trex-")
+        self.deploy_calls.append(name)
+        if name in self.transient_first and self.deploy_calls.count(name) == 1:
+            raise FireflyError(
+                'HTTP 500: FF10111: Error from ethereum connector: : Post "http://x/": '
+                "context deadline exceeded (Client.Timeout exceeded while awaiting headers)"
+            )
+        if name in self.transient_first:  # the first attempt was in fact accepted
+            raise AlreadySubmitted("tx-old-1234")
         if name == self.fail_on:
             raise FireflyError("HTTP 500: boom")
         if name in self.already:
@@ -56,7 +71,15 @@ class FakeClient:
 
     def transaction_operations(self, transaction_id: str) -> list[Operation]:
         assert transaction_id == "tx-old-1234"
-        return [Operation("op-old", self.original_status, error="reverted")]
+        if self.pending_polls > 0:
+            self.pending_polls -= 1
+            return [Operation("op-old", "Pending")]
+        output = (
+            {"contractLocation": {"address": self.original_address}}
+            if self.original_address
+            else {}
+        )
+        return [Operation("op-old", self.original_status, error="reverted", output=output)]
 
     def generate_interface(self, abi: Any) -> dict[str, Any]:
         self.generated.append(abi)
@@ -79,7 +102,8 @@ def run(client: FakeClient, existing: dict[str, str] | None = None,
     saved: list[dict[str, str]] = []
     result = run_plan(PLAN, client=client, load=load, accounts=ACCOUNTS, code_at=code_at,
                       existing=existing or {}, save=lambda m: saved.append(dict(m)),
-                      log=lambda _line: None)
+                      log=lambda _line: None, sleep=lambda _s: None,
+                      clock=iter(range(100_000)).__next__)
     return result, saved
 
 
@@ -137,9 +161,49 @@ def test_an_existing_address_without_code_is_deployed_again() -> None:
     assert [d[0] for d in client.deployed] == ["first", "second"]
 
 
-def test_a_deploy_that_succeeded_earlier_but_is_not_recorded_tells_the_user_to_reset() -> None:
-    with pytest.raises(DeployStepError, match=r"first.*already submitted.*reset"):
+def test_a_deploy_that_succeeded_earlier_is_recovered_from_its_operation_output() -> None:
+    address = "0x" + "9a" * 20
+    client = FakeClient(already={"first"}, original_status="Succeeded", original_address=address)
+    addresses, _ = run(client)
+    assert addresses["first"] == address
+    assert [d[0] for d in client.deployed] == ["second"]  # first was not deployed again
+
+
+def test_a_deploy_that_succeeded_earlier_without_an_address_tells_the_user_to_reset() -> None:
+    with pytest.raises(DeployStepError, match=r"first.*no address.*reset"):
         run(FakeClient(already={"first"}, original_status="Succeeded"))
+
+
+def test_an_earlier_transaction_that_is_still_pending_is_waited_for() -> None:
+    address = "0x" + "9b" * 20
+    client = FakeClient(
+        already={"first"}, original_status="Succeeded", original_address=address, pending_polls=3
+    )
+    addresses, _ = run(client)
+    assert addresses["first"] == address
+
+
+def test_an_earlier_transaction_that_never_finishes_is_an_error_naming_the_contract() -> None:
+    client = FakeClient(already={"first"}, pending_polls=10_000)
+    with pytest.raises(DeployStepError, match=r"first.*still pending"):
+        run(client)
+
+
+def test_a_timeout_is_retried_with_the_same_key_and_the_accepted_transaction_is_used() -> None:
+    address = "0x" + "9c" * 20
+    client = FakeClient(
+        transient_first={"first"}, original_status="Succeeded", original_address=address
+    )
+    addresses, _ = run(client)
+    assert addresses["first"] == address
+    assert client.deploy_calls[:2] == ["first", "first"]  # same key twice, not a new one
+
+
+def test_a_failure_that_is_not_transient_is_not_retried() -> None:
+    client = FakeClient(fail_on="first")
+    with pytest.raises(DeployStepError, match="HTTP 500: boom"):
+        run(client)
+    assert client.deploy_calls == ["first"]
 
 
 def test_a_deploy_whose_earlier_attempt_failed_is_retried_with_a_new_key() -> None:

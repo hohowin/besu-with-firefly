@@ -100,3 +100,20 @@ def test_api_bodies_pass_inputs_by_name_and_only_writes_carry_a_signer() -> None
         "idempotencyKey": "i1",
     }
     assert api_invoke_body({}, key="0xk") == {"input": {}, "key": "0xk"}
+
+
+def test_timeouts_and_dropped_connections_are_transient_but_reverts_are_not() -> None:
+    from src.core.firefly.operations import is_transient
+
+    timeout = (
+        "HTTP 500: FF10111: Error from ethereum connector: : Post "
+        '"http://firefly-evmconnect:5008/": context deadline exceeded '
+        "(Client.Timeout exceeded while awaiting headers)"
+    )
+    assert is_transient(timeout)
+    assert is_transient("POST /x could not reach FireFly: [Errno 111] Connection refused")
+    assert is_transient("HTTP 502: bad gateway")
+    assert not is_transient(
+        'HTTP 500: FF10111: Error from ethereum connector: FF23021: EVM reverted: Error("no")'
+    )
+    assert not is_transient("HTTP 400: FF10111: bad input")

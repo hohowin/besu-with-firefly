@@ -8,7 +8,9 @@ version = "0.0.0"
 description = "Besu QBFT network with FireFly and Paladin: stack tooling and a FireFly client"
 requires-python = ">=3.11"
 dependencies = [
+    "eth-abi>=5",
     "eth-account>=0.13",
+    "eth-utils>=5",
 ]
 
 [project.optional-dependencies]

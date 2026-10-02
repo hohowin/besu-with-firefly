@@ -117,3 +117,23 @@ def find_method(interface: Mapping[str, Any], name: str) -> dict[str, Any]:
         if method.get("name") == name:
             return dict(method)
     raise ValueError(f"the interface has no method {name!r}")
+
+
+_TRANSIENT = (
+    "context deadline exceeded",
+    "client.timeout",
+    "timed out",
+    "connection refused",
+    "connection reset",
+    "could not reach firefly",
+    "http 502",
+    "http 503",
+    "http 504",
+)
+
+
+def is_transient(message: str) -> bool:
+    """True for a failure that says nothing about the request itself (a timeout, a dropped
+    connection), so sending the same request again is reasonable. A revert is not transient."""
+    text = message.lower()
+    return any(marker in text for marker in _TRANSIENT)

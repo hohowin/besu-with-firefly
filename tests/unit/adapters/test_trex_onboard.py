@@ -27,6 +27,9 @@ class FakeChain:
         self.registered: dict[str, tuple[str, int]] = {}
         self.writes: list[tuple[str, str, dict[str, Any], str | None]] = []
 
+    def transaction_operations(self, transaction_id: str) -> list[Operation]:
+        return [Operation("op-old", "Succeeded")]
+
     def generate_interface(self, abi: Sequence[Any]) -> dict[str, Any]:
         return {"methods": [{"name": n} for n in ("getIdentity", "createIdentity")]}
 
@@ -98,3 +101,30 @@ def test_an_account_that_already_has_an_identity_is_only_registered() -> None:
     creates = [w[2]["_wallet"] for w in chain.writes if w[1] == "createIdentity"]
     assert creates == [ACCOUNTS["beatrice"]]
     assert chain.registered[ACCOUNTS["anson"]][0] == "0x" + "77" * 20
+
+
+def test_a_timeout_while_creating_an_identity_is_retried_and_the_accepted_write_is_used() -> None:
+    from src.adapters.firefly import AlreadySubmitted, FireflyError
+
+    class Flaky(FakeChain):
+        def __init__(self) -> None:
+            super().__init__()
+            self.attempts: list[str | None] = []
+
+        def invoke(self, address: str, method: Mapping[str, Any], inputs: Mapping[str, Any],
+                   key: str | None = None, idempotency_key: str | None = None,
+                   timeout: float = 0) -> Operation:
+            self.attempts.append(idempotency_key)
+            if len(self.attempts) == 1:  # the request timed out, but FireFly did accept it
+                super().invoke(address, method, inputs, key, idempotency_key, timeout)
+                raise FireflyError("HTTP 500: Post x: context deadline exceeded")
+            raise AlreadySubmitted("tx-first")
+
+    chain = Flaky()
+    register_identities(
+        chain, load, {"id-factory": ID_FACTORY}, ACCOUNTS, lambda _line: None,
+        sleep=lambda _s: None,
+    )  # fmt: skip
+    # The retry used the same key and found the write already accepted: nothing was sent twice.
+    assert chain.attempts[:2] == ["trex-createIdentity-anson", "trex-createIdentity-anson"]
+    assert ACCOUNTS["anson"] in chain.registered

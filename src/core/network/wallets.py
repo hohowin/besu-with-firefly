@@ -60,3 +60,11 @@ def account_addresses(document: dict[str, Any]) -> dict[str, str]:
     if not wallets:
         raise ValueError("the wallets document has no wallets")
     return {str(w["name"]): str(w["address"]).lower() for w in wallets}
+
+
+def wallet_private_key(document: dict[str, Any], name: str) -> str:
+    """The private key of the wallet called `name`, from the content of `wallets.json`."""
+    for wallet in document.get("wallets", []):
+        if wallet["name"] == name:
+            return str(wallet["privateKey"])
+    raise ValueError(f"no wallet called {name!r}")

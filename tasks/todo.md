@@ -269,13 +269,13 @@ Sizes: no task is L or larger. Tasks 7 and 9 are the largest (M).
 **Description:** Admin, through a `ClaimIssuer` listed in the TrustedIssuersRegistry, signs a KYC claim for each identity. Pure code in `src/core/trex/claims.py` builds the claim hash (`keccak256(abi.encode(identity, topic, data))`) and signs it with Admin's key (`eth-account`, already a dependency), checked against a known test vector. The identity owner (`anson`, `beatrice`, whose FireFly keys exist) then calls `addClaim` on their own OnchainID through FireFly. Skip a claim if `isVerified` is already true.
 
 **Acceptance criteria:**
-- [ ] `isVerified` is true for Anson and Beatrice and false for Admin after the step
-- [ ] The claim signature is accepted by the ClaimIssuer on-chain (`isClaimValid` true), and a signature from any other key is rejected (tested)
-- [ ] Re-running sends no write, as in Task 9
+- [x] `isVerified` is true for Anson and Beatrice and false for Admin after the step
+- [x] The claim signature is accepted by the ClaimIssuer on-chain (`isClaimValid` true), and a signature from any other key is rejected (tested)
+- [x] Re-running sends no write, as in Task 9
 
 **Verification:**
-- [ ] Tests pass: `pytest tests/unit` and `pytest -m integration -k onboarding_claim`
-- [ ] Checks clean: `ruff check .` and `mypy .`
+- [x] Tests pass: `pytest tests/unit` and `pytest -m integration -k onboarding_claim`
+- [x] Checks clean: `ruff check .` and `mypy .`
 
 **Dependencies:** Task 9
 
@@ -284,6 +284,8 @@ Sizes: no task is L or larger. Tasks 7 and 9 are the largest (M).
 - `tests/unit/core/test_claims.py`, `tests/integration/test_onboarding.py`
 
 **Size:** M
+
+**Status:** Done 2026-10-02. Test-first (pure `src/core/trex/claims.py`: the claim hash checked against a hand-built ABI encoding, signature recovery, skip rule; adapter `issue_claims` with a stateful fake; 4 integration tests). Admin signs, the investor adds the claim to their own identity with their own FireFly key. On the real stack it worked first time, `isVerified` is true for Anson and Beatrice and false for Admin, the ClaimIssuer accepts the stored claim and Admin's signature and rejects one signed by Beatrice's key, and a second `onboard` sends nothing. `eth-abi` and `eth-utils`, which `eth-account` already installs, are now declared in `pyproject.toml` because the code imports them directly. **Resilience added after a real failure:** one cold `deploy` hit `HTTP 500 ... context deadline exceeded` (FireFly timed out waiting for evmconnect after 30 s, then completed the transaction itself). `submit` (in `trex_deploy.py`, also used by the onboarding writes) now retries a transient error under the same idempotency key, waits for an accepted earlier transaction to become final and takes the address from its operation output (so a succeeded earlier deploy no longer asks for `reset`), and retries under a new key only if it failed. Unit-tested; the timeout did not recur in three further cold `deploy` runs (51 to 72 s, no errors), so the live retry path is untested.
 
 ### Task 11: Mint to Anson and a compliant transfer to Beatrice
 

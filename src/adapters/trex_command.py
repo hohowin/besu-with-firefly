@@ -9,9 +9,9 @@ from src.adapters.rpc import get_code
 from src.adapters.trex_apis import register_apis, unpause_token
 from src.adapters.trex_artifacts import REPO_ROOT, load_artifact
 from src.adapters.trex_deploy import run_plan
-from src.adapters.trex_onboard import register_identities
+from src.adapters.trex_onboard import issue_claims, register_identities
 from src.adapters.trex_suite import read_suite
-from src.core.network.wallets import account_addresses
+from src.core.network.wallets import account_addresses, wallet_private_key
 from src.core.trex.plan import build_plan
 
 DEPLOYED_ADDRESSES = REPO_ROOT / "deployed-addresses.json"
@@ -25,7 +25,7 @@ def deploy_trex(
     """Deploy the T-REX infrastructure through the running FireFly and create `COIN`.
 
     Then registers the contract APIs `coin` and `identity-registry`, unpauses the token and
-    registers the demo investors (the same as `onboard_trex`).
+    registers and verifies the demo investors (the same as `onboard_trex`).
 
     Writes every address to `out`, including those of the token and its registries, which are
     read back from the factory and the token. Running it again sends nothing that is done.
@@ -59,6 +59,8 @@ def deploy_trex(
     register_apis(client, load_artifact, suite, log)
     unpause_token(client, accounts["admin"], log)
     register_identities(client, load_artifact, everything, accounts, log)
+    issuer_key = wallet_private_key(document, "admin")
+    issue_claims(client, load_artifact, everything, accounts, issuer_key, log)
     return everything
 
 
@@ -67,13 +69,11 @@ def onboard_trex(
     out: Path = DEPLOYED_ADDRESSES,
     log: Callable[[str], None] = print,
 ) -> None:
-    """Register the demo investors. Needs `deploy` to have run; sends only what is missing."""
+    """Register and verify the demo investors. Needs `deploy`; sends only what is missing."""
     document = json.loads((network_dir / "wallets.json").read_text(encoding="utf-8"))
     addresses: dict[str, str] = json.loads(out.read_text(encoding="utf-8"))
-    register_identities(
-        FireflyClient(http_transport()),
-        load_artifact,
-        addresses,
-        account_addresses(document),
-        log,
-    )
+    client = FireflyClient(http_transport())
+    accounts = account_addresses(document)
+    register_identities(client, load_artifact, addresses, accounts, log)
+    issuer_key = wallet_private_key(document, "admin")
+    issue_claims(client, load_artifact, addresses, accounts, issuer_key, log)
