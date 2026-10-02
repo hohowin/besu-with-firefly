@@ -117,3 +117,38 @@ def test_up_waits_up_to_five_minutes_by_default() -> None:
     stack = FakeStack()
     assert main(["up"], stack=stack) == 0
     assert stack.timeouts == [300.0]
+
+
+def test_deploy_runs_the_deployer_and_exits_zero(tmp_path: Path) -> None:
+    seen: list[Path] = []
+
+    def deployer(network_dir: Path) -> dict[str, str]:
+        seen.append(network_dir)
+        return {"id-factory": "0x" + "11" * 20}
+
+    assert main(["deploy", "--network-dir", str(tmp_path)], deployer=deployer) == 0
+    assert seen == [tmp_path]
+
+
+def test_deploy_failure_exits_one_and_names_the_step(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from src.adapters.trex_deploy import DeployStepError
+
+    def deployer(_network_dir: Path) -> dict[str, str]:
+        raise DeployStepError("trex-factory", "HTTP 500: boom")
+
+    assert main(["deploy", "--network-dir", str(tmp_path)], deployer=deployer) == 1
+    assert "trex-factory: HTTP 500: boom" in capsys.readouterr().err
+
+
+def test_deploy_without_the_npm_packages_exits_one_with_the_hint(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from src.adapters.trex_artifacts import ArtifactsMissingError
+
+    def deployer(_network_dir: Path) -> dict[str, str]:
+        raise ArtifactsMissingError("run `npm ci` in contracts/")
+
+    assert main(["deploy", "--network-dir", str(tmp_path)], deployer=deployer) == 1
+    assert "npm ci" in capsys.readouterr().err

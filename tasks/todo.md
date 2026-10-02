@@ -165,13 +165,13 @@ Sizes: no task is L or larger. Tasks 7 and 9 are the largest (M).
 **Description:** Add `python scripts/stack.py deploy`, which loads the Task 5 plan and deploys the infrastructure contracts in order through the Task 4 client (`POST /contracts/deploy`, key `admin`), checking each address against `eth_getCode` as it goes. Stop at the first failure and name the contract and FireFly's error. It writes `deployed-addresses.json` (gitignored, Open Question 6) after each success. Everything up to, but not including, creating the `COIN` token.
 
 **Acceptance criteria:**
-- [ ] Every deployed address is non-zero and has code on-chain (`eth_getCode`), and FireFly shows a deploy operation per contract
-- [ ] A deploy failure stops the run, names the contract, prints FireFly's error, and exits non-zero (unit-tested with a fake client)
-- [ ] The contracts are deployed through FireFly, not a direct RPC signer (the integration test lists FireFly's operations and sees one per contract)
+- [x] Every deployed address is non-zero and has code on-chain (`eth_getCode`), and FireFly shows a deploy operation per contract
+- [x] A deploy failure stops the run, names the contract, prints FireFly's error, and exits non-zero (unit-tested with a fake client)
+- [x] The contracts are deployed through FireFly, not a direct RPC signer (the integration test lists FireFly's operations and sees one per contract)
 
 **Verification:**
-- [ ] Tests pass: `pytest tests/unit` and `pytest -m integration -k deploy_infrastructure`
-- [ ] Checks clean: `ruff check .` and `mypy .`
+- [x] Tests pass: `pytest tests/unit` and `pytest -m integration -k deploy_infrastructure`
+- [x] Checks clean: `ruff check .` and `mypy .`
 
 **Dependencies:** Tasks 4, 5
 
@@ -181,6 +181,8 @@ Sizes: no task is L or larger. Tasks 7 and 9 are the largest (M).
 - `.gitignore`
 
 **Size:** M
+
+**Status:** Done 2026-10-02. Test-first (31 new unit tests, 5 integration tests). From a reset stack, `python scripts/stack.py deploy` deploys the 12 contracts and makes the 3 wiring calls in about 33 s; every address has the pinned artifact's code (checked by size) and a `Succeeded` FireFly deploy operation. **Found on the real chain:** (1) the plan order from Task 5 was wrong: `TREXFactory`'s constructor reverts unless `addAndUseTREXVersion` already ran, so that call now comes before the factory (plan test added, `docs/spike-results.md` corrected); (2) a failed transaction keeps its idempotency key, so a retry got a 409. The runner now checks the earlier transaction and retries under a new key when it failed, treats a succeeded call as done, and asks for `reset` for a deploy whose address was not recorded. The same run also showed that a reverted deploy comes back as HTTP 500 with the revert text and that the final status is `Failed` (recorded for Task 12). `deployed-addresses.json` is gitignored. A second `deploy` sends nothing new.
 
 ### Task 7: Create the `COIN` token through the factory
 

@@ -65,11 +65,13 @@ def test_the_factory_needs_the_trex_authority_and_the_id_factory_first() -> None
     assert factory.args == (Ref("trex-implementation-authority"), Ref("id-factory"))
 
 
-def test_the_authority_gets_its_version_and_factory_only_after_everything_exists() -> None:
+def test_the_authority_is_complete_before_the_factory_is_deployed() -> None:
+    """TREXFactory's constructor reverts ("invalid Implementation Authority") unless the authority
+    already has all six implementations, so its version must be added first (seen on the chain)."""
     plan = build_plan()
-    calls = [(i, s) for i, s in enumerate(plan) if isinstance(s, Call)]
-    by_method = {s.method: i for i, s in calls}
-    assert set(by_method) == {"addAndUseTREXVersion", "setTREXFactory", "addTokenFactory"}
+    version_call = next(
+        i for i, s in enumerate(plan) if isinstance(s, Call) and s.method == "addAndUseTREXVersion"
+    )
     for implementation in (
         "token-implementation",
         "claim-topics-registry-implementation",
@@ -77,8 +79,16 @@ def test_the_authority_gets_its_version_and_factory_only_after_everything_exists
         "identity-registry-storage-implementation",
         "trusted-issuers-registry-implementation",
         "modular-compliance-implementation",
+        "trex-implementation-authority",
     ):
-        assert index_of(plan, implementation) < by_method["addAndUseTREXVersion"]
+        assert index_of(plan, implementation) < version_call
+    assert version_call < index_of(plan, "trex-factory")
+
+
+def test_the_factory_is_registered_with_the_authority_and_the_id_factory_after_it_exists() -> None:
+    plan = build_plan()
+    by_method = {s.method: i for i, s in enumerate(plan) if isinstance(s, Call)}
+    assert set(by_method) == {"addAndUseTREXVersion", "setTREXFactory", "addTokenFactory"}
     assert index_of(plan, "trex-factory") < by_method["setTREXFactory"]
     assert index_of(plan, "trex-factory") < by_method["addTokenFactory"]
 

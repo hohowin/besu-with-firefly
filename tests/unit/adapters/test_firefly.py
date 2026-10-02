@@ -132,3 +132,15 @@ def test_a_transport_failure_is_a_firefly_error_naming_the_request() -> None:
 
     with pytest.raises(FireflyError, match=r"GET /api/v1/status.*refused"):
         FireflyClient(broken).status()
+
+
+def test_transaction_operations_lists_the_operations_of_a_transaction() -> None:
+    transport = FakeTransport(
+        (200, [{"id": "op1", "status": "Failed", "error": "FF10111: EVM reverted"}])
+    )
+    operations = client(transport).transaction_operations("tx1")
+    assert [(o.id, o.status, o.error) for o in operations] == [
+        ("op1", "Failed", "FF10111: EVM reverted")
+    ]
+    expected = "/api/v1/namespaces/default/transactions/tx1/operations"
+    assert transport.requests[0][:2] == ("GET", expected)

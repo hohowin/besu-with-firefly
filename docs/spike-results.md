@@ -175,7 +175,7 @@ All resolved on 2026-10-02 when the developer signed off Phase 0 and asked for t
 
 ## Phase 2 findings
 
-Added during Phase 2 (Task 5, 2026-10-02). Evidence labelled **read** comes from the pinned packages' sources and artifacts; nothing here has been deployed yet (that is Tasks 6 and 7).
+Added during Phase 2 (Task 5, 2026-10-02). Evidence labelled **read** comes from the pinned packages' sources and artifacts, **run** from the live stack.
 
 ### T-REX suite: what to deploy, and in what order (read)
 
@@ -186,10 +186,10 @@ Pinned in `contracts/package.json`: `@tokenysolutions/t-rex` **4.1.6** and `@onc
 - **Order** (the plan in `src/core/trex/plan.py`, checked against the real ABIs by a test):
   1. OnchainID `Identity` implementation `(admin, isLibrary=true)`, then `ImplementationAuthority(identity)`, then `IdFactory(authority)`.
   2. The six T-REX implementations, no constructor arguments: `Token`, `ClaimTopicsRegistry`, `IdentityRegistry`, `IdentityRegistryStorage`, `TrustedIssuersRegistry`, `ModularCompliance`.
-  3. `TREXImplementationAuthority(referenceStatus=true, trexFactory=0x0, iaFactory=0x0)`. The factory needs the authority's address, so the factory is set afterwards.
+  3. `TREXImplementationAuthority(referenceStatus=true, trexFactory=0x0, iaFactory=0x0)`, then **`addAndUseTREXVersion({4,1,6}, {the six implementations})` before the factory exists**. The factory's constructor reverts with `invalid Implementation Authority` unless the authority already holds all six implementations. (Reading the source first gave the wrong order; the chain corrected it, see below.)
   4. `TREXFactory(trexAuthority, idFactory)`.
   5. `ClaimIssuer(admin)`, so Admin is its management key and can sign KYC claims.
-  6. Wiring calls as Admin: `trexAuthority.addAndUseTREXVersion({4,1,6}, {the six implementations})`, `trexAuthority.setTREXFactory(factory)`, `idFactory.addTokenFactory(factory)`.
+  6. Registering the factory, as Admin: `trexAuthority.setTREXFactory(factory)` (requires the factory to report that authority) and `idFactory.addTokenFactory(factory)`.
 - **Then** `TREXFactory.deployTREXSuite(salt, tokenDetails, claimDetails)` creates the token and its five proxies (token, IdentityRegistry, IdentityRegistryStorage, ClaimTopicsRegistry, TrustedIssuersRegistry, ModularCompliance) by CREATE2 and calls `IdFactory.createTokenIdentity`, which is why the factory must be a token factory of the IdFactory. It is `onlyOwner` (Admin deployed it) and takes at most 5 agents, 5 claim topics, 5 trusted issuers. `getToken(salt)` returns the token. That is Task 7.
 
 ### Contract sizes (read)
@@ -211,4 +211,14 @@ All deployed sizes are under the 24,576-byte limit and all init sizes under the 
 | trex-factory | TREXFactory | 23,495 | 25,125 | 1,081 |
 | claim-issuer | ClaimIssuer | 19,987 | 21,311 | 4,589 |
 
-**Verdict so far: the full suite fits and the deploy order is known. D-04 and risk R3 hold.** Not yet proven on the chain: the gas of `deployTREXSuite` and of the `TREXFactory` deployment on our Besu (Tasks 6 and 7).
+**Verdict so far: the infrastructure deploys through FireFly and D-04 and risk R3 hold.** The `TREXFactory` deployment itself works on our Besu. Not yet proven: `deployTREXSuite` (Task 7).
+
+### Deploying through FireFly (run, Task 6)
+
+From a reset stack, `python scripts/stack.py deploy` deploys the 12 contracts and makes the 3 wiring calls in about 33 seconds, with no manual step. Addresses are the same on every fresh chain (same deployer, same nonces).
+
+- **A reverted deploy** with `?confirm=true` comes back as **HTTP 500** with `{"error": "FF10111: Error from ethereum connector: FF23021: EVM reverted: Error(\"invalid Implementation Authority\")"}`, not as HTTP 200 with a failed status. The revert reason is in the text.
+- **The operation's final status for a failure is `Failed`**, with the same text in its `error` field (`GET /transactions/{id}/operations`). This fills the Risk 7 gap about the failure value.
+- **A failed transaction keeps its idempotency key.** Sending the same key again returns 409 `FF10431` even though nothing was mined. The deploy runner therefore checks the original transaction's operations: if all failed it retries under `<key>-after-<first 8 characters of the transaction id>`, if it succeeded it counts as done (a call) or asks for `reset` (a deploy whose address was not recorded).
+- **`POST /contracts/interfaces/generate`** with `{"input": {"abi": [...]}}` returns a contract interface whose methods work as the `method` of an invoke, including struct parameters (the `addAndUseTREXVersion` call uses it). Nothing is registered by calling it.
+- Calls are passed to FireFly by parameter name, so the plan's positional arguments are paired with the ABI's parameter names.

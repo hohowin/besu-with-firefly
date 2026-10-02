@@ -1,11 +1,11 @@
 """Command line for the stack: `python scripts/stack.py <command>`.
 
-`init`, `up` and `reset`. `deploy` arrives with the FireFly phases.
+`init`, `up`, `deploy` and `reset`.
 """
 
 import argparse
 import sys
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Protocol
 
@@ -19,6 +19,8 @@ from src.adapters.besu_config import (
 )
 from src.adapters.docker_stack import DockerStack, StackError
 from src.adapters.rpc import chain_heights_reader
+from src.adapters.trex_artifacts import ArtifactsMissingError
+from src.adapters.trex_deploy import DeployStepError, deploy_trex
 from src.core.network.health import ContainerState
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -49,6 +51,15 @@ def build_parser() -> argparse.ArgumentParser:
         default=300.0,
         help="seconds to wait for healthy containers and a moving chain (default: 300)",
     )
+    deploy = commands.add_parser(
+        "deploy", help="deploy the T-REX contracts through FireFly (the stack must be up)"
+    )
+    deploy.add_argument(
+        "--network-dir",
+        type=Path,
+        default=REPO_ROOT / "network-config",
+        help="where wallets.json is (default: network-config/)",
+    )
     commands.add_parser(
         "reset", help="remove the containers and volumes, so the chain restarts at genesis"
     )
@@ -65,8 +76,12 @@ def main(
     argv: Sequence[str] | None = None,
     generator: Generator | None = None,
     stack: Stack | None = None,
+    deployer: Callable[[Path], dict[str, str]] | None = None,
 ) -> int:
-    """Run a command and return the process exit code. Tests inject `generator` and `stack`."""
+    """Run a command and return the process exit code.
+
+    Tests inject `generator`, `stack` and `deployer`.
+    """
     args = build_parser().parse_args(argv)
     if args.command == "init":
         try:
@@ -91,6 +106,12 @@ def main(
             return 1
         for state in states:
             print(f"{state.service}  {state.state}  {state.health or '-'}")
+    if args.command == "deploy":
+        try:
+            (deployer or deploy_trex)(args.network_dir)
+        except (DeployStepError, ArtifactsMissingError, OSError) as error:
+            print(f"error: {error}", file=sys.stderr)
+            return 1
     if args.command == "reset":
         try:
             removed = (stack or DockerStack()).reset()

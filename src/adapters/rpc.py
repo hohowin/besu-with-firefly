@@ -22,6 +22,18 @@ def _block_number(url: str, timeout: float) -> int:
         return int(json.loads(response.read())["result"], 16)
 
 
+def get_code(address: str, url: str = RPC_NODES["besu-rpc-anson"], timeout: float = 10.0) -> str:
+    """The contract code at an address (`0x` when there is none)."""
+    body = json.dumps(
+        {"jsonrpc": "2.0", "id": 1, "method": "eth_getCode", "params": [address, "latest"]}
+    )
+    request = urllib.request.Request(
+        url, data=body.encode(), headers={"Content-Type": "application/json"}
+    )
+    with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310 (localhost)
+        return str(json.loads(response.read())["result"])
+
+
 def chain_heights_reader(
     nodes: Mapping[str, str] = RPC_NODES, timeout: float = 5.0
 ) -> ChainHeights:

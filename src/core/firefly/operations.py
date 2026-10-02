@@ -97,3 +97,11 @@ def already_submitted_transaction(status: int, body: Any) -> str | None:
     text = body.get("error", "") if isinstance(body, Mapping) else str(body)
     match = _IDEMPOTENCY_CONFLICT.search(str(text))
     return match.group(1) if match else None
+
+
+def find_method(interface: Mapping[str, Any], name: str) -> dict[str, Any]:
+    """The method called `name` in a FireFly contract interface (as `generate` returns it)."""
+    for method in interface.get("methods", []):
+        if method.get("name") == name:
+            return dict(method)
+    raise ValueError(f"the interface has no method {name!r}")

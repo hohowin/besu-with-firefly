@@ -52,3 +52,11 @@ def build_wallets_document(wallets: list[Wallet]) -> dict[str, Any]:
             {"name": w.name, "address": w.address, "privateKey": w.private_key} for w in wallets
         ],
     }
+
+
+def account_addresses(document: dict[str, Any]) -> dict[str, str]:
+    """Wallet name to address, from the content of `wallets.json`."""
+    wallets = document.get("wallets")
+    if not wallets:
+        raise ValueError("the wallets document has no wallets")
+    return {str(w["name"]): str(w["address"]).lower() for w in wallets}

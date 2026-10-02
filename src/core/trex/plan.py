@@ -127,6 +127,16 @@ def build_plan() -> list[Step]:
             _trex("proxy/authority/TREXImplementationAuthority.sol/TREXImplementationAuthority.json"),
             (True, "0x" + "00" * 20, "0x" + "00" * 20),
         ),
+        # The factory's constructor reverts unless the authority already holds all six
+        # implementations, so the version is added before the factory is deployed.
+        Call(
+            "trex-implementation-authority",
+            "addAndUseTREXVersion",
+            (
+                dict(TREX_VERSION),
+                {field: Ref(name) for name, (_path, field) in _IMPLEMENTATIONS.items()},
+            ),
+        ),
         Deploy(
             "trex-factory",
             _trex("factory/TREXFactory.sol/TREXFactory.json"),
@@ -138,15 +148,7 @@ def build_plan() -> list[Step]:
             _onchainid("ClaimIssuer.sol/ClaimIssuer.json"),
             (Account("admin"),),
         ),
-        # Wire everything together.
-        Call(
-            "trex-implementation-authority",
-            "addAndUseTREXVersion",
-            (
-                dict(TREX_VERSION),
-                {field: Ref(name) for name, (_path, field) in _IMPLEMENTATIONS.items()},
-            ),
-        ),
+        # Register the factory with the authority and with the identity factory.
         Call("trex-implementation-authority", "setTREXFactory", (Ref("trex-factory"),)),
         Call("id-factory", "addTokenFactory", (Ref("trex-factory"),)),
     ]

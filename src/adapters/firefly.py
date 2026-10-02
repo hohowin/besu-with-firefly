@@ -140,6 +140,20 @@ class FireflyClient:
         self._raise_for(status, body)
         return body
 
+    def generate_interface(self, abi: Sequence[Any]) -> dict[str, Any]:
+        """Ask FireFly to turn an ABI into a contract interface (FFI). Nothing is registered."""
+        status, body = self._call(
+            "POST", f"{self._ns}/contracts/interfaces/generate", {"input": {"abi": list(abi)}}
+        )
+        self._raise_for(status, body)
+        return dict(body)
+
+    def transaction_operations(self, transaction_id: str) -> list[Operation]:
+        """The operations of a transaction, for example to see whether an earlier attempt failed."""
+        status, body = self._call("GET", f"{self._ns}/transactions/{transaction_id}/operations")
+        self._raise_for(status, body)
+        return [parse_operation(item) for item in body]
+
     def get_operation(self, operation_id: str) -> Operation:
         status, body = self._call("GET", f"{self._ns}/operations/{operation_id}")
         self._raise_for(status, body)

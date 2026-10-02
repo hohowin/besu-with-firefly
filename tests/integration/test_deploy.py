@@ -1,0 +1,98 @@
+"""`stack.py deploy`: the T-REX infrastructure is deployed through FireFly and wired together."""
+
+import json
+import subprocess
+import sys
+from typing import Any
+
+import pytest
+
+from src.adapters.docker_stack import REPO_ROOT, DockerStack
+from src.adapters.trex_artifacts import load_artifact
+from src.core.trex.plan import Deploy, build_plan
+from tests.support.firefly import ff_get, ff_query
+from tests.support.rpc import RPC_ANSON, rpc_call
+
+ADDRESSES_FILE = REPO_ROOT / "deployed-addresses.json"
+PLAN_NAMES = [step.name for step in build_plan() if isinstance(step, Deploy)]
+
+pytestmark = pytest.mark.integration
+
+
+def run_deploy() -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [sys.executable, str(REPO_ROOT / "scripts" / "stack.py"), "deploy"],
+        capture_output=True,
+        text=True,
+        timeout=900,
+        check=False,
+    )
+
+
+def abi_of(name: str) -> list[dict[str, object]]:
+    step = next(s for s in build_plan() if isinstance(s, Deploy) and s.name == name)
+    return load_artifact(step.artifact).abi
+
+
+def deploy_operations() -> list[dict[str, Any]]:
+    operations = ff_get("/api/v1/namespaces/default/operations?type=blockchain_deploy&limit=200")
+    assert isinstance(operations, list)
+    return operations
+
+
+@pytest.fixture(scope="module")
+def deployed(stack: DockerStack) -> dict[str, str]:
+    result = run_deploy()
+    assert result.returncode == 0, f"deploy failed:\n{result.stdout}\n{result.stderr}"
+    return dict(json.loads(ADDRESSES_FILE.read_text(encoding="utf-8")))
+
+
+def test_every_contract_has_a_non_zero_address_with_code_on_chain(deployed: dict[str, str]) -> None:
+    assert sorted(deployed) == sorted(PLAN_NAMES)
+    for name, address in deployed.items():
+        assert int(address, 16) != 0, f"{name} has the zero address"
+        assert rpc_call(RPC_ANSON, "eth_getCode", [address, "latest"]) not in ("0x", ""), name
+
+
+def test_every_contract_was_deployed_by_a_firefly_operation(deployed: dict[str, str]) -> None:
+    succeeded = {
+        str(op["output"]["contractLocation"]["address"]).lower()
+        for op in deploy_operations()
+        if op["status"] == "Succeeded"
+    }
+    for name, address in deployed.items():
+        assert address.lower() in succeeded, f"FireFly has no deploy operation for {name}"
+
+
+def test_the_deployed_code_is_the_pinned_artifact(deployed: dict[str, str]) -> None:
+    for step in (s for s in build_plan() if isinstance(s, Deploy)):
+        on_chain = rpc_call(RPC_ANSON, "eth_getCode", [deployed[step.name], "latest"])
+        expected = (len(on_chain) - 2) // 2
+        assert expected == load_artifact(step.artifact).deployed_size, step.name
+
+
+def test_the_wiring_calls_took_effect(deployed: dict[str, str]) -> None:
+    trex_factory = deployed["trex-factory"].lower()
+    registered = ff_query(
+        deployed["trex-implementation-authority"],
+        abi_of("trex-implementation-authority"),
+        "getTREXFactory",
+        {},
+    )
+    assert str(next(iter(registered.values()))).lower() == trex_factory
+    is_token_factory = ff_query(
+        deployed["id-factory"],
+        abi_of("id-factory"),
+        "isTokenFactory",
+        {"_factory": deployed["trex-factory"]},
+    )
+    assert next(iter(is_token_factory.values())) is True
+
+
+def test_running_deploy_again_sends_nothing_new(deployed: dict[str, str]) -> None:
+    before = len(deploy_operations())
+    result = run_deploy()
+    assert result.returncode == 0, result.stderr
+    assert "already deployed" in result.stdout
+    assert len(deploy_operations()) == before
+    assert json.loads(ADDRESSES_FILE.read_text(encoding="utf-8")) == deployed

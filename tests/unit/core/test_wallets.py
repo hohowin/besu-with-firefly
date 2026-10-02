@@ -50,3 +50,22 @@ def test_document_rejects_duplicate_and_empty_names() -> None:
 def test_document_rejects_a_wallet_whose_address_does_not_match_its_key() -> None:
     with pytest.raises(ValueError, match="does not match"):
         build_wallets_document([Wallet("admin", "0x" + "11" * 20, VECTOR_KEY)])
+
+
+def test_account_addresses_maps_each_wallet_name_to_its_address() -> None:
+    from src.core.network.wallets import account_addresses
+
+    document = {
+        "wallets": [
+            {"name": "admin", "address": "0x" + "aa" * 20, "privateKey": "0x01"},
+            {"name": "anson", "address": "0x" + "bb" * 20, "privateKey": "0x02"},
+        ]
+    }
+    assert account_addresses(document) == {"admin": "0x" + "aa" * 20, "anson": "0x" + "bb" * 20}
+
+
+def test_account_addresses_rejects_a_document_without_wallets() -> None:
+    from src.core.network.wallets import account_addresses
+
+    with pytest.raises(ValueError, match="no wallets"):
+        account_addresses({"notice": "x"})
