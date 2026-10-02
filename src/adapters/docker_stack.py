@@ -9,13 +9,20 @@ import time
 from collections.abc import Callable, Sequence
 from pathlib import Path
 
-from src.core.network.health import ContainerState, all_healthy, parse_compose_ps
+from src.core.network.health import (
+    ContainerState,
+    all_healthy,
+    nodes_without_blocks,
+    parse_compose_ps,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 _ANSI = re.compile(r"\x1b\[[0-9;]*m")
 
 # Runs a command and returns (exit code, stdout, stderr).
 Runner = Callable[[Sequence[str]], tuple[int, str, str]]
+# Reads the chain height of each RPC node (None when a node cannot be reached).
+ChainHeights = Callable[[], dict[str, int | None]]
 
 
 class StackError(Exception):
@@ -45,10 +52,12 @@ class DockerStack:
         runner: Runner | None = None,
         sleep: Callable[[float], None] = time.sleep,
         clock: Callable[[], float] = time.monotonic,
+        chain_heights: ChainHeights | None = None,
     ) -> None:
         self._run = runner or subprocess_runner()
         self._sleep = sleep
         self._clock = clock
+        self._chain_heights = chain_heights
 
     def _compose(self, *args: str) -> str:
         return self._checked(["docker", "compose", *args])
@@ -65,14 +74,19 @@ class DockerStack:
     def states(self) -> list[ContainerState]:
         return parse_compose_ps(self._compose("ps", "--format", "json"))
 
-    def up(self, wait_timeout: float = 120.0, poll_seconds: float = 2.0) -> list[ContainerState]:
-        """Start every service and wait until all are running and healthy."""
+    def up(self, wait_timeout: float = 300.0, poll_seconds: float = 2.0) -> list[ContainerState]:
+        """Start every service, wait until all are healthy, then until the chain has blocks.
+
+        The chain wait matters because a cold QBFT start can take a while to produce its first
+        block, and everything above Besu needs a chain that is moving.
+        """
         expected = self.services()
         self._compose("up", "-d")
         deadline = self._clock() + wait_timeout
         while True:
             states = self.states()
             if all_healthy(states, expected):
+                self._wait_for_blocks(deadline, poll_seconds)
                 return states
             if self._clock() >= deadline:
                 by_service = {s.service: s for s in states}
@@ -95,6 +109,24 @@ class DockerStack:
         removed = [state.service for state in existing]
         self._compose("down", "--volumes", "--remove-orphans")
         return removed
+
+    def _wait_for_blocks(self, deadline: float, poll_seconds: float) -> None:
+        if self._chain_heights is None:
+            return
+        while True:
+            heights = self._chain_heights()
+            waiting = nodes_without_blocks(heights)
+            if not waiting:
+                return
+            if self._clock() >= deadline:
+                described = [
+                    f"{name} is unreachable"
+                    if heights[name] is None
+                    else f"{name} is still at block {heights[name]}"
+                    for name in waiting
+                ]
+                raise StackError(f"chain is not producing blocks: {', '.join(described)}")
+            self._sleep(poll_seconds)
 
     def stop(self, container: str) -> None:
         """Stop one container (it stays stopped; the stack has no restart policy)."""

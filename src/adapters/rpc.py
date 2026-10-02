@@ -1,0 +1,39 @@
+"""Read the chain height of Besu RPC nodes over JSON-RPC (adapter, standard library only)."""
+
+import json
+import urllib.error
+import urllib.request
+from collections.abc import Mapping
+
+from src.adapters.docker_stack import ChainHeights
+
+RPC_NODES = {
+    "besu-rpc-anson": "http://localhost:8545",
+    "besu-rpc-beatrice": "http://localhost:8555",
+}
+
+
+def _block_number(url: str, timeout: float) -> int:
+    body = json.dumps({"jsonrpc": "2.0", "id": 1, "method": "eth_blockNumber", "params": []})
+    request = urllib.request.Request(
+        url, data=body.encode(), headers={"Content-Type": "application/json"}
+    )
+    with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310 (localhost)
+        return int(json.loads(response.read())["result"], 16)
+
+
+def chain_heights_reader(
+    nodes: Mapping[str, str] = RPC_NODES, timeout: float = 5.0
+) -> ChainHeights:
+    """A reader that returns each node's height, or None for a node that cannot be reached."""
+
+    def read() -> dict[str, int | None]:
+        heights: dict[str, int | None] = {}
+        for name, url in nodes.items():
+            try:
+                heights[name] = _block_number(url, timeout)
+            except (OSError, ValueError, KeyError, urllib.error.URLError):
+                heights[name] = None
+        return heights
+
+    return read

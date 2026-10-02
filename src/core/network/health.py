@@ -1,7 +1,7 @@
 """Interpret `docker compose ps --format json` output (pure parsing, no I/O)."""
 
 import json
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -44,3 +44,8 @@ def all_healthy(states: Sequence[ContainerState], expected_services: Sequence[st
         and by_service[name].health == "healthy"
         for name in expected_services
     )
+
+
+def nodes_without_blocks(heights: Mapping[str, int | None]) -> list[str]:
+    """Nodes that are unreachable (None) or still at block 0, in the order given."""
+    return [name for name, height in heights.items() if not height]

@@ -111,3 +111,9 @@ def test_reset_with_nothing_to_remove_says_so(capsys: pytest.CaptureFixture[str]
 def test_reset_exits_one_when_docker_is_not_reachable(capsys: pytest.CaptureFixture[str]) -> None:
     assert main(["reset"], stack=FakeStack(error="docker is not reachable")) == 1
     assert "docker is not reachable" in capsys.readouterr().err
+
+
+def test_up_waits_up_to_five_minutes_by_default() -> None:
+    stack = FakeStack()
+    assert main(["up"], stack=stack) == 0
+    assert stack.timeouts == [300.0]

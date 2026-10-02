@@ -18,6 +18,7 @@ from src.adapters.besu_config import (
     init_network,
 )
 from src.adapters.docker_stack import DockerStack, StackError
+from src.adapters.rpc import chain_heights_reader
 from src.core.network.health import ContainerState
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -43,7 +44,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     up = commands.add_parser("up", help="start the stack and wait until every service is healthy")
     up.add_argument(
-        "--timeout", type=float, default=120.0, help="seconds to wait for healthy (default: 120)"
+        "--timeout",
+        type=float,
+        default=300.0,
+        help="seconds to wait for healthy containers and a moving chain (default: 300)",
     )
     commands.add_parser(
         "reset", help="remove the containers and volumes, so the chain restarts at genesis"
@@ -79,7 +83,9 @@ def main(
         print(f"wrote {len(result.files)} files to {args.network_dir}")
     if args.command == "up":
         try:
-            states = (stack or DockerStack()).up(wait_timeout=args.timeout)
+            states = (stack or DockerStack(chain_heights=chain_heights_reader())).up(
+                wait_timeout=args.timeout
+            )
         except StackError as error:
             print(f"error: {error}", file=sys.stderr)
             return 1

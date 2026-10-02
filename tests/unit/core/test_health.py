@@ -66,3 +66,12 @@ def test_all_healthy_is_false_when_a_service_is_missing_or_exited() -> None:
     )
     assert not all_healthy(missing, SERVICES)
     assert not all_healthy(exited, SERVICES)
+
+
+def test_nodes_without_blocks_names_the_nodes_still_at_genesis_or_unreachable() -> None:
+    from src.core.network.health import nodes_without_blocks
+
+    assert nodes_without_blocks({"anson": 3, "beatrice": 1}) == []
+    assert nodes_without_blocks({"anson": 0, "beatrice": 5}) == ["anson"]
+    assert nodes_without_blocks({"anson": None, "beatrice": 0}) == ["anson", "beatrice"]
+    assert nodes_without_blocks({}) == []

@@ -3,11 +3,13 @@
 import os
 import subprocess
 import sys
+import time
 from functools import partial
 
 import pytest
 
 from src.adapters.docker_stack import REPO_ROOT, DockerStack
+from tests.support.firefly import ff_get
 from tests.support.polling import wait_for
 from tests.support.rpc import RPC_ANSON, RPC_BEATRICE, block_number
 
@@ -53,11 +55,18 @@ def test_reset_removes_everything_and_the_next_up_starts_from_block_zero(
     assert docker_ids("ps", "-a") == [], "containers remain after reset"
     assert docker_ids("volume", "ls") == [], "volumes remain after reset"
 
-    up = stack_py("up", "--timeout", "180")
+    started = time.monotonic()
+    up = stack_py("up")
     assert up.returncode == 0, up.stderr
+    # `up` only returns once the chain moves and FireFly is ready, so no waiting here.
+    for url in (RPC_ANSON, RPC_BEATRICE):
+        assert block_number(url) >= 1, f"{url} is still at block 0 right after `up`"
+    assert ff_get("/api/v1/status")["namespace"]["name"] == "default"
+    # A chain restarted at genesis makes one block per 2 s, so its height cannot exceed that.
+    limit = (time.monotonic() - started) / 2 + 5
     for url in (RPC_ANSON, RPC_BEATRICE):
         height = wait_for(partial(block_number, url), describe=f"{url} to answer")
-        assert height < 10, f"{url} is at block #{height}; the chain did not restart at genesis"
+        assert height <= limit, f"{url} is at block #{height}, above {limit:.0f}: not a new chain"
 
 
 def test_reset_exits_non_zero_when_docker_is_not_reachable() -> None:

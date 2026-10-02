@@ -1,5 +1,5 @@
 import json
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 
 import pytest
 
@@ -37,8 +37,15 @@ class FakeRunner:
         raise AssertionError(f"unexpected command {command}")
 
 
-def make_stack(runner: FakeRunner) -> DockerStack:
-    return DockerStack(runner=runner, sleep=lambda _seconds: None, clock=iter(range(1000)).__next__)
+def make_stack(
+    runner: FakeRunner, chain_heights: Callable[[], dict[str, int | None]] | None = None
+) -> DockerStack:
+    return DockerStack(
+        runner=runner,
+        sleep=lambda _seconds: None,
+        clock=iter(range(1000)).__next__,
+        chain_heights=chain_heights,
+    )
 
 
 def test_up_starts_the_stack_and_returns_once_every_service_is_healthy() -> None:
@@ -150,3 +157,38 @@ def test_reset_of_a_stack_that_is_not_running_removes_nothing() -> None:
 def test_reset_reports_a_docker_failure() -> None:
     with pytest.raises(StackError, match="daemon not reachable"):
         make_stack(FakeRunner([ps("healthy")], down_code=1)).reset()
+
+
+class Heights:
+    """A fake chain reader: each call returns the next scripted height per node."""
+
+    def __init__(self, *steps: dict[str, int | None]) -> None:
+        self.steps = list(steps)
+        self.calls = 0
+
+    def __call__(self) -> dict[str, int | None]:
+        self.calls += 1
+        return self.steps.pop(0) if len(self.steps) > 1 else self.steps[0]
+
+
+def test_up_waits_for_the_chain_to_pass_block_zero_after_the_containers_are_healthy() -> None:
+    heights = Heights(
+        {"besu-rpc-anson": 0, "besu-rpc-beatrice": 0},
+        {"besu-rpc-anson": 1, "besu-rpc-beatrice": 0},
+        {"besu-rpc-anson": 2, "besu-rpc-beatrice": 1},
+    )
+    runner = FakeRunner([ps("healthy", "healthy")])
+    make_stack(runner, heights).up(wait_timeout=100)
+    assert heights.calls == 3
+
+
+def test_up_fails_when_a_node_never_passes_block_zero_and_names_it() -> None:
+    heights = Heights({"besu-rpc-anson": 4, "besu-rpc-beatrice": 0})
+    with pytest.raises(StackError, match=r"besu-rpc-beatrice.*block 0"):
+        make_stack(FakeRunner([ps("healthy", "healthy")]), heights).up(wait_timeout=5)
+
+
+def test_up_treats_an_unreachable_node_as_not_ready() -> None:
+    heights = Heights({"besu-rpc-anson": None, "besu-rpc-beatrice": 3})
+    with pytest.raises(StackError, match=r"besu-rpc-anson.*unreachable"):
+        make_stack(FakeRunner([ps("healthy", "healthy")]), heights).up(wait_timeout=5)

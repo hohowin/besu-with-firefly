@@ -5,6 +5,7 @@ from functools import partial
 import pytest
 
 from src.adapters.docker_stack import DockerStack, StackError
+from src.adapters.rpc import chain_heights_reader
 from tests.support.polling import wait_for
 from tests.support.rpc import RPC_ANSON, RPC_BEATRICE, block_number
 
@@ -14,8 +15,8 @@ VALIDATORS = [f"besu-validator-{n}" for n in (1, 2, 3, 4)]
 @pytest.fixture(scope="session")
 def stack() -> DockerStack:
     """The running stack. Starts it if needed and waits until every service is healthy."""
-    docker_stack = DockerStack()
-    docker_stack.up(wait_timeout=180)
+    docker_stack = DockerStack(chain_heights=chain_heights_reader())
+    docker_stack.up(wait_timeout=300)
     return docker_stack
 
 
@@ -27,7 +28,7 @@ def restore_validators(stack: DockerStack) -> Iterator[None]:
     for name in VALIDATORS:
         with contextlib.suppress(StackError):  # already running
             stack.start(name)
-    stack.up(wait_timeout=120)
+    stack.up(wait_timeout=300)
     for node, url in {"besu-rpc-anson": RPC_ANSON, "besu-rpc-beatrice": RPC_BEATRICE}.items():
         resumed_from = block_number(url)
         wait_for(

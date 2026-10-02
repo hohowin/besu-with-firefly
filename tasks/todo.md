@@ -81,13 +81,13 @@ Sizes: no task is L or larger. Tasks 7 and 9 are the largest (M).
 **Added 2026-10-02 (found during Tasks 1 and 2):** raise the default `up --timeout` from 120 s to 300 s (a cold `up` with FireFly takes about 106 s). Also: on a cold start the QBFT chain can take minutes to produce its first block (round timeouts back off while the validators are still connecting; seen again on an idle machine, block #9 only 5 minutes after `up`). `deploy` needs a producing chain, so `up` must also wait until `eth_blockNumber` on both RPC nodes is at least 1, with a generous limit. Measure the stall over several `reset`/`up` runs and record it in the task status.
 
 **Acceptance criteria:**
-- [ ] `python scripts/stack.py reset` then `python scripts/stack.py up` ends with all 10 services ready, FireFly status ready and both RPC nodes past block 0, with no other command
-- [ ] A service that never becomes ready makes `up` exit 1 and name that service (unit-tested with a fake runner)
-- [ ] Running `up` twice is harmless
+- [x] `python scripts/stack.py reset` then `python scripts/stack.py up` ends with all 10 services ready, FireFly status ready and both RPC nodes past block 0, with no other command
+- [x] A service that never becomes ready makes `up` exit 1 and name that service (unit-tested with a fake runner)
+- [x] Running `up` twice is harmless
 
 **Verification:**
-- [ ] Tests pass: `pytest tests/unit` and `pytest -m integration -k "validators or rpc or firefly"`
-- [ ] Checks clean: `ruff check .` and `mypy .`
+- [x] Tests pass: `pytest tests/unit` and `pytest -m integration -k "validators or rpc or firefly"`
+- [x] Checks clean: `ruff check .` and `mypy .`
 
 **Dependencies:** Task 2
 
@@ -96,6 +96,8 @@ Sizes: no task is L or larger. Tasks 7 and 9 are the largest (M).
 - `tests/unit/core/test_health.py`, `tests/unit/adapters/test_docker_stack.py`
 
 **Size:** S
+
+**Status:** Done 2026-10-02. Test-first. The FireFly services already have Compose healthchecks (Task 2), so `DockerStack.up` needed no health change. What `up` gained: after every container is healthy it waits until both RPC nodes report a block above 0 (pure `nodes_without_blocks`, a JSON-RPC reader adapter in `src/adapters/rpc.py` tested against a local HTTP server) and names the node that is unreachable or still at block 0; the default timeout is 300 s and the integration `stack` fixture uses the same reader. FireFly readiness comes from its healthcheck, which is `GET /api/v1/status`. `test_reset` now checks that blocks exist and FireFly is ready right after `up` returns, and its genesis check compares the height with the elapsed time (the old fixed limit of 10 blocks no longer holds because `up` takes about 100 s). 115 unit tests, `ruff` and `mypy` clean.
 
 ### Task 4: FireFly HTTP client adapter
 
