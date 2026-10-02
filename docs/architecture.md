@@ -15,15 +15,15 @@ Containers:
 - `besu-validator-1..4` — QBFT validators
 - `besu-rpc-anson`, `besu-rpc-beatrice` — RPC nodes
 - FireFly: core, evmconnect, signer, Postgres (gateway mode, single node)
-- Paladin: two nodes (Anson, Beatrice), a notary, and its database
+- Paladin: three nodes (node1 notary and registry admin, node2 Anson, node3 Beatrice) and one Postgres (one database per node)
 
 **Data tier:**
 
 | Store | Role | Owner |
 |---|---|---|
-| Besu chain state | Source of truth for `COIN` balances, identity/claim state, compliance state, and the (opaque) Noto transactions | `besu-validator-*` / `besu-rpc-*`; not persistent, reset by `make reset` |
+| Besu chain state | Source of truth for `COIN` balances, identity/claim state, compliance state, and the (opaque) Noto transactions | `besu-validator-*` / `besu-rpc-*`; not persistent, reset by `python scripts/stack.py reset` |
 | FireFly Postgres | Registered contract interfaces and APIs, transaction/operation tracking, events | FireFly |
-| Paladin database | Private Noto state, per node | Paladin |
+| Paladin Postgres | Private Noto state, one database per node. Must be a persistent volume: Paladin stores its key-path index mapping there, so a wiped DB changes derived key addresses | Paladin |
 
 **External services:** none. Fully local; no SaaS.
 
@@ -41,7 +41,7 @@ Containers:
 | 4 | `network/` scripts | Generate genesis, validator keys, wallet keys, `static-nodes.json`, Compose fragments | generated files | shallow |
 | 5 | Besu network | QBFT consensus, JSON-RPC, WebSocket | chain state | deep (third-party) |
 | 6 | FireFly (gateway mode) | Contract deploy API, contract interface and API generation, transaction tracking, events, signing for `admin`/`anson`/`beatrice` | FireFly Postgres | deep (third-party) |
-| 7 | Paladin + Noto | Private token mint/transfer, notary validation | Paladin DB | deep (third-party) |
+| 7 | Paladin + Noto | Private token mint/transfer, notary validation, node registry | Paladin Postgres | deep (third-party) |
 | 8 | T-REX contract suite (on-chain) | Identity, claims, compliance, token; the real authorization boundary | chain state | deep |
 | 9 | `perf/` (Node, Caliper) | Benchmark rounds, wallet setup, results | report files | shallow |
 
@@ -74,10 +74,10 @@ graph TD
       FFDB[("FireFly Postgres")]
     end
     subgraph "Paladin"
-      PA["Paladin node: Anson"]
-      PB["Paladin node: Beatrice"]
-      PN["Notary"]
-      PDB[("Paladin DB")]
+      PA["Paladin node2 Anson"]
+      PB["Paladin node3 Beatrice"]
+      PN["Paladin node1 notary and registry admin"]
+      PDB[("Paladin Postgres")]
     end
     subgraph "Besu network"
       V1[besu-validator-1]
@@ -101,8 +101,11 @@ graph TD
   PA --> PDB
   PB --> PDB
   PN --> PDB
+  PN <-->|"gRPC mTLS"| PA
+  PN <-->|"gRPC mTLS"| PB
+  PA <-->|"gRPC mTLS"| PB
   CAL -->|"direct JSON-RPC"| RA
-  CAL -->|"HTTP workload"| FF
+  CAL -->|"custom connector"| FF
   HH -.->|"ABI + bytecode"| CLI
   RA <-->|QBFT p2p| V1
   RA <-->|QBFT p2p| V2
@@ -114,7 +117,7 @@ graph TD
   RB <-->|QBFT p2p| V4
 ```
 
-*Spike:* which RPC node each Paladin node and the notary attach to, and whether Paladin shares one database or has one per node, are inferred here and confirmed by Phase 0.
+*Confirmed by the spike:* each Paladin node attaches to a Besu RPC node, and one Postgres server holds one database per node. The spike used a single Besu RPC node for all three; the final stack can spread them over `besu-rpc-anson` and `besu-rpc-beatrice`.
 
 ---
 
@@ -126,10 +129,10 @@ graph TD
 | Chain operation | `core` → FireFly adapter → FireFly | Sync REST, then poll the transaction/operation until final | FireFly returns a pending record immediately; the CLI waits so the user sees a settled result |
 | FireFly → chain | FireFly (evmconnect/signer) → `besu-rpc-*` | Direct chain call (JSON-RPC) | FireFly is the sole signer for `COIN` traffic |
 | Paladin → chain | Paladin nodes/notary → `besu-rpc-*` | Direct chain call (JSON-RPC and WebSocket) | Paladin submits its own base-ledger transactions |
-| Paladin node ↔ Paladin node | Anson ↔ Beatrice ↔ notary | Paladin's private transport | Keeps Noto state off the public chain |
+| Paladin node ↔ Paladin node | node1 ↔ node2 ↔ node3 | Paladin gRPC with mTLS; peers are found through the on-chain EVM registry | Keeps Noto state off the public chain; the certificate CN must equal the node name |
 | Contract deploy | CLI → FireFly deploy API | Sync REST | The "real process" (D-04) |
 | Benchmark, chain layer | Caliper → `besu-rpc-*` | Direct chain call | Baseline without FireFly |
-| Benchmark, FireFly layer | Caliper (custom workload) → FireFly | Sync REST | Same transfer, through the gateway |
+| Benchmark, FireFly layer | Caliper (custom connector) → FireFly | Sync REST | Same transfer, through the gateway |
 | Event visibility | FireFly → developer | FireFly events and Explorer | Observability only; not part of settlement |
 
 **Failure handling on critical paths:**
@@ -141,7 +144,7 @@ graph TD
 | FireFly → chain | Transaction submitted but never mined | The CLI times out waiting and reports "pending/unknown" with the transaction id; it never reports success |
 | Write retried by the user | Same logical write sent twice | *Spike:* FireFly's idempotency options for contract-invoke are confirmed in Phase 0. Until then, `core` checks state first (skip-if-already-true) so onboarding steps are safe to repeat |
 | Paladin → Besu | Node cannot reach RPC | Paladin node reports unhealthy; Noto calls fail; `COIN` path is unaffected |
-| Stack partially reset | Chain reset but FireFly or Paladin DB retained | Prevented by `make reset`, which clears all three together (FR-11) |
+| Stack partially reset | Chain reset but FireFly or Paladin DB retained | Prevented by `python scripts/stack.py reset`, which clears all three together (FR-11) |
 
 **Critical path — compliant transfer:**
 
@@ -320,7 +323,7 @@ graph TD
 | Chain | Hyperledger Besu, QBFT, zero-gas |
 | Gateway | Hyperledger FireFly, gateway mode, `evmconnect` |
 | Private tokens | Paladin `lfdecentralizedtrust/paladin:v1.0.0`, Noto |
-| Performance | Hyperledger Caliper (Node.js) in `perf/` |
+| Performance | Hyperledger Caliper 0.6.0 (Node.js) in `perf/`; `web3@1.3.0` installed by hand because 0.7.1 dropped the Ethereum connector |
 | Deployment | Docker Compose, single host |
 | Keys and genesis | Generated by script; demo keys committed (D-10) |
 | Image versions | Pinned after the spike |
@@ -329,8 +332,8 @@ graph TD
 
 | # | Unit | Frontend | Backend | Data | Notable choices and rationale |
 |---|---|---|---|---|---|
-| 1 | FireFly | n/a (built-in Explorer) | FireFly core, `evmconnect` | Postgres | `evmconnect` is the default connector in `ff init`; `ethconnect` is legacy *(spike confirms)* |
-| 2 | Paladin | n/a | `lfdecentralizedtrust/paladin` | its own DB | Not `kaleidoinc/paladin`, which was last updated Nov 2024; config is hand-written because the operator normally generates it |
+| 1 | FireFly | n/a (built-in Explorer) | FireFly core, `evmconnect`, FireFly signer; no data exchange or IPFS in gateway mode | Postgres | Hand-written Compose, not `ff start`. evmconnect needs `fixedGasPrice: 0` and `confirmations.required: 0`; the signer reads `/etc/firefly/firefly.ffsigner.yaml` and a keystore folder with one JSON and one `.toml` per key; core needs a hand-written `namespaces` block with `multiparty.enabled: false` |
+| 2 | Paladin | n/a | `lfdecentralizedtrust/paladin:v1.0.0`, three nodes | Postgres, one database per node | Not `kaleidoinc/paladin` (last updated Nov 2024). Hand-written config because the operator normally generates it. Postgres, not SQLite (SQLite stalled the coordinator). Self-signed TLS per node, CN equal to the node name. Two-phase bootstrap and registry registration. `tmpfs` for `/app/jna` needs the `exec` option |
 | 3 | Besu | n/a | Besu image, version pinned | ephemeral | Fork level Shanghai or later with `zeroBaseFee` (D-08, *spike*) |
 | 4 | `perf/` | n/a | Node.js | files | Separate `package.json`; Node version set by the spike |
 
@@ -374,7 +377,7 @@ graph TD
 
 **Cross-cutting controls tied to FRs:**
 - FR-7 (contract-enforced compliance) is the control that cannot be bypassed from the CLI
-- FR-11 (`make reset` clears all three stores) prevents stale state referring to a chain that no longer exists
+- FR-11 (`python scripts/stack.py reset` clears all three stores) prevents stale state referring to a chain that no longer exists
 - FR-14 (demo-only marking of committed keys) prevents accidental reuse
 
 **Threats explicitly accepted as MVP risk:**
@@ -392,7 +395,7 @@ graph TD
 - **RPC consistency (integration):** both RPC nodes agree within 1 block after a write settles.
 - **FireFly deploy (integration):** every T-REX contract deployed through FireFly has non-zero code at its address, and `COIN` reads back as `Coin`/`COIN`; proves the deploy went through the real path.
 - **Noto privacy (integration):** the receiving Paladin node sees the balance and a non-party node does not; proves the privacy claim on this stack.
-- **Reset repeatability (integration):** three consecutive runs of `make reset && make up && make deploy` all pass; proves there is no leaked state between runs.
+- **Reset repeatability (integration):** three consecutive runs of `python scripts/stack.py reset && python scripts/stack.py up && python scripts/stack.py deploy` all pass; proves there is no leaked state between runs.
 - **Caliper (benchmark, not pass/fail):** records chain-layer and FireFly-layer TPS and latency; proves the overhead number was measured, not assumed.
 - **Playwright:** not applicable, no web frontend.
 
@@ -422,7 +425,6 @@ Per-flow sequence diagrams will live in `docs/use-cases.md`.
 
 ## TBD items
 
+Phase 0 answered the questions that were open here (shared database, idempotency and status names, EVM fork level). Still to fix when each phase is built:
+
 - Exact image tags and versions (FireFly, Besu, Paladin, Node) — Phase 0
-- Whether each Paladin node and the notary share one database — Phase 0
-- FireFly idempotency options for contract invoke, and exact operation status names — Phase 0
-- Besu EVM fork level (D-08) — Phase 0

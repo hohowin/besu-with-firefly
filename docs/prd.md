@@ -45,10 +45,10 @@ N/A. Personal local learning PoC, no monetization, no users beyond the developer
 **Description:** As a developer, I want each unverified risk tested before building on it, so that later phases do not rest on guesses.
 
 **Acceptance Criteria:**
-- [ ] Written result for each of: (a) FireFly attaches to external Besu via `--remote-node-url` and `evmconnect` sends transactions on a `zeroBaseFee` chain; (b) a Paladin container with hand-written config connects to external Besu and deploys Noto; (c) T-REX deploys through FireFly's deploy API (including the Token bytecode size check); (d) Caliper's Besu connector runs on the chosen Node version
-- [ ] Each result states feasible / not feasible and the fallback if not feasible
-- [ ] The EVM fork level in D-08 is confirmed or revised from what Paladin and `evmconnect` actually need
-- [ ] No Phase 1 work starts before this is signed off
+- [x] Written result for each of: (a) FireFly attaches to an external Besu (hand-written Compose) and `evmconnect` sends transactions on a `zeroBaseFee` chain; (b) Paladin nodes with hand-written config connect to external Besu and run Noto; (c) T-REX deploys through FireFly's deploy API (including the Token bytecode size check); (d) Caliper's Ethereum connector runs on the chosen Node version
+- [x] Each result states feasible / not feasible and the fallback if not feasible
+- [x] The EVM fork level in D-08 is confirmed or revised from what Paladin and `evmconnect` actually need
+- [x] No Phase 1 work starts before this is signed off
 
 ### US-002: 4-validator QBFT network with real fault tolerance
 **Description:** As a developer, I want a 4-validator QBFT genesis so the network tolerates one failed validator.
@@ -74,7 +74,7 @@ N/A. Personal local learning PoC, no monetization, no users beyond the developer
 - [ ] FireFly core, evmconnect, signer and Postgres start healthy in the same Compose stack
 - [ ] FireFly signs with three keys: `admin`, `anson`, `beatrice`
 - [ ] FireFly reaches the chain through `besu-rpc-*`, not through a Besu node of its own
-- [ ] FireFly's own system contract/namespace setup (whatever gateway mode requires) completes without manual steps beyond `make up`
+- [ ] FireFly's own system contract/namespace setup (whatever gateway mode requires) completes without manual steps beyond `python scripts/stack.py up`
 - [ ] `GET /api/v1/status` on FireFly reports ready
 
 ### US-005: T-REX deployed through FireFly as `COIN`
@@ -85,7 +85,7 @@ N/A. Personal local learning PoC, no monetization, no users beyond the developer
 - [ ] Contracts compile with an EVM target compatible with the Besu fork level chosen by the spike
 - [ ] A `deployed-addresses.json` records every deployed address, all non-zero
 - [ ] Token name/symbol read back through FireFly as `Coin` / `COIN`
-- [ ] The deploy is repeatable: after `make reset`, `make deploy` produces a working `COIN` again with no manual steps
+- [ ] The deploy is repeatable: after `python scripts/stack.py reset`, `python scripts/stack.py deploy` produces a working `COIN` again with no manual steps
 
 ### US-006: Contract interface and API registered in FireFly
 **Description:** As a developer, I want FireFly to generate a REST API for `COIN` and the registries so the CLI never builds raw transactions.
@@ -94,7 +94,7 @@ N/A. Personal local learning PoC, no monetization, no users beyond the developer
 - [ ] A contract interface is generated from each needed ABI and registered
 - [ ] A contract API exists for `COIN` and for the IdentityRegistry
 - [ ] A read call (e.g. `balanceOf`) and a write call (e.g. `mint`) both succeed through FireFly's generated API
-- [ ] Registrations are re-created by `make deploy` after a reset
+- [ ] Registrations are re-created by `python scripts/stack.py deploy` after a reset
 
 ### US-007: Onboard an identity (register → claim → mint)
 **Description:** As an Admin, I want to onboard Anson and Beatrice so they can hold `COIN`.
@@ -117,7 +117,8 @@ N/A. Personal local learning PoC, no monetization, no users beyond the developer
 **Description:** As a developer, I want a Noto token on Paladin so I can show a private transfer on the same Besu network.
 
 **Acceptance Criteria:**
-- [ ] Two Paladin nodes (Anson, Beatrice) and a notary start healthy in the same Compose stack and connect to `besu-rpc-*`
+- [ ] Three Paladin nodes (node1 notary and registry admin, node2 Anson, node3 Beatrice) and one Postgres start healthy in the same Compose stack, connect to `besu-rpc-*`, and connect to each other over gRPC with mTLS
+- [ ] The three nodes are registered in the Paladin EVM registry with their `transport.grpc` details
 - [ ] A Noto token is deployed through Paladin
 - [ ] Admin mints to Anson; Anson transfers to Beatrice
 - [ ] Beatrice's Paladin node shows the received balance; a Paladin node that is not a party to the transfer does not
@@ -138,7 +139,7 @@ N/A. Personal local learning PoC, no monetization, no users beyond the developer
 
 **Acceptance Criteria:**
 - [ ] `pytest -m integration` runs against the live stack and covers: network fault tolerance, FireFly status, T-REX deploy result, onboarding, compliant transfer, compliance rejection, Noto private transfer
-- [ ] All integration tests pass across 3 consecutive runs, each after `make reset && make up && make deploy`
+- [ ] All integration tests pass across 3 consecutive runs, each after `python scripts/stack.py reset && python scripts/stack.py up && python scripts/stack.py deploy`
 - [ ] No Playwright (there is no web frontend)
 
 ### US-012: Caliper benchmark, chain layer vs FireFly layer
@@ -148,7 +149,7 @@ N/A. Personal local learning PoC, no monetization, no users beyond the developer
 - [ ] A `perf/` Node sub-project (own `package.json`) runs Caliper with the Besu connector against `besu-rpc-*`
 - [ ] A setup step creates N `verified` wallets with `COIN` so `Token.transfer` can run (N is configurable)
 - [ ] Chain-layer round: `Token.transfer` sent directly over RPC; reports TPS and latency
-- [ ] FireFly-layer round: the same transfer through FireFly's contract API using a custom HTTP workload; reports TPS and latency
+- [ ] FireFly-layer round: the same transfer through FireFly's contract API using a custom Caliper connector; reports TPS and latency
 - [ ] A short results note states both sets of numbers, the difference, and the genesis settings used (block period, gas limit), and states that results describe this demo configuration, not Besu's limits
 
 ## 5. Functional Requirements
@@ -161,10 +162,10 @@ N/A. Personal local learning PoC, no monetization, no users beyond the developer
 - FR-5: A contract interface and contract API are registered for `COIN` and the IdentityRegistry. (US-006)
 - FR-6: Onboarding is register → claim → mint, with skip-if-already-true checks. (US-007)
 - FR-7: Transfers are verified by the contract; unverified recipients revert. (US-008)
-- FR-8: Paladin runs two nodes and a notary, connects to `besu-rpc-*`, and hosts a Noto token. (US-009)
+- FR-8: Paladin runs three nodes (notary and registry admin, Anson, Beatrice) with one Postgres, connects to `besu-rpc-*`, registers the nodes in the EVM registry, and hosts a Noto token. (US-009)
 - FR-9: The Python CLI offers register, invoke, query and show-tx/events commands over the FireFly API. (US-010)
 - FR-10: Pure logic lives in `src/core/`; the FireFly client and CLI are adapters. (US-010)
-- FR-11: `make up`, `make deploy` and `make reset` exist; `make reset` clears the chain, FireFly Postgres and Paladin DB together. (US-004, US-005)
+- FR-11: A Python entry point `python scripts/stack.py` provides `up`, `deploy` and `reset` (Make is not used because it is not installed on Windows). `reset` clears the chain, FireFly Postgres and Paladin Postgres together. (US-004, US-005)
 - FR-12: Integration tests run against the live stack and are stable across 3 fresh runs. (US-011)
 - FR-13: A Caliper `perf/` project benchmarks chain layer and FireFly layer. (US-012)
 - FR-14: Demo keys, genesis and wallet keys are committed and marked demo-only in the README. (README)
@@ -193,7 +194,7 @@ N/A. Personal local learning PoC, no monetization, no users beyond the developer
 - CI/CD (local `ruff`/`mypy`/`pytest` only)
 - FireFly multi-party messaging, data exchange, IPFS
 - Zeto, Pente and ERC-3643-inside-Pente
-- Persistent chain or DB data across `make reset`
+- Persistent chain or DB data across `python scripts/stack.py reset`
 - Using `ff init`'s own generated genesis or its single-node Clique network
 - Any use of `mock-middleware`
 - Kubernetes or the Paladin operator
@@ -212,8 +213,8 @@ N/A. Personal local learning PoC, no monetization, no users beyond the developer
 - **Genesis:** produced by `besu operator generate-blockchain-config`. The `ff init` default genesis is a single-node Clique chain and does not match the target topology.
 - **EVM fork:** Shanghai or later with `zeroBaseFee: true` (D-08, partially locked). T-REX is compiled with an older `evmVersion`. Confirmed or revised by the spike.
 - **Deploy volume:** the official T-REX suite is many contracts and proxies, each deployed through FireFly's deploy API with its own constructor arguments.
-- **Paladin config:** hand-written. The Paladin operator normally generates it, so the format is inferred from the operator output and source.
-- **Caliper:** needs many `verified` wallets before it can run `Token.transfer`; wallet setup may take longer than the benchmark round.
+- **Paladin config:** hand-written (the operator normally generates it). Needs Postgres (SQLite stalled the coordinator in the spike), self-signed TLS certificates with CN equal to the node name, two-phase bootstrap (deploy the registry and Noto factory, write their addresses into config, restart) and registry registration of every node. Paladin keeps its key-path index mapping in its DB, so the DB must be a volume.
+- **Caliper:** version 0.6.0 (0.7.1 has no Ethereum connector), needs a `ws://` RPC URL, `web3@1.3.0` installed by hand (`caliper bind` fails on Windows), and a custom connector for the FireFly layer. A wallet setup creating N verified wallets is needed before `Token.transfer` can run; setup may take longer than the rounds.
 
 **Non-Functional Requirements:**
 
@@ -225,7 +226,7 @@ N/A. Personal local learning PoC, no monetization, no users beyond the developer
 | Performance | Measured, not targeted; numbers reported for chain layer and FireFly layer | Caliper rounds (FR-13) | Results describe this demo config (2s blocks), not Besu's limits |
 | Observability | Transaction and event state visible without reading logs | FireFly Explorer and `tx`/events CLI command | No metrics or tracing stack |
 | Security | No credentials outside the demo scope | Demo keys only, committed and marked demo-only | No authN/authZ anywhere; localhost-only. Gate: must be added before any non-local use |
-| Operability | One command up, one command reset, including all databases | `make up`, `make deploy`, `make reset` (FR-11) | Reset deletes everything; no persistence |
+| Operability | One command up, one command reset, including all databases | `python scripts/stack.py up`, `python scripts/stack.py deploy`, `python scripts/stack.py reset` (FR-11) | Reset deletes everything; no persistence |
 | Cost | Zero | Local Docker only, no external services | n/a |
 
 **Privacy & Data:** N/A. No real personal data. Anson, Beatrice and Admin are fictional identities. CASL, PIPEDA, GDPR and PCI do not apply.
@@ -244,11 +245,11 @@ N/A. Personal local learning PoC, no monetization, no users beyond the developer
 
 | # | Question | Owner | Deadline | Status |
 |---|----------|-------|----------|--------|
-| 1 | Does FireFly attach to an external Besu via `--remote-node-url`, and does `evmconnect` send transactions on a `zeroBaseFee` chain? | Howin | Phase 0 exit (2026-10-15) | Open |
-| 2 | Can a Paladin container with hand-written config connect to external Besu and deploy Noto? | Howin | Phase 0 exit (2026-10-15) | Open |
-| 3 | What EVM version do Paladin's and FireFly's own contracts need (D-08)? | Howin | Phase 0 exit (2026-10-15) | Open |
-| 4 | Does the official T-REX Token fit under the 24KB contract size limit, and does FireFly's deploy API accept it? | Howin | Phase 0 exit (2026-10-15) | Open |
-| 5 | Does Caliper's Besu connector run on a Node version compatible with the rest of the toolchain? | Howin | Phase 0 exit (2026-10-15) | Open |
+| 1 | Does FireFly attach to an external Besu, and does `evmconnect` send transactions on a `zeroBaseFee` chain? | Howin | Phase 0 exit (2026-10-15) | Answered 2026-10-02 (see `docs/spike-results.md`) |
+| 2 | Can a Paladin container with hand-written config connect to external Besu and deploy Noto? | Howin | Phase 0 exit (2026-10-15) | Answered 2026-10-02 (see `docs/spike-results.md`) |
+| 3 | What EVM version do Paladin's and FireFly's own contracts need (D-08)? | Howin | Phase 0 exit (2026-10-15) | Answered 2026-10-02 (see `docs/spike-results.md`) |
+| 4 | Does the official T-REX Token fit under the 24KB contract size limit, and does FireFly's deploy API accept it? | Howin | Phase 0 exit (2026-10-15) | Answered 2026-10-02 (see `docs/spike-results.md`) |
+| 5 | Does Caliper's Besu connector run on a Node version compatible with the rest of the toolchain? | Howin | Phase 0 exit (2026-10-15) | Answered 2026-10-02 (see `docs/spike-results.md`) |
 | 6 | Which skills to install for FireFly, Paladin and Caliper work? | Howin | Before Phase 2 starts | Open — resolved by the `/skills-required` audit |
 
 ## 11. Risks
@@ -262,7 +263,7 @@ Cross-referenced against the project risk register in `docs/plan.md` §7.
 | R3 | Official T-REX exceeds contract size limits or is hard to deploy through FireFly | US-001 (c), US-005 |
 | R4 | EVM fork level is wrong for Paladin or T-REX | US-001 (EVM criterion), D-08 revision path |
 | R5 | No authentication anywhere | Accepted; localhost-only (FR-14, README) |
-| R6 | State drift between chain, FireFly DB and Paladin DB after a partial reset | FR-11 (`make reset` clears all three) |
+| R6 | State drift between chain, FireFly DB and Paladin DB after a partial reset | FR-11 (`python scripts/stack.py reset` clears all three) |
 | R7 | Caliper setup of verified wallets dominates run time | US-012 (N configurable) |
 
 ## 12. Phase Deliverables
@@ -289,14 +290,14 @@ Cross-referenced against the project risk register in `docs/plan.md` §7.
 |---|-------------|-------|
 | PD-2.1 | FireFly (gateway mode) service definitions in Compose | |
 | PD-2.2 | T-REX contracts and compile config | EVM target set by the spike |
-| PD-2.3 | `make deploy`: deploys through FireFly, registers interface and API, onboards Admin/Anson/Beatrice | Writes `deployed-addresses.json` |
+| PD-2.3 | `python scripts/stack.py deploy`: deploys through FireFly, registers interface and API, onboards Admin/Anson/Beatrice | Writes `deployed-addresses.json` |
 | PD-2.4 | Integration tests: onboarding, transfer, compliance rejection | |
 
 #### Phase 3 — Paladin + Noto
 
 | # | Deliverable | Notes |
 |---|-------------|-------|
-| PD-3.1 | Paladin service definitions: 2 nodes + notary + DB | Image `lfdecentralizedtrust/paladin:v1.0.0` |
+| PD-3.1 | Paladin service definitions: 3 nodes (notary, Anson, Beatrice), one Postgres, demo TLS certificates | Image `lfdecentralizedtrust/paladin:v1.0.0` |
 | PD-3.2 | Noto deployment and mint/transfer script | |
 | PD-3.3 | Integration test: party sees balance, non-party does not | |
 
@@ -314,5 +315,5 @@ Cross-referenced against the project risk register in `docs/plan.md` §7.
 |---|-------------|-------|
 | PD-5.1 | `perf/` Node sub-project with benchmark config | |
 | PD-5.2 | Wallet setup step | N verified wallets with `COIN` |
-| PD-5.3 | Chain-layer and FireFly-layer rounds | Custom HTTP workload for FireFly |
+| PD-5.3 | Chain-layer and FireFly-layer rounds | Custom Caliper connector for FireFly |
 | PD-5.4 | Results note | Numbers, overhead, genesis settings, caveat |

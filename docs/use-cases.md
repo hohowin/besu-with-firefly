@@ -13,13 +13,13 @@ Names follow `architecture.md`. Where a FireFly or Paladin behaviour is not yet 
 
 | Actor | Role |
 |---|---|
-| Developer | Runs the Make targets, the CLI and Caliper. The only human user |
+| Developer | Runs the stack script (`python scripts/stack.py`), the CLI and Caliper. The only human user |
 | Admin | Demo identity. Plays Token Agent and Trusted Issuer (registers, claims, mints) |
 | Anson | Demo identity. Holds `COIN` and a Noto balance |
 | Beatrice | Demo identity. Receives transfers |
 | CLI | Python CLI: CLI adapter, `core`, FireFly adapter (see architecture §2) |
 | FireFly | Gateway mode, single node. Deploys contracts, generates the contract API, signs for admin, anson, beatrice |
-| Paladin Anson / Paladin Beatrice / Notary | Paladin nodes hosting the Noto token |
+| Paladin node1 / node2 / node3 | node1 is the notary and registry admin, node2 is Anson, node3 is Beatrice. They host the Noto token and talk over gRPC with mTLS. Peers are found through the on-chain EVM registry |
 | Besu network | 4 validators plus `besu-rpc-anson` and `besu-rpc-beatrice` |
 | T-REX contracts | On-chain compliance suite, the real authorization boundary |
 | Caliper | Benchmark tool in `perf/` |
@@ -43,7 +43,7 @@ sequenceDiagram
 
     Note over Dev,CAL: Risk 1 - FireFly on external Besu
     Dev->>SB: start Besu with zeroBaseFee genesis
-    Dev->>FF: attach with remote-node-url
+    Dev->>FF: attach with hand-written Compose config
     Dev->>FF: invoke a test contract write
     FF->>BS: send transaction via evmconnect
     alt operation succeeds
@@ -85,7 +85,7 @@ sequenceDiagram
 
 **Goal:** A 4-validator QBFT network with 2 RPC nodes is running and consistent.
 
-**Trigger:** Developer runs `make up`.
+**Trigger:** Developer runs `python scripts/stack.py up`.
 
 ```mermaid
 sequenceDiagram
@@ -97,7 +97,7 @@ sequenceDiagram
     participant RPC as besu-rpc-anson and besu-rpc-beatrice
 
     Note over Dev,RPC: Generate once
-    Dev->>GEN: make up
+    Dev->>GEN: stack up
     GEN->>BC: generate genesis and 4 validator keys
     BC-->>GEN: genesis.json with extraData
     GEN->>GEN: write static-nodes.json and wallet keys
@@ -165,7 +165,7 @@ sequenceDiagram
 
 **Goal:** `COIN` and its registries are deployed through FireFly's real deploy process and exposed as a contract API.
 
-**Trigger:** Developer runs `make deploy` on a fresh stack.
+**Trigger:** Developer runs `python scripts/stack.py deploy` on a fresh stack.
 
 ```mermaid
 sequenceDiagram
@@ -177,7 +177,7 @@ sequenceDiagram
     participant CH as Besu network
 
     Note over Dev,CH: Compile (host tooling, no deployment)
-    Dev->>CLI: make deploy
+    Dev->>CLI: stack deploy
     CLI->>CLI: read ABI and bytecode of each T-REX contract
 
     Note over Dev,CH: Deploy each contract
@@ -356,50 +356,62 @@ sequenceDiagram
 
 ## UC-08: Private Noto mint and transfer
 
-**Goal:** Admin mints a private token to Anson, Anson sends it to Beatrice, and a non-party cannot see it.
+**Goal:** Node1 (notary) mints a private token to Anson, Anson sends part of it to Beatrice, and Beatrice cannot see Anson's other coins.
 
 **Trigger:** Developer runs the Noto script (Paladin API, not the CLI in v1).
 
 ```mermaid
 sequenceDiagram
     actor Dev as Developer
-    participant PA as Paladin Anson
-    participant PB as Paladin Beatrice
-    participant NT as Notary
+    participant N1 as Paladin node1 notary
+    participant N2 as Paladin node2 Anson
+    participant N3 as Paladin node3 Beatrice
+    participant REG as EVM registry
     participant BS as Besu network
 
+    Note over Dev,BS: Bootstrap - contracts and registry
+    Dev->>N1: deploy registry, noto, noto-factory and proxy using node1 keys
+    N1->>BS: public transactions
+    Dev->>N1: write the contract addresses into every node config and restart
+    Dev->>N1: register node1, node2 and node3 as registry admin
+    N1->>REG: registerIdentity for each node
+    Dev->>N2: publish transport.grpc with local transport details
+    N2->>REG: setIdentityProperty with endpoint and issuer certificate
+    Note over N1,N3: node1 and node3 publish their transport details the same way
+
     Note over Dev,BS: Setup
-    Dev->>PA: deploy Noto token with notary
-    PA->>BS: base ledger transaction
-    BS-->>PA: token address
+    Dev->>N1: deploy Noto token, notary node1, basic mode
+    N1->>BS: base ledger transaction
+    BS-->>N1: token address
 
     Note over Dev,BS: Mint
-    Dev->>PA: mint 100 to anson
-    PA->>NT: request notarization
-    NT->>BS: record on base ledger, no amounts or parties visible
-    NT-->>PA: approved
+    Dev->>N1: mint 100 to anson on node2
+    N1->>REG: look up node2 transport
+    N1->>N2: private delivery of the coin state over gRPC mTLS
+    N1->>BS: base ledger transaction with hashes only
 
     Note over Dev,BS: Private transfer
-    Dev->>PA: transfer 40 from anson to beatrice
-    PA->>NT: request notarization
-    NT-->>PA: approved
-    PA->>PB: private delivery of the new state
-    PA->>BS: base ledger transaction
+    Dev->>N2: transfer 40 from anson to beatrice on node3
+    N2->>N1: delegate to the coordinator, notary endorses
+    N1->>N3: private delivery of the 40 coin state
+    N1->>BS: base ledger transaction with hashes only
 
     Note over Dev,BS: Check privacy
-    Dev->>PB: query balance
-    alt party
-        PB-->>Dev: 40
-    end
-    Dev->>NT: query balance as a node that is not a party
-    NT-->>Dev: no balance for beatrice visible
-    Dev->>BS: inspect the Noto transactions
-    BS-->>Dev: no amounts or party addresses in the data
+    Dev->>N3: list coin states
+    N3-->>Dev: 40 only
+    Dev->>N2: list coin states
+    N2-->>Dev: 40, 60 and 100
+    Dev->>N1: list coin states
+    N1-->>Dev: 40, 60 and 100 as notary
+    Dev->>BS: inspect the Noto token logs
+    BS-->>Dev: no plain amounts
 ```
 
 **Notes:**
-- Traces to US-009, FR-8. Plan D-05, Phase 3.
-- Message flow between Paladin nodes is simplified here. The exact Noto sequence and who can query what comes from Phase 0 and Paladin documentation.
+- Traces to US-009, FR-8. Plan D-05, D-09, Phase 3. Proven in the Phase 0 spike (`docs/spike-results.md`, Risk 2) with exactly these results.
+- Paladin needs Postgres. With SQLite the coordinator stalled and the transfer never completed.
+- Key addresses are not reproducible from the mnemonic alone, because Paladin stores the path index mapping in its DB. Keep the DB across restarts, and deploy the registry after the DB exists.
+- The delegation to the coordinator in the transfer step was seen in the node logs. Which node coordinates is decided by Paladin.
 - All Paladin nodes run on one host, so this demonstrates the protocol, not real isolation (risk R11).
 - Test: `test_noto_private_transfer`.
 
@@ -409,21 +421,21 @@ sequenceDiagram
 
 **Goal:** Return to a clean state with the chain, FireFly and Paladin consistent.
 
-**Trigger:** Developer runs `make reset`.
+**Trigger:** Developer runs `python scripts/stack.py reset`.
 
 ```mermaid
 sequenceDiagram
     actor Dev as Developer
-    participant MK as make reset
+    participant MK as stack reset
     participant DC as Docker Compose
-    participant ST as Besu data, FireFly Postgres, Paladin DB
+    participant ST as Besu data, FireFly Postgres, Paladin Postgres
 
-    Dev->>MK: make reset
+    Dev->>MK: stack reset
     MK->>DC: docker compose down with volumes
-    DC->>ST: delete chain data, FireFly DB, Paladin DB
-    Dev->>MK: make up
+    DC->>ST: delete chain data, FireFly DB, Paladin Postgres
+    Dev->>MK: stack up
     MK->>DC: start from generated genesis
-    Dev->>MK: make deploy
+    Dev->>MK: stack deploy
     MK->>DC: deploy T-REX through FireFly, register API, onboard identities
     alt all three stores cleared together
         DC-->>Dev: working COIN on a fresh chain
@@ -465,7 +477,7 @@ sequenceDiagram
     CAL-->>Dev: TPS and latency
 
     Note over Dev,RPC: Round 2 - FireFly layer
-    CAL->>FF: same transfer through contract API (HTTP workload)
+    CAL->>FF: same transfer through contract API (custom connector)
     FF->>RPC: via signer
     RPC-->>FF: receipts
     FF-->>CAL: operation status
@@ -478,7 +490,7 @@ sequenceDiagram
 - Traces to US-012, FR-13. Plan D-14, Phase 5.
 - Setup can take longer than the rounds themselves (risk R7).
 - Results describe this demo configuration (2s blocks, gas limit), not Besu limits (R13).
-- Caliper has no FireFly connector, so round 2 is a custom HTTP workload (to be confirmed in Phase 0).
+- Caliper has no FireFly connector, so round 2 uses a small custom connector (proven in Phase 0). Caliper 0.6.0 is used because 0.7.1 dropped the Ethereum connector.
 - Test: none pass/fail. The check is that both reports exist and the note states the configuration.
 
 ---

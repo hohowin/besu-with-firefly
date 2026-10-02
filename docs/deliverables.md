@@ -6,7 +6,7 @@ Companion docs: [docs/plan.md](plan.md) · [docs/prd.md](prd.md) · [docs/archit
 
 This document is the single reference for what is deliverable and verifiable at the end of each project phase, and how to try each deliverable from a cold start.
 
-> **Read this first.** Nothing is built yet. Commands that call Docker, `curl`, `pytest`, `ruff` and `mypy` are real. The `make` targets, script names, file paths and CLI command names (`make up`, `make deploy`, `make reset`, `besu-ff`, `network/generate.py`, `perf/`) are **planned names** from the PRD. Check them against the repo when each phase is built. Ports other than Besu's `8545/8546` and `8555/8556` are TBD until Phase 0 (FireFly's default is `5000`). There is no web frontend, so there is no Playwright anywhere in this document.
+> **Read this first.** Nothing is built yet. Commands that call Docker, `curl`, `pytest`, `ruff` and `mypy` are real. The stack script (`python scripts/stack.py up|deploy|reset`), other script names, file paths and CLI command names (`python scripts/stack.py up`, `python scripts/stack.py deploy`, `python scripts/stack.py reset`, `besu-ff`, `network/generate.py`, `perf/`) are **planned names** from the PRD. Check them against the repo when each phase is built. Ports other than Besu's `8545/8546` and `8555/8556` are TBD until Phase 0 (FireFly's default is `5000`). There is no web frontend, so there is no Playwright anywhere in this document.
 
 ---
 
@@ -14,8 +14,8 @@ This document is the single reference for what is deliverable and verifiable at 
 
 | DL-ID | Phase | Milestone | Type | Deliverable | Status |
 |---|---|---|---|---|---|
-| DL-0.1 | Phase 0 — Spike | N/A | infra | Throwaway minimal Compose (1 Besu, FireFly, Paladin) | Planned |
-| DL-0.2 | Phase 0 — Spike | N/A | doc | `docs/spike-results.md` with 4 answered risks | Planned |
+| DL-0.1 | Phase 0 — Spike | N/A | infra | Throwaway minimal Compose (1 Besu, FireFly, Paladin) | Done |
+| DL-0.2 | Phase 0 — Spike | N/A | doc | `docs/spike-results.md` with 4 answered risks | Done |
 | DL-1.1 | Phase 1 — Network | M1.1 | infra | Genesis, key and `static-nodes.json` generator | Planned |
 | DL-1.2 | Phase 1 — Network | M1.2 | infra | 4 QBFT validators in Compose | Planned |
 | DL-1.3 | Phase 1 — Network | M1.3 | infra | 2 RPC nodes, zero-gas, consistent | Planned |
@@ -25,8 +25,8 @@ This document is the single reference for what is deliverable and verifiable at 
 | DL-2.3 | Phase 2 — FireFly + ERC-3643 | N/A | api | Contract interface and API for `COIN` and IdentityRegistry | Planned |
 | DL-2.4 | Phase 2 — FireFly + ERC-3643 | N/A | feature | Onboarding and compliant transfer | Planned |
 | DL-2.5 | Phase 2 — FireFly + ERC-3643 | N/A | feature | On-chain compliance rejection | Planned |
-| DL-2.6 | Phase 2 — FireFly + ERC-3643 | N/A | test | `make reset` repeatability | Planned |
-| DL-3.1 | Phase 3 — Paladin + Noto | N/A | infra | 2 Paladin nodes, notary, DB in Compose | Planned |
+| DL-2.6 | Phase 2 — FireFly + ERC-3643 | N/A | test | `python scripts/stack.py reset` repeatability | Planned |
+| DL-3.1 | Phase 3 — Paladin + Noto | N/A | infra | 3 Paladin nodes (notary, Anson, Beatrice) and Postgres in Compose | Planned |
 | DL-3.2 | Phase 3 — Paladin + Noto | N/A | feature | Noto deploy, mint, private transfer | Planned |
 | DL-3.3 | Phase 3 — Paladin + Noto | N/A | test | Privacy check and three-store reset | Planned |
 | DL-4.1 | Phase 4 — Python CLI | N/A | ui | `src/core/` and CLI with 4 commands | Planned |
@@ -41,13 +41,15 @@ This document is the single reference for what is deliverable and verifiable at 
 
 **Goal**: The developer can say, with evidence, whether FireFly, Paladin, T-REX and Caliper work on this network, and what the fallback is for each that does not.
 
+**Status**: Done, signed off 2026-10-02. Evidence: `docs/spike-results.md` and `spike/` (see `spike/README.md` to re-run).
+
 **Prerequisites**:
 ```
-- [ ] Docker Desktop with Compose v2 running
-- [ ] Python 3.11+ installed
-- [ ] Node.js installed (version to be recorded by this phase)
-- [ ] *(optional)* FireFly CLI `ff`, only as a reference for generating config. There is no Windows release, so build it with `go install github.com/hyperledger-firefly/cli/ff@v1.5.0`. `ff start` is not used.
-- [ ] Repo cloned, on branch main
+- [x] Docker Desktop with Compose v2 running
+- [x] Python 3.11+ installed
+- [x] Node.js installed (version to be recorded by this phase)
+- [x] *(optional)* FireFly CLI `ff`, only as a reference for generating config. There is no Windows release, so build it with `go install github.com/hyperledger-firefly/cli/ff@v1.5.0`. `ff start` is not used.
+- [x] Repo cloned, on branch main
 ```
 
 ### DL-0.1 — Throwaway minimal Compose
@@ -74,10 +76,10 @@ This document is the single reference for what is deliverable and verifiable at 
 ```
 
 **Verification checklist**:
-- [ ] A FireFly contract invoke ends `succeeded` and the transaction receipt exists on Besu
-- [ ] Token (the largest T-REX contract) deploys through FireFly's deploy API, size recorded and under 24 576 bytes, or the shortfall documented
-- [ ] Paladin reports healthy from the hand-written config and a Noto mint completes
-- [ ] A trivial Caliper round writes a report
+- [x] A FireFly contract invoke ends `succeeded` and the transaction receipt exists on Besu
+- [x] Token (the largest T-REX contract) deploys through FireFly's deploy API, size recorded and under 24 576 bytes, or the shortfall documented
+- [x] Paladin reports healthy from the hand-written config and a Noto mint completes
+- [x] A trivial Caliper round writes a report
 
 **Known limitations at this phase**: single Besu node, not the 4-validator network (built in DL-1.2).
 
@@ -101,18 +103,18 @@ This document is the single reference for what is deliverable and verifiable at 
 ```
 
 **Verification checklist**:
-- [ ] Every risk has a verdict and a fallback
-- [ ] A pinned-versions list exists (Besu, FireFly, Paladin, Node, Caliper)
-- [ ] The developer has signed off in the file
+- [x] Every risk has a verdict and a fallback
+- [x] A pinned-versions list exists (Besu, FireFly, Paladin, Node, Caliper)
+- [x] The developer has signed off in the file
 
 **Known limitations at this phase**: none. This is the gate for everything else.
 
 **Phase exit gate summary** (from plan.md):
-- [ ] All DL-0.x deliverables verified
-- [ ] `docs/spike-results.md` exists with all four sections answered
-- [ ] D-03, D-08, D-09 are updated if any result requires it
-- [ ] Image and tool versions to pin are listed
-- [ ] The developer has signed off
+- [x] All DL-0.x deliverables verified
+- [x] `docs/spike-results.md` exists with all four sections answered
+- [x] D-03, D-08, D-09 are updated if any result requires it
+- [x] Image and tool versions to pin are listed
+- [x] The developer has signed off
 
 ---
 
@@ -280,7 +282,7 @@ This document is the single reference for what is deliverable and verifiable at 
 
 **How to try it**:
 ```
-1. Start: `make up` (planned name)
+1. Start: `python scripts/stack.py up` (planned name)
 2. Check containers: `docker compose ps` -- FireFly services `running`
 3. Status: `curl -s http://localhost:5000/api/v1/status` (port per spike)
    Expect a status document with the namespace ready.
@@ -288,7 +290,7 @@ This document is the single reference for what is deliverable and verifiable at 
 ```
 
 **Verification checklist**:
-- [ ] FireFly status reports ready with no manual steps after `make up`
+- [ ] FireFly status reports ready with no manual steps after `python scripts/stack.py up`
 - [ ] FireFly reaches the chain through `besu-rpc-*`, not a Besu node of its own
 - [ ] Three signing keys available
 
@@ -308,7 +310,7 @@ This document is the single reference for what is deliverable and verifiable at 
 
 **How to try it**:
 ```
-1. Run: `make deploy` (planned name)
+1. Run: `python scripts/stack.py deploy` (planned name)
 2. Open `deployed-addresses.json`
    Expect every address to be non-zero.
 3. Confirm code on-chain for each address: `curl -s -X POST -H "Content-Type: application/json" --data '{"jsonrpc":"2.0","method":"eth_getCode","params":["ADDRESS","latest"],"id":1}' http://localhost:8545`
@@ -339,7 +341,7 @@ This document is the single reference for what is deliverable and verifiable at 
 
 **How to try it**:
 ```
-1. After `make deploy`, open FireFly's Swagger UI (path per spike)
+1. After `python scripts/stack.py deploy`, open FireFly's Swagger UI (path per spike)
 2. Find the generated APIs for `COIN` and the IdentityRegistry
 3. Call a read (`balanceOf`) and a write (`mint`) through them
    Expect the read to return a balance and the write to return an operation id.
@@ -347,7 +349,7 @@ This document is the single reference for what is deliverable and verifiable at 
 
 **Verification checklist**:
 - [ ] A read and a write both succeed through the generated API
-- [ ] After `make reset && make up && make deploy`, the APIs exist again
+- [ ] After `python scripts/stack.py reset && python scripts/stack.py up && python scripts/stack.py deploy`, the APIs exist again
 
 **Known limitations at this phase**: calling raw FireFly is verbose; the CLI in Phase 4 wraps it.
 
@@ -365,7 +367,7 @@ This document is the single reference for what is deliverable and verifiable at 
 
 **How to try it**:
 ```
-1. Run the onboarding step of `make deploy`
+1. Run the onboarding step of `python scripts/stack.py deploy`
 2. Check balances through the contract API
    Expect Anson 1000, Beatrice 0, both verified.
 3. Transfer 25 from Anson to Beatrice through the contract API as the `anson` key
@@ -411,7 +413,7 @@ This document is the single reference for what is deliverable and verifiable at 
 
 **Known limitations at this phase**: none.
 
-### DL-2.6 — `make reset` repeatability
+### DL-2.6 — `python scripts/stack.py reset` repeatability
 
 | Field | Value |
 |---|---|
@@ -425,7 +427,7 @@ This document is the single reference for what is deliverable and verifiable at 
 
 **How to try it**:
 ```
-1. Run: `make reset && make up && make deploy`
+1. Run: `python scripts/stack.py reset && python scripts/stack.py up && python scripts/stack.py deploy`
 2. Run: `pytest -m integration`
 3. Repeat steps 1-2 two more times
 ```
@@ -455,7 +457,7 @@ This document is the single reference for what is deliverable and verifiable at 
 - [ ] Hand-written Paladin config from the spike committed
 ```
 
-### DL-3.1 — Paladin nodes, notary and DB
+### DL-3.1 — Paladin nodes and Postgres
 
 | Field | Value |
 |---|---|
@@ -465,21 +467,27 @@ This document is the single reference for what is deliverable and verifiable at 
 | **Traces to** | US-009, FR-8 |
 | **Demo surface** | CLI and Paladin API |
 
-**What it is**: Two Paladin nodes (Anson, Beatrice), a notary and Paladin's database in Compose, connected to `besu-rpc-*`.
+**What it is**: Three Paladin nodes (node1 notary and registry admin, node2 Anson, node3 Beatrice) and one Postgres (a database per node) in Compose, connected to `besu-rpc-*` and to each other over gRPC with mTLS. The registry and Noto contracts are deployed and every node is registered in the EVM registry.
 
 **How to try it**:
 ```
-1. Start: `make up`
-2. `docker compose ps` -- Paladin services `running`
-3. Query each Paladin node's health/status endpoint (path and port per spike)
-   Expect healthy and connected to Besu.
+1. Start: `python scripts/stack.py up`
+2. `docker compose ps` -- three Paladin containers and Postgres `running`
+3. Ask each node its name (ports are the spike values): `curl -s -X POST -H "Content-Type: application/json" --data '{"jsonrpc":"2.0","id":1,"method":"transport_nodeName","params":[]}' http://localhost:8548` then `:8648` and `:8748`
+   Expect `node1`, `node2`, `node3`.
+4. List the registered nodes on node1: same call with `"method":"reg_queryEntries","params":["evm-registry",{"limit":20},"any"]`
+   Expect entries for `node1`, `node2` and `node3`.
+5. `docker logs paladin-node1 | grep "TLS handshake completed"`
+   Expect handshakes with node2 and node3 after the first Noto call.
 ```
 
 **Verification checklist**:
-- [ ] All Paladin containers healthy
-- [ ] Each reaches its Besu RPC node
+- [ ] All Paladin containers and Postgres healthy
+- [ ] Each node reaches its Besu RPC node
+- [ ] All three nodes appear in the EVM registry
+- [ ] `domain_listDomains` returns `noto` on every node
 
-**Known limitations at this phase**: the Paladin config is hand-written and may differ from the operator's output.
+**Known limitations at this phase**: the Paladin config is hand-written and may differ from the operator's output. Paladin must use Postgres and its DB must be a volume, because key addresses depend on the path index mapping stored there.
 
 ### DL-3.2 — Noto deploy, mint, private transfer
 
@@ -491,15 +499,15 @@ This document is the single reference for what is deliverable and verifiable at 
 | **Traces to** | US-009, FR-8, UC-08 |
 | **Demo surface** | script against the Paladin API |
 
-**What it is**: A Noto token deployed with the notary; Admin mints to Anson; Anson transfers to Beatrice.
+**What it is**: A Noto token deployed with node1 as notary; node1 mints to Anson on node2; Anson transfers to Beatrice on node3.
 
 **How to try it**:
 ```
-1. Run the Noto script (`scripts/noto_demo.py`, planned name)
-2. Query Beatrice's Paladin node for her Noto balance
-   Expect the transferred amount.
-3. Query Anson's node
-   Expect the remainder.
+1. Run the Noto script (`scripts/noto_demo.py`, planned name; the spike equivalent is `spike/paladin/noto-3node.mjs`): deploy the token, mint 100 to `anson@node2`, transfer 40 to `beatrice@node3`
+2. Query Beatrice's node: `ptx_call` `balanceOf` for `beatrice@node3`
+   Expect `totalBalance` 40.
+3. Query Anson's node for `anson@node2`
+   Expect `totalBalance` 60.
 ```
 
 **Verification checklist**:
@@ -518,14 +526,16 @@ This document is the single reference for what is deliverable and verifiable at 
 | **Traces to** | US-009, FR-11, UC-08, UC-09, risk R6 and R11 |
 | **Demo surface** | `pytest` and Besu RPC |
 
-**What it is**: Evidence that a non-party sees nothing, plus `make reset` now clearing the chain, FireFly DB and Paladin DB together.
+**What it is**: Evidence that a non-party sees nothing, plus `python scripts/stack.py reset` now clearing the chain, FireFly DB and Paladin DB together.
 
 **How to try it**:
 ```
 1. Run: `pytest -m integration -k noto`
-2. Inspect the Noto transactions on Besu: `eth_getBlockByNumber` for the relevant block, `curl` as in DL-1.3
-   Expect no amounts or party addresses in the transaction data.
-3. Run: `make reset && make up`
+2. List the coin amounts each node can see (spike equivalent: `spike/paladin/coins-by-node.mjs TOKEN`)
+   Expect node1 and node2 to list 40, 60 and 100, and node3 to list 40 only.
+   Inspect the token's logs on Besu with `eth_getLogs`
+   Expect no plain 100, 40 or 60 in the log data.
+3. Run: `python scripts/stack.py reset && python scripts/stack.py up`
 4. Query Paladin
    Expect a clean state with no Noto token from before the reset.
 ```
@@ -540,7 +550,7 @@ This document is the single reference for what is deliverable and verifiable at 
 **Phase exit gate summary** (from plan.md):
 - [ ] All DL-3.x deliverables verified
 - [ ] Noto integration tests pass
-- [ ] `make reset` clears all three stores
+- [ ] `python scripts/stack.py reset` clears all three stores
 
 ---
 
@@ -551,7 +561,7 @@ This document is the single reference for what is deliverable and verifiable at 
 **Prerequisites**:
 ```
 - [ ] Phase 3 exit gate passed
-- [ ] Stack up and deployed: `make up && make deploy`
+- [ ] Stack up and deployed: `python scripts/stack.py up && python scripts/stack.py deploy`
 - [ ] Python 3.11+ with project dependencies installed
 ```
 
@@ -604,7 +614,7 @@ This document is the single reference for what is deliverable and verifiable at 
 1. `ruff check .` -- no findings
 2. `mypy .` -- no issues
 3. `pytest` -- unit tests pass without a running stack
-4. `make reset && make up && make deploy && pytest -m integration` -- repeat 3 times
+4. `python scripts/stack.py reset && python scripts/stack.py up && python scripts/stack.py deploy && pytest -m integration` -- repeat 3 times
 ```
 
 **Verification checklist**:
@@ -646,7 +656,7 @@ This document is the single reference for what is deliverable and verifiable at 
 
 **How to try it**:
 ```
-1. `cd perf && npm install` (planned layout)
+1. `cd perf && npm install && npm install --no-save web3@1.3.0` (planned layout; Caliper 0.6.0, because `caliper bind` does not work on Windows)
 2. Run the wallet setup with N=20 (flag or env name per `perf/README`)
 3. Spot-check a wallet: `isVerified` and `balanceOf` through the contract API
    Expect verified and a non-zero balance.
@@ -676,14 +686,14 @@ This document is the single reference for what is deliverable and verifiable at 
    Expect a report with TPS and latency.
 2. Run the FireFly-layer round
    Expect a second report.
-3. Repeat both from a fresh `make reset && make up && make deploy`
+3. Repeat both from a fresh `python scripts/stack.py reset && python scripts/stack.py up && python scripts/stack.py deploy`
 ```
 
 **Verification checklist**:
 - [ ] Both reports exist
 - [ ] The two runs are reproducible from a fresh stack
 
-**Known limitations at this phase**: Caliper has no FireFly connector, so the FireFly round uses a custom HTTP workload (to be confirmed in Phase 0).
+**Known limitations at this phase**: Caliper has no FireFly connector, so the FireFly round uses a small custom Caliper connector (proven in Phase 0). Caliper 0.7.1 has no Ethereum connector, so 0.6.0 is used.
 
 ### DL-5.3 — Results note
 
@@ -711,7 +721,7 @@ This document is the single reference for what is deliverable and verifiable at 
 
 **Phase exit gate summary** (from plan.md):
 - [ ] All DL-5.x deliverables verified
-- [ ] Both rounds reproducible from a fresh `make reset && make up && make deploy`
+- [ ] Both rounds reproducible from a fresh `python scripts/stack.py reset && python scripts/stack.py up && python scripts/stack.py deploy`
 - [ ] Results note committed
 
 ---
@@ -722,12 +732,12 @@ Run this after Phase 4 (Phase 5 is optional for the demo).
 
 **1. Start the stack**
 ```bash
-make reset
-make up
-make deploy
+python scripts/stack.py reset
+python scripts/stack.py up
+python scripts/stack.py deploy
 docker compose ps
 ```
-All containers should be `running`. (`make` targets are planned names.)
+All containers should be `running`. (The stack script is a planned name.)
 
 **2. Walk through the primary flow**
 - Show the network: DL-1.2 and DL-1.3 (kill a validator, watch the chain continue).
@@ -748,4 +758,4 @@ All containers should be `running`. (`make` targets are planned names.)
 ```bash
 docker compose down -v
 ```
-(or `make reset`, which clears the chain, FireFly DB and Paladin DB together). Everything resets to genesis.
+(or `python scripts/stack.py reset`, which clears the chain, FireFly DB and Paladin DB together). Everything resets to genesis.
