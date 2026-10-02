@@ -8,7 +8,9 @@ import re
 # "Produced #4 ..." on the proposer, "Imported empty block #5 ..." or "Imported #1,234 ..."
 # on the other validators.
 _BLOCK = re.compile(r"(?:Produced|Imported(?: empty block)?)\s+#([\d,]+)")
-_PEERS = re.compile(r"Currently checking (\d+) peers")
+# "Currently checking 3 peers" while waiting for a sync target (start-up), then
+# "... in 0.000s. Peers: 5" on every block a synced node imports.
+_PEERS = re.compile(r"Currently checking (\d+) peers|\bPeers: (\d+)")
 
 
 def latest_block_number(log_text: str) -> int | None:
@@ -19,5 +21,5 @@ def latest_block_number(log_text: str) -> int | None:
 
 def peer_count(log_text: str) -> int | None:
     """The most recently reported peer count, or None if Besu never reported one."""
-    counts = _PEERS.findall(log_text)
-    return int(counts[-1]) if counts else None
+    counts = [int(checking or synced) for checking, synced in _PEERS.findall(log_text)]
+    return counts[-1] if counts else None

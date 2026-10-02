@@ -220,13 +220,13 @@ Sizes: no task is L or larger.
 **Description:** Add `besu-rpc-anson` (`8545` HTTP, `8546` WS) and `besu-rpc-beatrice` (`8555` HTTP, `8556` WS) to the Compose file as non-validating nodes (no `--node-private-key-file`), statically peered to the four validators, with HTTP and WS RPC enabled and the `ETH,NET,WEB3,QBFT,ADMIN` APIs. Extend `stack.py up` to wait for both.
 
 **Acceptance criteria:**
-- [ ] `eth_blockNumber` on `:8545` and `:8555` agree within 1 block when read 5 seconds apart
-- [ ] `eth_gasPrice` returns `0x0` on both
-- [ ] Neither RPC node's address is in `qbft_getValidatorsByBlockNumber`, and each reports at least 4 peers (`net_peerCount`)
+- [x] `eth_blockNumber` on `:8545` and `:8555` agree within 1 block when read 5 seconds apart
+- [x] `eth_gasPrice` returns `0x0` on both
+- [x] Neither RPC node's address is in `qbft_getValidatorsByBlockNumber`, and each reports at least 4 peers (`net_peerCount`)
 
 **Verification:**
-- [ ] Tests pass: `pytest -m integration -k rpc`
-- [ ] Checks clean: `docker compose config`, `ruff check .`, `mypy .`
+- [x] Tests pass: `pytest -m integration -k rpc`
+- [x] Checks clean: `docker compose config`, `ruff check .`, `mypy .`
 
 **Dependencies:** Task 6
 
@@ -237,6 +237,8 @@ Sizes: no task is L or larger.
 - `tests/support/rpc.py` (a small JSON-RPC helper using the standard library)
 
 **Size:** M
+
+**Status:** Done 2026-10-02. Test-first (8 integration tests, red before the Compose change). `stack.py up` needed no change: it already waits for every Compose service. `eth_coinbase` does not exist on a non-mining Besu, so "not a validator" is checked through the validator set plus the node id (`admin_nodeInfo`) against the four `key.pub` files. Side fix: the Task 6 peer test read only the last 200 log lines and failed once the stack had run a while; `peer_count` now also reads `Peers: N` and the test reads the whole log.
 
 ### Task 9: Network integration suite
 

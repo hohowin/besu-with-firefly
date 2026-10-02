@@ -43,5 +43,16 @@ def test_peer_count_is_the_last_reported_value() -> None:
     assert peer_count("\n".join([PEERS_3, PEERS_0])) == 0
 
 
+def test_peer_count_reads_the_peers_suffix_of_synced_block_lines() -> None:
+    # Once a node is past start-up, Besu stops saying "Currently checking" and reports this.
+    synced = (
+        "2026-10-02 14:39:23.045+0000 | EthScheduler-Workers-78 | INFO  | PersistBlockTask"
+        " | Imported empty block #929 / 0 tx / 0 om / 0 (0.0%) gas / (0x8cd8) in 0.000s. Peers: 5"
+    )
+    assert peer_count(synced) == 5
+    assert peer_count("\n".join([PEERS_3, synced])) == 5
+    assert peer_count("\n".join([synced, PEERS_3])) == 3
+
+
 def test_peer_count_is_none_when_never_reported() -> None:
     assert peer_count(IMPORTED) is None

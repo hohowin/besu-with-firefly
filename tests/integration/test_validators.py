@@ -31,7 +31,8 @@ def test_all_four_validators_are_running_and_healthy(stack: DockerStack) -> None
 @pytest.mark.parametrize("validator", VALIDATORS)
 def test_each_validator_has_at_least_three_peers(stack: DockerStack, validator: str) -> None:
     def peers() -> int | None:
-        count = peer_count(stack.logs(validator, tail=200))
+        # Whole log: a validator that has run for a while only mentions peers at start-up.
+        count = peer_count(stack.logs(validator))
         return count if count is not None and count >= 3 else None
 
     assert wait_for(peers, describe=f"{validator} to report 3 or more peers", timeout=90) >= 3
