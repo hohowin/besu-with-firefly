@@ -125,13 +125,13 @@ Sizes: no task is L or larger.
 **Description:** Extend `init` to generate the `admin`, `anson` and `beatrice` demo wallets and write them to `network-config/wallets.json` (name, address, private key) with a demo-only banner. FireFly keystores come later (Phase 2). The secp256k1 library choice is an Open Question.
 
 **Acceptance criteria:**
-- [ ] `wallets.json` has three entries, each address derived from its private key, and a test re-derives every address
-- [ ] The file is committed, and `network-config/README.md` states that these keys are demo-only (D-10)
-- [ ] Re-running `init` without `--force` leaves the wallets unchanged
+- [x] `wallets.json` has three entries, each address derived from its private key, and a test re-derives every address
+- [x] The file is committed, and `network-config/README.md` states that these keys are demo-only (D-10)
+- [x] Re-running `init` without `--force` leaves the wallets unchanged
 
 **Verification:**
-- [ ] Tests pass: `pytest tests/unit` and `pytest -m integration -k init`
-- [ ] Checks clean: `ruff check .` and `mypy .`
+- [x] Tests pass: `pytest tests/unit` and `pytest -m integration -k init`
+- [x] Checks clean: `ruff check .` and `mypy .`
 
 **Dependencies:** Task 4, and an answer to Open Question 3
 
@@ -143,12 +143,14 @@ Sizes: no task is L or larger.
 
 **Size:** S
 
+**Status:** Done 2026-10-02. Test-first, with `eth-account` 0.14 (new dependency, approved). Core (`src/core/network/wallets.py`) does the pure address derivation and checks; the adapter creates the random wallets. Verified against the well-known Ethereum test vector. `init` now also rewrites the generated README every run (it had gone stale after `--force`; covered by a test). 64 unit tests plus 2 integration tests.
+
 ## Checkpoint: After Tasks 1–5
 
-- [ ] `ruff check .`, `mypy .` and `pytest` are clean
-- [ ] `python scripts/stack.py init --force` reproduces valid genesis, keys, static nodes and wallets from scratch
-- [ ] M1.1 exit gate from `docs/plan.md` holds: `genesis.json` has a `qbft` block with all four validator addresses
-- [ ] Human review before proceeding
+- [x] `ruff check .`, `mypy .` and `pytest` are clean (64 unit tests, 2 integration tests)
+- [x] `python scripts/stack.py init --force` reproduces valid genesis, keys, static nodes and wallets from scratch
+- [x] M1.1 exit gate from `docs/plan.md` holds: `genesis.json` has a `qbft` block with all four validator addresses (the `docker compose config` half of that gate comes with Task 6, when the Compose file exists)
+- [ ] Human review before proceeding (**waiting for Howin**)
 
 ---
 

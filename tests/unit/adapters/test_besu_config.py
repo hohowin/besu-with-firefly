@@ -11,6 +11,7 @@ from src.adapters.besu_config import (
     init_network,
 )
 from src.core.network.enode import NetworkAddressing
+from src.core.network.wallets import derive_address
 from tests.support.besu_fake import fake_generator
 
 
@@ -85,3 +86,39 @@ def test_generator_producing_the_wrong_number_of_validators_is_rejected(tmp_path
     with pytest.raises(GenerationError, match="expected 4"):
         init_network(tmp_path, generator=fake_generator(count=3))
     assert not (tmp_path / "genesis.json").exists()
+
+
+def test_init_writes_three_demo_wallets_whose_addresses_match_their_keys(tmp_path: Path) -> None:
+    init_network(tmp_path, generator=fake_generator())
+    document = json.loads((tmp_path / "wallets.json").read_text(encoding="utf-8"))
+    assert "demo" in document["notice"].lower()
+    assert [w["name"] for w in document["wallets"]] == ["admin", "anson", "beatrice"]
+    for wallet in document["wallets"]:
+        assert derive_address(wallet["privateKey"]) == wallet["address"]
+
+
+def test_second_run_without_force_leaves_the_wallets_unchanged(tmp_path: Path) -> None:
+    init_network(tmp_path, generator=fake_generator(seed=1))
+    before = (tmp_path / "wallets.json").read_bytes()
+    with pytest.raises(AlreadyInitialisedError):
+        init_network(tmp_path, generator=fake_generator(seed=2))
+    assert (tmp_path / "wallets.json").read_bytes() == before
+
+
+def test_force_creates_new_wallets(tmp_path: Path) -> None:
+    init_network(tmp_path, generator=fake_generator(seed=1))
+    before = (tmp_path / "wallets.json").read_bytes()
+    init_network(tmp_path, generator=fake_generator(seed=2), force=True)
+    assert (tmp_path / "wallets.json").read_bytes() != before
+
+
+def test_readme_mentions_the_wallets(tmp_path: Path) -> None:
+    init_network(tmp_path, generator=fake_generator())
+    assert "wallets.json" in (tmp_path / "README.md").read_text(encoding="utf-8")
+
+
+def test_force_rewrites_a_stale_readme(tmp_path: Path) -> None:
+    init_network(tmp_path, generator=fake_generator(seed=1))
+    (tmp_path / "README.md").write_text("old text", encoding="utf-8")
+    init_network(tmp_path, generator=fake_generator(seed=2), force=True)
+    assert "wallets.json" in (tmp_path / "README.md").read_text(encoding="utf-8")

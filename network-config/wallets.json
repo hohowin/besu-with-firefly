@@ -1,0 +1,20 @@
+{
+  "notice": "DEMO ONLY. Throwaway keys for a local network with no real value, committed on purpose (plan D-10). Never reuse them anywhere else.",
+  "wallets": [
+    {
+      "name": "admin",
+      "address": "0xee02e65bcdb343ac02c2e9597ebfc153998aca8e",
+      "privateKey": "0x700558f54d0721b12078eeadfe4e56579cbafbe5fd5a67d967f78dbdd85fe29b"
+    },
+    {
+      "name": "anson",
+      "address": "0x3f417c576416165836b795ccd409596117b2666c",
+      "privateKey": "0x649268327d14f576e8ad1696a22ac1581d3f11bc0de265f538a74cdefe013c29"
+    },
+    {
+      "name": "beatrice",
+      "address": "0x089dcf0286c94db39187e6002cd0165d5a92cab1",
+      "privateKey": "0x0947b5d769aa28b61e24c4688db9af9c53f45f3059da1098182e3f5767f40597"
+    }
+  ]
+}
