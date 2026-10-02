@@ -21,7 +21,7 @@ from src.adapters.docker_stack import DockerStack, StackError
 from src.adapters.firefly import FireflyError
 from src.adapters.rpc import chain_heights_reader
 from src.adapters.trex_artifacts import ArtifactsMissingError
-from src.adapters.trex_command import deploy_trex, onboard_trex
+from src.adapters.trex_command import DEPLOYED_ADDRESSES, deploy_trex, onboard_trex
 from src.adapters.trex_deploy import DeployStepError
 from src.core.network.health import ContainerState
 
@@ -89,10 +89,11 @@ def main(
     stack: Stack | None = None,
     deployer: Callable[[Path], dict[str, str]] | None = None,
     onboarder: Callable[[Path], None] | None = None,
+    addresses_file: Path = DEPLOYED_ADDRESSES,
 ) -> int:
     """Run a command and return the process exit code.
 
-    Tests inject `generator`, `stack`, `deployer` and `onboarder`.
+    Tests inject `generator`, `stack`, `deployer`, `onboarder` and `addresses_file`.
     """
     args = build_parser().parse_args(argv)
     if args.command == "init":
@@ -140,4 +141,7 @@ def main(
             print(f"removed {len(removed)} containers and their volumes: {', '.join(removed)}")
         else:
             print("nothing to remove")
+        if addresses_file.exists():  # the addresses it holds belong to the chain that is gone
+            addresses_file.unlink()
+            print(f"removed {addresses_file.name}")
     return 0

@@ -44,3 +44,8 @@ def test_signer_backend_is_the_anson_rpc_node_not_the_docker_host() -> None:
     assert "host.docker.internal" not in text
     assert f"chainId: {CHAIN_ID}" in text
     assert CHAIN_ID == 20260916
+
+
+def test_core_serves_the_explorer_from_the_frontend_folder_of_its_image() -> None:
+    text = core_config(ADMIN)
+    assert "ui:\n  path: ./frontend\n" in text

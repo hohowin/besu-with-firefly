@@ -65,3 +65,12 @@ def test_firefly_reaches_our_chain_through_the_rpc_node_not_a_node_of_its_own(
     assert abs(signer_height - block_number(RPC_ANSON)) <= 2
     own = [s.service for s in stack.states() if s.service.startswith("firefly-")]
     assert not any("besu" in name for name in own), "FireFly runs a Besu node of its own"
+
+
+def test_the_firefly_explorer_and_swagger_are_served(stack: DockerStack) -> None:
+    import urllib.request
+
+    for path, marker in (("/ui", "<!doctype html>"), ("/api", "swagger")):
+        with urllib.request.urlopen(f"http://localhost:5000{path}", timeout=20) as response:  # noqa: S310
+            assert response.status == 200, path
+            assert marker in response.read(2000).decode("utf-8", "replace").lower(), path

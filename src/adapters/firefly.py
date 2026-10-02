@@ -19,10 +19,13 @@ from src.core.firefly.operations import (
     api_query_body,
     deploy_body,
     invoke_body,
+    is_transient,
     parse_operation,
     query_body,
     revert_reason,
 )
+
+READ_RETRIES = 3
 
 # (HTTP method, path, JSON body or None) -> (HTTP status, parsed JSON or text).
 Transport = Callable[[str, str, Any], tuple[int, Any]]
@@ -109,9 +112,7 @@ class FireflyClient:
         self._clock = clock
 
     def status(self) -> dict[str, Any]:
-        status, body = self._call("GET", "/api/v1/status")
-        self._raise_for(status, body)
-        return dict(body)
+        return dict(self._read("GET", "/api/v1/status"))
 
     def deploy(
         self,
@@ -145,19 +146,18 @@ class FireflyClient:
     def query(
         self, address: str, method: Mapping[str, Any], inputs: Mapping[str, Any]
     ) -> Any:
-        status, body = self._call(
-            "POST", f"{self._ns}/contracts/query", query_body(address, method, inputs)
-        )
-        self._raise_for(status, body)
-        return body
+        body = query_body(address, method, inputs)
+        return self._read("POST", f"{self._ns}/contracts/query", body)
 
     def generate_interface(self, abi: Sequence[Any]) -> dict[str, Any]:
         """Ask FireFly to turn an ABI into a contract interface (FFI). Nothing is registered."""
-        status, body = self._call(
-            "POST", f"{self._ns}/contracts/interfaces/generate", {"input": {"abi": list(abi)}}
+        return dict(
+            self._read(
+                "POST",
+                f"{self._ns}/contracts/interfaces/generate",
+                {"input": {"abi": list(abi)}},
+            )
         )
-        self._raise_for(status, body)
-        return dict(body)
 
     def ensure_interface(self, name: str, version: str, abi: Sequence[Any]) -> str:
         """The id of the contract interface `name`/`version`, registering it from the ABI if it
@@ -165,12 +165,11 @@ class FireflyClient:
         found = self._list(f"/contracts/interfaces?name={name}&version={version}")
         if found:
             return str(found[0]["id"])
-        status, generated = self._call(
+        generated = self._read(
             "POST",
             f"{self._ns}/contracts/interfaces/generate",
             {"name": name, "version": version, "input": {"abi": list(abi)}},
         )
-        self._raise_for(status, generated)
         status, registered = self._call(
             "POST", f"{self._ns}/contracts/interfaces?confirm=true", generated
         )
@@ -201,10 +200,7 @@ class FireflyClient:
 
     def api_query(self, api: str, method: str, inputs: Mapping[str, Any]) -> Any:
         """Read through a registered contract API and return the output value."""
-        status, body = self._call(
-            "POST", f"{self._ns}/apis/{api}/query/{method}", api_query_body(inputs)
-        )
-        self._raise_for(status, body)
+        body = self._read("POST", f"{self._ns}/apis/{api}/query/{method}", api_query_body(inputs))
         return body.get("output") if isinstance(body, Mapping) else body
 
     def api_invoke(
@@ -220,20 +216,15 @@ class FireflyClient:
         return self._write(f"/apis/{api}/invoke/{method}?confirm=true", body, timeout)
 
     def _list(self, path: str) -> list[dict[str, Any]]:
-        status, body = self._call("GET", f"{self._ns}{path}")
-        self._raise_for(status, body)
-        return [dict(item) for item in body]
+        return [dict(item) for item in self._read("GET", f"{self._ns}{path}")]
 
     def transaction_operations(self, transaction_id: str) -> list[Operation]:
         """The operations of a transaction, for example to see whether an earlier attempt failed."""
-        status, body = self._call("GET", f"{self._ns}/transactions/{transaction_id}/operations")
-        self._raise_for(status, body)
+        body = self._read("GET", f"{self._ns}/transactions/{transaction_id}/operations")
         return [parse_operation(item) for item in body]
 
     def get_operation(self, operation_id: str) -> Operation:
-        status, body = self._call("GET", f"{self._ns}/operations/{operation_id}")
-        self._raise_for(status, body)
-        return parse_operation(body)
+        return parse_operation(self._read("GET", f"{self._ns}/operations/{operation_id}"))
 
     def _write(self, path: str, body: dict[str, Any], timeout: float) -> Operation:
         status, answer = self._call("POST", f"{self._ns}{path}", body)
@@ -255,6 +246,21 @@ class FireflyClient:
                 raise OperationTimeout(operation.id, operation.status, timeout)
             self._sleep(1.0)
             operation = self.get_operation(operation.id)
+
+    def _read(self, method: str, path: str, body: Any = None) -> Any:
+        """A request that changes nothing (a GET, a query, an ABI conversion). A timeout or a
+        dropped connection says nothing about the request, so it is repeated a few times."""
+        retries = 0
+        while True:
+            try:
+                status, answer = self._call(method, path, body)
+                self._raise_for(status, answer)
+                return answer
+            except FireflyError as error:
+                retries += 1
+                if retries > READ_RETRIES or not is_transient(str(error)):
+                    raise
+                self._sleep(2.0 * retries)
 
     def _call(self, method: str, path: str, body: Any = None) -> tuple[int, Any]:
         try:

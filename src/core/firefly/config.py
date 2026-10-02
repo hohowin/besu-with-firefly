@@ -32,6 +32,8 @@ spi:
   port: 5101
   address: 0.0.0.0
   enabled: true
+ui:
+  path: ./frontend
 event:
   dbevents:
     bufferSize: 10000

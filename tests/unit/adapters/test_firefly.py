@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from typing import Any
 
 import pytest
@@ -252,3 +253,62 @@ def test_a_reverted_error_is_still_a_firefly_error() -> None:
     from src.adapters.firefly import Reverted
 
     assert issubclass(Reverted, FireflyError)
+
+
+TIMEOUT = {
+    "error": (
+        "FF10111: Error from ethereum connector: : "
+        'Post "http://firefly-evmconnect:5008/": context deadline exceeded'
+    )
+}
+
+
+def test_a_read_that_times_out_is_retried_and_returns_the_later_answer() -> None:
+    transport = FakeTransport((500, TIMEOUT), (500, TIMEOUT), (200, {"output": "Coin"}))
+    assert client(transport).api_query("coin", "name", {}) == "Coin"
+    assert len(transport.requests) == 3
+
+
+def test_every_kind_of_read_is_retried() -> None:
+    reads: list[tuple[Callable[[FireflyClient], object], Any]] = [
+        (lambda c: c.status(), {"namespace": {"name": "default"}}),
+        (lambda c: c.query(ADDRESS, METHOD, {}), {"": "1"}),
+        (lambda c: c.get_operation("op"), {"id": "op", "status": "Succeeded"}),
+        (lambda c: c.transaction_operations("tx"), []),
+        (lambda c: c.generate_interface([]), {"methods": []}),
+    ]
+    for call, ok in reads:
+        transport = FakeTransport((500, TIMEOUT), (200, ok))
+        call(client(transport))
+        assert len(transport.requests) == 2
+
+
+def test_a_read_that_keeps_timing_out_gives_up_with_the_error() -> None:
+    transport = FakeTransport((500, TIMEOUT))
+    with pytest.raises(FireflyError, match="context deadline exceeded"):
+        client(transport).api_query("coin", "name", {})
+    assert len(transport.requests) == 4  # the first try and three retries
+
+
+def test_a_read_that_fails_for_another_reason_is_not_retried() -> None:
+    transport = FakeTransport((400, {"error": "FF10111: bad input"}))
+    with pytest.raises(FireflyError, match="bad input"):
+        client(transport).api_query("coin", "name", {})
+    assert len(transport.requests) == 1
+
+
+def test_a_read_that_reverts_is_not_retried() -> None:
+    from src.adapters.firefly import Reverted
+
+    transport = FakeTransport((500, REVERT))
+    with pytest.raises(Reverted):
+        client(transport).api_query("coin", "name", {})
+    assert len(transport.requests) == 1
+
+
+def test_a_write_that_times_out_is_not_retried_by_the_client() -> None:
+    # Retrying a write is the caller's job, under an idempotency key (see trex_deploy.submit).
+    transport = FakeTransport((500, TIMEOUT))
+    with pytest.raises(FireflyError, match="context deadline exceeded"):
+        client(transport).invoke(ADDRESS, METHOD, {}, key="0xk")
+    assert len(transport.requests) == 1

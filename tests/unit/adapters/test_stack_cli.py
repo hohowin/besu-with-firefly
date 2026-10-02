@@ -174,3 +174,26 @@ def test_onboard_failure_exits_one_with_the_reason(
 
     assert main(["onboard", "--network-dir", str(tmp_path)], onboarder=onboarder) == 1
     assert "anson: HTTP 500: boom" in capsys.readouterr().err
+
+
+def test_reset_also_removes_a_stale_deployed_addresses_file(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    addresses = tmp_path / "deployed-addresses.json"
+    addresses.write_text("{}", encoding="utf-8")
+    assert main(["reset"], stack=FakeStack(), addresses_file=addresses) == 0
+    assert not addresses.exists()
+    assert "deployed-addresses.json" in capsys.readouterr().out
+
+
+def test_reset_without_a_deployed_addresses_file_is_fine(tmp_path: Path) -> None:
+    addresses = tmp_path / "deployed-addresses.json"
+    assert main(["reset"], stack=FakeStack(), addresses_file=addresses) == 0
+
+
+def test_a_failed_reset_leaves_the_deployed_addresses_file_alone(tmp_path: Path) -> None:
+    addresses = tmp_path / "deployed-addresses.json"
+    addresses.write_text("{}", encoding="utf-8")
+    stack = FakeStack(error="docker is not reachable")
+    assert main(["reset"], stack=stack, addresses_file=addresses) == 1
+    assert addresses.exists()
