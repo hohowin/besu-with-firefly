@@ -1,11 +1,13 @@
 import contextlib
+import json
 from collections.abc import Iterator
 from functools import partial
 
 import pytest
 
-from src.adapters.docker_stack import DockerStack, StackError
+from src.adapters.docker_stack import REPO_ROOT, DockerStack, StackError
 from src.adapters.rpc import chain_heights_reader
+from tests.support.deploy import run_deploy
 from tests.support.polling import wait_for
 from tests.support.rpc import RPC_ANSON, RPC_BEATRICE, block_number
 
@@ -40,3 +42,12 @@ def restore_validators(stack: DockerStack) -> Iterator[None]:
 
 def _advanced_past(url: str, block: int) -> bool:
     return block_number(url) > block
+
+
+@pytest.fixture(scope="module")
+def deployed(stack: DockerStack) -> dict[str, str]:
+    """Run `stack.py deploy` (it only does what is missing) and return the deployed addresses."""
+    result = run_deploy()
+    assert result.returncode == 0, f"deploy failed:\n{result.stdout}\n{result.stderr}"
+    path = REPO_ROOT / "deployed-addresses.json"
+    return dict(json.loads(path.read_text(encoding="utf-8")))

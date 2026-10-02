@@ -80,6 +80,18 @@ def query_body(
     return {"location": {"address": address}, "method": method, "input": inputs}
 
 
+def api_query_body(inputs: Mapping[str, Any]) -> dict[str, Any]:
+    """A read through a registered contract API: arguments by parameter name."""
+    return {"input": dict(inputs)}
+
+
+def api_invoke_body(
+    inputs: Mapping[str, Any], key: str | None = None, idempotency_key: str | None = None
+) -> dict[str, Any]:
+    """A write through a registered contract API."""
+    return _with_signer({"input": dict(inputs)}, key, idempotency_key)
+
+
 def _with_signer(
     body: dict[str, Any], key: str | None, idempotency_key: str | None
 ) -> dict[str, Any]:

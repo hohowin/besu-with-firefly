@@ -88,3 +88,15 @@ def test_other_responses_are_not_already_submitted() -> None:
     not_a_conflict = {"error": "FF10431: used for transaction 'tx'"}
     assert already_submitted_transaction(200, not_a_conflict) is None
     assert already_submitted_transaction(500, "boom") is None
+
+
+def test_api_bodies_pass_inputs_by_name_and_only_writes_carry_a_signer() -> None:
+    from src.core.firefly.operations import api_invoke_body, api_query_body
+
+    assert api_query_body({"_userAddress": ADDRESS}) == {"input": {"_userAddress": ADDRESS}}
+    assert api_invoke_body({"_amount": 5}, key="0xk", idempotency_key="i1") == {
+        "input": {"_amount": 5},
+        "key": "0xk",
+        "idempotencyKey": "i1",
+    }
+    assert api_invoke_body({}, key="0xk") == {"input": {}, "key": "0xk"}

@@ -1,16 +1,15 @@
 """`stack.py deploy`: the T-REX infrastructure is deployed through FireFly and wired together."""
 
 import json
-import subprocess
-import sys
 from typing import Any
 
 import pytest
 
-from src.adapters.docker_stack import REPO_ROOT, DockerStack
+from src.adapters.docker_stack import REPO_ROOT
 from src.adapters.trex_artifacts import load_artifact
 from src.adapters.trex_suite import SUITE_NAMES
 from src.core.trex.plan import Deploy, build_plan
+from tests.support.deploy import run_deploy
 from tests.support.firefly import ff_get, ff_query
 from tests.support.rpc import RPC_ANSON, rpc_call
 
@@ -19,16 +18,6 @@ PLAN_NAMES = [step.name for step in build_plan() if isinstance(step, Deploy)]
 ZERO = "0x" + "00" * 20
 
 pytestmark = pytest.mark.integration
-
-
-def run_deploy() -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        [sys.executable, str(REPO_ROOT / "scripts" / "stack.py"), "deploy"],
-        capture_output=True,
-        text=True,
-        timeout=900,
-        check=False,
-    )
 
 
 def abi_of(name: str) -> list[dict[str, object]]:
@@ -46,13 +35,6 @@ def invoke_operations() -> list[dict[str, Any]]:
     operations = ff_get("/api/v1/namespaces/default/operations?type=blockchain_invoke&limit=200")
     assert isinstance(operations, list)
     return operations
-
-
-@pytest.fixture(scope="module")
-def deployed(stack: DockerStack) -> dict[str, str]:
-    result = run_deploy()
-    assert result.returncode == 0, f"deploy failed:\n{result.stdout}\n{result.stderr}"
-    return dict(json.loads(ADDRESSES_FILE.read_text(encoding="utf-8")))
 
 
 def test_every_contract_has_a_non_zero_address_with_code_on_chain(deployed: dict[str, str]) -> None:

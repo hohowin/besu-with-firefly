@@ -144,3 +144,79 @@ def test_transaction_operations_lists_the_operations_of_a_transaction() -> None:
     ]
     expected = "/api/v1/namespaces/default/transactions/tx1/operations"
     assert transport.requests[0][:2] == ("GET", expected)
+
+
+def test_ensure_interface_registers_a_new_interface_from_the_generated_one() -> None:
+    generated = {"name": "coin", "version": "1.0.0", "methods": [], "events": []}
+    transport = FakeTransport(
+        (200, []),  # no interface called coin yet
+        (200, generated),  # generate
+        (200, {"id": "if1", "name": "coin", "version": "1.0.0"}),  # register
+    )
+    assert client(transport).ensure_interface("coin", "1.0.0", [{"type": "function"}]) == "if1"
+    assert transport.requests[0][:2] == (
+        "GET",
+        "/api/v1/namespaces/default/contracts/interfaces?name=coin&version=1.0.0",
+    )
+    generate = transport.requests[1]
+    assert generate[1] == "/api/v1/namespaces/default/contracts/interfaces/generate"
+    assert generate[2]["name"] == "coin" and generate[2]["version"] == "1.0.0"
+    register = transport.requests[2]
+    assert register[:2] == ("POST", "/api/v1/namespaces/default/contracts/interfaces?confirm=true")
+    assert register[2] == generated
+
+
+def test_ensure_interface_reuses_one_that_is_already_registered() -> None:
+    transport = FakeTransport((200, [{"id": "if9", "name": "coin", "version": "1.0.0"}]))
+    assert client(transport).ensure_interface("coin", "1.0.0", []) == "if9"
+    assert len(transport.requests) == 1
+
+
+def test_ensure_api_creates_a_missing_api() -> None:
+    transport = FakeTransport((200, []), (200, {"id": "api1", "name": "coin"}))
+    assert client(transport).ensure_api("coin", "if1", ADDRESS) == "api1"
+    create = transport.requests[1]
+    assert create[:2] == ("POST", "/api/v1/namespaces/default/apis?confirm=true")
+    assert create[2] == {
+        "name": "coin",
+        "interface": {"id": "if1"},
+        "location": {"address": ADDRESS},
+    }
+
+
+def test_ensure_api_reuses_an_api_for_the_same_interface_and_address() -> None:
+    existing = {
+        "id": "api1", "name": "coin", "interface": {"id": "if1"},
+        "location": {"address": ADDRESS.upper().replace("0X", "0x")},
+    }  # fmt: skip
+    transport = FakeTransport((200, [existing]))
+    assert client(transport).ensure_api("coin", "if1", ADDRESS) == "api1"
+    assert len(transport.requests) == 1
+
+
+def test_ensure_api_refuses_an_api_that_points_somewhere_else() -> None:
+    other = {
+        "id": "api1", "name": "coin", "interface": {"id": "if1"},
+        "location": {"address": "0x" + "11" * 20},
+    }  # fmt: skip
+    with pytest.raises(FireflyError, match=r"API 'coin' already exists.*reset"):
+        client(FakeTransport((200, [other]))).ensure_api("coin", "if1", ADDRESS)
+
+
+def test_api_query_returns_the_output_value() -> None:
+    transport = FakeTransport((200, {"output": "Coin"}))
+    assert client(transport).api_query("coin", "name", {}) == "Coin"
+    assert transport.requests[0][:2] == ("POST", "/api/v1/namespaces/default/apis/coin/query/name")
+    assert transport.requests[0][2] == {"input": {}}
+
+
+def test_api_invoke_posts_with_confirm_and_returns_the_operation() -> None:
+    transport = FakeTransport((200, {"id": "op1", "status": "Succeeded"}))
+    op = client(transport).api_invoke("coin", "unpause", {}, key="0xk")
+    assert op.succeeded
+    method, path, body = transport.requests[0]
+    assert (method, path) == (
+        "POST",
+        "/api/v1/namespaces/default/apis/coin/invoke/unpause?confirm=true",
+    )
+    assert body == {"input": {}, "key": "0xk"}

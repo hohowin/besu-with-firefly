@@ -212,13 +212,13 @@ Sizes: no task is L or larger. Tasks 7 and 9 are the largest (M).
 **Description:** Generate a FireFly contract interface from each needed ABI (Token, IdentityRegistry; plus what Tasks 10 to 12 call), register it, and create a contract API per deployed address (`coin`, `identity-registry`) through the Task 4 client. Registration is part of `deploy` and is idempotent (an already-registered interface or API is reused, not an error). The plan's gate asks for a write through the API; `mint` needs a verified recipient, so the write checked here is `unpause()` on the token (Open Question 5), which also has to happen before any transfer. `mint` through the API is proved in Task 11.
 
 **Acceptance criteria:**
-- [ ] A read (`balanceOf`, `name`) and a write (`unpause`, then `paused` reads `false`) both succeed through the generated API as `admin`
-- [ ] The APIs appear in FireFly (`GET /apis`) and the interfaces carry the ABIs
-- [ ] Running `deploy` again does not create duplicates and does not fail
+- [x] A read (`balanceOf`, `name`) and a write (`unpause`, then `paused` reads `false`) both succeed through the generated API as `admin`
+- [x] The APIs appear in FireFly (`GET /apis`) and the interfaces carry the ABIs
+- [x] Running `deploy` again does not create duplicates and does not fail
 
 **Verification:**
-- [ ] Tests pass: `pytest tests/unit` and `pytest -m integration -k "deploy and api"`
-- [ ] Checks clean: `ruff check .` and `mypy .`
+- [x] Tests pass: `pytest tests/unit` and `pytest -m integration -k "deploy and api"`
+- [x] Checks clean: `ruff check .` and `mypy .`
 
 **Dependencies:** Task 7
 
@@ -227,6 +227,8 @@ Sizes: no task is L or larger. Tasks 7 and 9 are the largest (M).
 - `tests/unit/core/test_interfaces.py`, `tests/integration/test_deploy.py`
 
 **Size:** M
+
+**Status:** Done 2026-10-02. Test-first (22 new unit tests, 5 integration tests). `deploy` now also registers the interfaces and contract APIs `coin` (Token ABI) and `identity-registry` (IdentityRegistry ABI) and unpauses the token as Admin through the `coin` API when it is still paused (a new T-REX token is paused). Reads (`name`, `symbol`, `balanceOf`, `paused`) and the write (`unpause`) work through the generated API; a second `deploy` creates no duplicate interface or API and reports `already unpaused`. Real behaviour recorded in `docs/spike-results.md`: a repeated registration is HTTP 409 `FF10407`, so the client lists first; an interface's methods need `?fetchchildren=true`. The shared `deployed` fixture (runs `deploy`, which only does what is missing) moved to `tests/integration/conftest.py`.
 
 ## Checkpoint: After Tasks 5–8
 

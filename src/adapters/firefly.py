@@ -15,6 +15,8 @@ from typing import Any
 from src.core.firefly.operations import (
     Operation,
     already_submitted_transaction,
+    api_invoke_body,
+    api_query_body,
     deploy_body,
     invoke_body,
     parse_operation,
@@ -147,6 +149,71 @@ class FireflyClient:
         )
         self._raise_for(status, body)
         return dict(body)
+
+    def ensure_interface(self, name: str, version: str, abi: Sequence[Any]) -> str:
+        """The id of the contract interface `name`/`version`, registering it from the ABI if it
+        does not exist yet. (FireFly answers a repeated registration with 409, so look first.)"""
+        found = self._list(f"/contracts/interfaces?name={name}&version={version}")
+        if found:
+            return str(found[0]["id"])
+        status, generated = self._call(
+            "POST",
+            f"{self._ns}/contracts/interfaces/generate",
+            {"name": name, "version": version, "input": {"abi": list(abi)}},
+        )
+        self._raise_for(status, generated)
+        status, registered = self._call(
+            "POST", f"{self._ns}/contracts/interfaces?confirm=true", generated
+        )
+        self._raise_for(status, registered)
+        return str(registered["id"])
+
+    def ensure_api(self, name: str, interface_id: str, address: str) -> str:
+        """The id of the contract API `name` for this interface and address, created if missing.
+
+        An API of that name that points somewhere else is an error, not silently reused.
+        """
+        found = self._list(f"/apis?name={name}")
+        if found:
+            api = found[0]
+            same_interface = api.get("interface", {}).get("id") == interface_id
+            known = str(api.get("location", {}).get("address", "")).lower()
+            same_address = known == address.lower()
+            if not (same_interface and same_address):
+                raise FireflyError(
+                    f"API '{name}' already exists for another interface or address. "
+                    "Run `python scripts/stack.py reset` to start from a clean stack."
+                )
+            return str(api["id"])
+        body = {"name": name, "interface": {"id": interface_id}, "location": {"address": address}}
+        status, created = self._call("POST", f"{self._ns}/apis?confirm=true", body)
+        self._raise_for(status, created)
+        return str(created["id"])
+
+    def api_query(self, api: str, method: str, inputs: Mapping[str, Any]) -> Any:
+        """Read through a registered contract API and return the output value."""
+        status, body = self._call(
+            "POST", f"{self._ns}/apis/{api}/query/{method}", api_query_body(inputs)
+        )
+        self._raise_for(status, body)
+        return body.get("output") if isinstance(body, Mapping) else body
+
+    def api_invoke(
+        self,
+        api: str,
+        method: str,
+        inputs: Mapping[str, Any],
+        key: str | None = None,
+        idempotency_key: str | None = None,
+        timeout: float = 120.0,
+    ) -> Operation:
+        body = api_invoke_body(inputs, key, idempotency_key)
+        return self._write(f"/apis/{api}/invoke/{method}?confirm=true", body, timeout)
+
+    def _list(self, path: str) -> list[dict[str, Any]]:
+        status, body = self._call("GET", f"{self._ns}{path}")
+        self._raise_for(status, body)
+        return [dict(item) for item in body]
 
     def transaction_operations(self, transaction_id: str) -> list[Operation]:
         """The operations of a transaction, for example to see whether an earlier attempt failed."""

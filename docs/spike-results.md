@@ -217,6 +217,13 @@ All deployed sizes are under the 24,576-byte limit and all init sizes under the 
 
 `TREXFactory.deployTREXSuite("coin", tokenDetails, claimDetails)` is one FireFly invoke as Admin. It succeeded on the first try on our Besu (about 6 seconds, one transaction), creating the token and its identity registry, identity registry storage, claim topics registry, trusted issuers registry and modular compliance as proxies, all code-checked on chain. The token's details are `Coin`, `COIN`, 18 decimals, owner Admin, Admin as agent of both the registry and the token, one claim topic (`1`, KYC) and the `ClaimIssuer` as trusted issuer for it; no compliance modules. The addresses are read back, not assumed: `factory.getToken("coin")`, then `token.identityRegistry()` and `token.compliance()`, then `identityRegistry.identityStorage()`, `.topicsRegistry()` and `.issuersRegistry()` (the registry getter is `identityStorage`, not `identityRegistryStorage`; a test checks every name read against the real ABIs). Gas was not an issue: the genesis gas limit is `0x1fffffffffffff` and evmconnect estimates it.
 
+### Contract interfaces and APIs (run, Task 8)
+
+- `POST /contracts/interfaces/generate` accepts `name` and `version` next to `input.abi`; posting its result to `POST /contracts/interfaces?confirm=true` registers it (HTTP 200, with an `id`). A second registration of the same name and version is **HTTP 409 `FF10407`** (conflicts with the existing one), not a no-op, so the client lists first (`GET /contracts/interfaces?name=&version=`). The same holds for `POST /apis` (`GET /apis?name=`).
+- `POST /apis` with `{name, interface: {id}, location: {address}}` creates the API; `POST /apis/{name}/query/{method}` returns `{"output": <value>}` and `POST /apis/{name}/invoke/{method}?confirm=true` takes `{input, key, idempotencyKey}`. Arguments are by parameter name (`balanceOf` takes `_userAddress`).
+- An interface's methods are only returned by `GET /contracts/interfaces/{id}?fetchchildren=true` (the list and `?fields=true` do not show them).
+- **A new T-REX token is paused** (`paused()` returns `true`). `unpause()` as Admin (a token agent) through the `coin` API succeeds; `deploy` does this when the token is still paused.
+
 ### Deploying through FireFly (run, Task 6)
 
 From a reset stack, `python scripts/stack.py deploy` deploys the 12 contracts and makes the 3 wiring calls in about 33 seconds, with no manual step. Addresses are the same on every fresh chain (same deployer, same nonces).
