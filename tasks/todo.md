@@ -1,7 +1,7 @@
 # Tasks — Phase 2: FireFly + ERC-3643
 
 > Source: `docs/plan.md` Phase 2 (steps 1 to 7), `docs/prd.md` US-004 to US-008, FR-3 to FR-7 and FR-11, `docs/deliverables.md` DL-2.1 to DL-2.6, `docs/use-cases.md` UC-04 to UC-07, `docs/spike-results.md` (Risks 1, 3, 4, 7 and "Versions to pin"). Decisions: D-02 (FireFly gateway mode), D-03 (hand-written Compose), D-04 (official T-REX, deployed through FireFly), D-07 (register, claim, mint, transfer), D-08 (Shanghai, `zeroBaseFee`), D-10 (demo keys committed), D-16 (`python scripts/stack.py`). Phase 1 is complete and reviewed; its task list is `tasks/phase-1-network.md`.
-> **Status: approved by Howin on 2026-10-02 (all Open Questions answered as recommended).**
+> **Status: approved by Howin on 2026-10-02 (all Open Questions answered as recommended). Tasks 1 to 14 are built; the exit gate's "three consecutive clean full runs" is not met (see Task 13) and waits for Howin's decision.**
 
 ## Overview
 
@@ -350,13 +350,13 @@ Sizes: no task is L or larger. Tasks 7 and 9 are the largest (M).
 **Description:** Make the whole Phase 2 path repeatable from nothing: `python scripts/stack.py reset && python scripts/stack.py up && python scripts/stack.py deploy` (deploy includes registration, onboarding and the token) leaves a working `COIN`. `reset` also clears FireFly's Postgres and signer state (volumes) and removes a stale `deployed-addresses.json`. A session fixture runs `deploy` once per test session. Prove it three times in a row, with the whole `pytest -m integration` suite.
 
 **Acceptance criteria:**
-- [ ] After `reset`, no FireFly container or volume remains and no stale `deployed-addresses.json` or FireFly contract API exists
-- [ ] `reset && up && deploy` followed by `pytest -m integration` passes in three consecutive runs
-- [ ] A partial failure message of `deploy` names the step; running `deploy` again after fixing it completes (re-entrant)
+- [x] After `reset`, no FireFly container or volume remains and no stale `deployed-addresses.json` or FireFly contract API exists
+- [ ] `reset && up && deploy` followed by `pytest -m integration` passes in three consecutive runs **(NOT MET, see Status)**
+- [x] A partial failure message of `deploy` names the step; running `deploy` again after fixing it completes (re-entrant): a `deploy` killed in the middle of the plan was finished by running it again, with one token and no duplicate
 
 **Verification:**
-- [ ] Tests pass: `pytest -m integration` three times after `python scripts/stack.py reset && python scripts/stack.py up && python scripts/stack.py deploy`
-- [ ] Checks clean: `ruff check .` and `mypy .`
+- [ ] Tests pass: `pytest -m integration` three times after `python scripts/stack.py reset && python scripts/stack.py up && python scripts/stack.py deploy` **(NOT MET, see Status)**
+- [x] Checks clean: `ruff check .` and `mypy .`
 
 **Dependencies:** Tasks 3, 11, 12
 
@@ -366,18 +366,20 @@ Sizes: no task is L or larger. Tasks 7 and 9 are the largest (M).
 
 **Size:** M
 
+**Status:** Built 2026-10-02, **the three-clean-runs criterion is not met.** What works: `reset` removes everything including `deployed-addresses.json`; after `reset` and `up` FireFly has no contract interface or API; `deploy` killed part-way is finished by running it again (one token, no duplicate). **Full-suite runs from a reset and deployed stack, in order:** 63 of 64 (a FireFly read timed out; fixed by retrying reads), 63 of 64 plus 2 errors (QBFT pause), 64 of 64 (the only fully clean run), a fresh clone following the README 64 of 65 (a 90 s wait for an RPC node to re-peer; measured at 61 s on a 60 s reconnect cycle, wait raised to 150 s), then three runs on the final code: 64 of 66 plus 2 errors, 65 of 65 plus 1 teardown error, 64 of 65. **Every failure since the read-timeout fix is in the fault-injection tests** (they stop validators): after one validator is stopped the other three are exactly the quorum, a lagging one makes QBFT's round timer double (4, 8, 16, 32, 64 s) and blocks pause for minutes, so the 30 s assertion, the 90 s wait for the chain to resume after the validators are restored, and the 90 s wait for the restarted validator to catch up each failed at least once. All other tests passed in every one of these runs. The developer accepted occasional failures of the 30 s assertion (2026-10-02), but the measured rate is about one failure per full run on this machine, which is more than occasional. Options not yet taken: put the fault-injection tests under their own marker so `pytest -m "integration and not fault_injection"` can gate the rest, make the cleanup wait after a restore patient (it is cleanup, not an assertion), or lower `requesttimeoutseconds`.
+
 ### Task 14: Phase 2 documentation and sign-off
 
 **Description:** Update `README.md` Getting started (including `npm ci` in `contracts/` and `deploy`), mark DL-2.1 to DL-2.6 `Done` in `docs/deliverables.md` with the commands actually run, record the exit-gate results, mark Phase 2 complete in `docs/plan.md`, and verify the README from a fresh clone as in Phase 1.
 
 **Acceptance criteria:**
 - [ ] Following the README literally from a clean clone brings up the stack, deploys `COIN` and the integration tests pass
-- [ ] `docs/deliverables.md` DL-2.1 to DL-2.6 are `Done` and their "How to try it" steps match the real commands and ports
-- [ ] `docs/plan.md` Phase 2 is marked complete with the date
+- [x] `docs/deliverables.md` DL-2.1 to DL-2.5 are `Done` and DL-2.6 is `Partial` (the three-clean-runs criterion); every `curl` example was run against the live stack
+- [x] `docs/plan.md` Phase 2 status updated with the date and the exact result (met except the three-clean-runs gate)
 
 **Verification:**
-- [ ] Tests pass: `pytest` and `pytest -m integration`
-- [ ] Checks clean: `ruff check .` and `mypy .`
+- [x] Tests pass: `pytest` (285 unit tests); `pytest -m integration` as described in Task 13's status
+- [x] Checks clean: `ruff check .` and `mypy .`
 
 **Dependencies:** Tasks 1–13
 
@@ -386,14 +388,16 @@ Sizes: no task is L or larger. Tasks 7 and 9 are the largest (M).
 
 **Size:** XS
 
+**Status:** Done 2026-10-02. README (Getting started with `npm ci` and `deploy`, Accessing with the Explorer at `http://localhost:5000/ui` and the Swagger UIs), `PROJECT.md` (commands and layout), `docs/deliverables.md` (DL-2.1 to DL-2.6 with runnable examples) and `docs/plan.md` updated. **Found while verifying the docs:** the FireFly Explorer returned 404 because the core config lacked a `ui` section (the image ships the frontend); fixed in the generator and the committed config, and tested. The same fresh clone showed the 90 s re-peer wait was too short (see Task 13).
+
 ## Checkpoint: After Tasks 13–14 (Phase 2 exit gate)
 
-- [ ] Integration tests (onboarding, transfer, rejection) pass
-- [ ] Re-running register or claim sends no redundant transaction
-- [ ] `reset && up && deploy` then `pytest -m integration` passes three times in a row
-- [ ] `ruff check .`, `mypy .` and `pytest` clean
-- [ ] Anti-gate from `docs/plan.md`: if the rejection does not revert, stop before Phase 3
-- [ ] Human review before proceeding
+- [x] Integration tests (onboarding, transfer, rejection) pass (in every run; the failures were in the fault-injection tests)
+- [x] Re-running register or claim sends no redundant transaction
+- [ ] `reset && up && deploy` then `pytest -m integration` passes three times in a row **(NOT MET: see Task 13 status)**
+- [x] `ruff check .`, `mypy .` and `pytest` clean (285 unit tests)
+- [x] Anti-gate from `docs/plan.md`: the rejection reverts, so Phase 3 is not blocked
+- [ ] Human review before proceeding (**waiting for Howin**, including the decision on the unmet gate)
 
 ---
 

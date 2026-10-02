@@ -170,7 +170,7 @@ Phase 1 is sliced horizontally by layer, not by vertical slice (see rationale be
 
 **Goal**: `COIN` deployed through FireFly and usable through the contract API, with compliance enforced on-chain.
 
-**Status**: Built 2026-10-02; exit gate met except "three consecutive clean runs" (see below). Evidence: `tasks/todo.md` and `docs/spike-results.md` (Phase 2 findings). `COIN` deploys through FireFly from a reset stack in 1 to 2 minutes, onboarding, a transfer and the on-chain rejection are proved, and an interrupted `deploy` resumes. Three full `pytest -m integration` runs from a reset stack gave 63 of 64 (one read timeout, since fixed), 63 of 64 plus 2 errors (a QBFT pause in the fault-injection tests, accepted risk) and 64 of 64.
+**Status**: Built 2026-10-02; **exit gate met except "three consecutive clean runs"**. Evidence: `tasks/todo.md` and `docs/spike-results.md` (Phase 2 findings). `COIN` deploys through FireFly from a reset stack in 1 to 2 minutes, onboarding, a transfer and the on-chain rejection are proved, an interrupted `deploy` resumes, and a fresh clone following the README works. Of 7 full `pytest -m integration` runs from a reset and deployed stack, 1 was fully clean; since the FireFly read timeout was fixed every failure is in the fault-injection tests (stopping a validator leaves exactly the quorum alive, and QBFT's doubling round timer can pause blocks for minutes), which fail about once per full run on the development machine. All other tests passed in every run.
 
 **Scope**:
 - FireFly gateway mode; T-REX compile config; deploy, interface and API registration; onboarding and transfer

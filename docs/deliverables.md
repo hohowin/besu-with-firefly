@@ -471,9 +471,9 @@ FF=http://localhost:5000/api/v1/namespaces/default
 **Verification checklist**:
 - [x] After reset, no container or volume remains, `deployed-addresses.json` is gone, and no contract interface or API is left in FireFly
 - [x] An interrupted `deploy` (killed in the middle of the plan) is finished by running `deploy` again, with one token and no duplicate
-- [ ] Three consecutive runs all pass: see the result recorded in `tasks/todo.md` Task 13 (not met as written)
+- [ ] Three consecutive runs all pass: **not met**. Of 7 full runs, 1 was fully clean; every other failure was in the fault-injection tests (details in `tasks/todo.md` Task 13)
 
-**Known limitations at this phase**: Paladin's database is added to `reset` in DL-3.3. The fault-injection tests stop validators, so with 4 validators and `f=1` the 3 that remain are exactly the quorum: if one of them is slow, QBFT's round timer doubles (4, 8, 16, 32, 64 s) and block production can pause for minutes. This is an accepted risk of the 30-second assertion (see `docs/spike-results.md`), and it makes a run of the whole suite fail now and then on a busy machine.
+**Known limitations at this phase**: Paladin's database is added to `reset` in DL-3.3. The fault-injection tests stop validators, so with 4 validators and `f=1` the 3 that remain are exactly the quorum: if one of them is slow, QBFT's round timer doubles (4, 8, 16, 32, 64 s) and block production can pause for minutes. This is an accepted risk of the 30-second assertion (see `docs/spike-results.md`), but on the development machine it made about one full run in one fail, so treat the fault-injection tests (`test_fault_tolerance.py` and the single-validator test in `test_network.py`) as the part that may need a re-run.
 
 **Phase exit gate summary** (from plan.md):
 - [x] All DL-2.x deliverables verified
