@@ -29,7 +29,7 @@ Python 3.11+ (developed on 3.13). Run these from the repo root inside the virtua
 | Integration tests | `pytest -m integration` (needs Docker and, for most of them, a running stack) |
 | Stack | `python scripts/stack.py up\|deploy\|reset` (planned, plan D-16; arrives in Phase 1 Task 4 onward) |
 
-Lint and type checks skip `_knowledge/`, `spike/`, `.agents/` and `.claude/` (reference material, Phase 0 evidence and installed third-party skills). They cover all our own code.
+Lint and type checks skip `spike/`, `.agents/` and `.claude/` (Phase 0 evidence and installed third-party skills). They cover all our own code.
 
 ## Directory Layout
 
@@ -44,7 +44,6 @@ docker-compose.yml the Besu network (FireFly and Paladin are added in later phas
 docs/              PRD, architecture, plan, use cases, deliverables, spike results
 tasks/             task lists per phase
 spike/             Phase 0 evidence (archive, not part of the stack)
-_knowledge/        reference material from an earlier project, deleted when this project is complete
 perf/              Caliper benchmarks (Phase 5)
 ```
 

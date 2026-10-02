@@ -77,7 +77,6 @@ python scripts/stack.py reset     # docker compose down -v; resets chain, FireFl
 - Python: `ruff check .`, `mypy .`, `pytest`
 - `src/core/` is pure logic with no I/O; the FireFly HTTP client is an adapter
 - The chain, FireFly DB and Paladin DB are not persistent across a reset (but Paladin's DB must survive a plain restart). `python scripts/stack.py reset` resets all three.
-- The `_knowledge/` folder is reference material from an earlier project and is deleted when this project is complete
 
 ## Compliance notes
 
