@@ -1,7 +1,7 @@
 # Tasks — Phase 2: FireFly + ERC-3643
 
 > Source: `docs/plan.md` Phase 2 (steps 1 to 7), `docs/prd.md` US-004 to US-008, FR-3 to FR-7 and FR-11, `docs/deliverables.md` DL-2.1 to DL-2.6, `docs/use-cases.md` UC-04 to UC-07, `docs/spike-results.md` (Risks 1, 3, 4, 7 and "Versions to pin"). Decisions: D-02 (FireFly gateway mode), D-03 (hand-written Compose), D-04 (official T-REX, deployed through FireFly), D-07 (register, claim, mint, transfer), D-08 (Shanghai, `zeroBaseFee`), D-10 (demo keys committed), D-16 (`python scripts/stack.py`). Phase 1 is complete and reviewed; its task list is `tasks/phase-1-network.md`.
-> **Status: draft, waiting for Howin's approval. No Phase 2 code has been written.**
+> **Status: approved by Howin on 2026-10-02 (all Open Questions answered as recommended).**
 
 ## Overview
 
@@ -373,9 +373,9 @@ Sizes: no task is L or larger. Tasks 7 and 9 are the largest (M).
 
 ## Open Questions
 
-Each has a recommended default; nothing starts until Howin approves or changes these.
+All answered by Howin on 2026-10-02 ("同意", as recommended in the last column).
 
-| # | Question | Owner | Needed by | Recommendation |
+| # | Question | Owner | Needed by | Decision |
 |---|----------|-------|-----------|----------------|
 | 1 | Contract artifacts: plan step 2 says "compile the T-REX suite with the EVM target from the spike". The official npm package ships compiled artifacts (0.8.17, no PUSH0, run at any fork, sizes already checked). Use them, or compile from source with Hardhat 3? | Howin | Task 5 | **Use the published artifacts** (no compiler, no Hardhat dependency). CLAUDE.md §12: reuse before writing. The "EVM target compatible" criterion in US-005 is met because they contain no Shanghai-only opcodes. Switch to Hardhat only if Task 5 finds a missing piece |
 | 2 | Is `npm ci` in `contracts/` an accepted prerequisite for `deploy` (Node 24 is already listed in the README)? Alternative is vendoring the artifacts into the repo, which copies GPL-licensed T-REX and OnchainID output into it | Howin | Task 5 | **`npm ci` as a prerequisite**, `node_modules` gitignored. No licensed code copied |
