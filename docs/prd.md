@@ -250,7 +250,7 @@ N/A. Personal local learning PoC, no monetization, no users beyond the developer
 | 3 | What EVM version do Paladin's and FireFly's own contracts need (D-08)? | Howin | Phase 0 exit (2026-10-15) | Answered 2026-10-02 (see `docs/spike-results.md`) |
 | 4 | Does the official T-REX Token fit under the 24KB contract size limit, and does FireFly's deploy API accept it? | Howin | Phase 0 exit (2026-10-15) | Answered 2026-10-02 (see `docs/spike-results.md`) |
 | 5 | Does Caliper's Besu connector run on a Node version compatible with the rest of the toolchain? | Howin | Phase 0 exit (2026-10-15) | Answered 2026-10-02 (see `docs/spike-results.md`) |
-| 6 | Which skills to install for FireFly, Paladin and Caliper work? | Howin | Before Phase 2 starts | Open — resolved by the `/skills-required` audit |
+| 6 | Which skills to install for FireFly, Paladin and Caliper work? | Howin | Before Phase 2 starts | Answered 2026-10-02: `solidity-security`, `web3-testing`, `hardhat` and `ethereum` installed; `docker-patterns` skipped (Snyk Fail). See `docs/skills-required.md` |
 
 ## 11. Risks
 

@@ -380,7 +380,7 @@ Phase 1 is sliced horizontally by layer, not by vertical slice (see rationale be
 | 3 | What EVM version do Paladin's and FireFly's own contracts need (D-08)? | Howin | 2026-10-15 | Answered 2026-10-02 (see `docs/spike-results.md`) |
 | 4 | Does the official T-REX Token fit under 24 KB, and does FireFly's deploy API accept it? | Howin | 2026-10-15 | Answered 2026-10-02 (see `docs/spike-results.md`) |
 | 5 | Does Caliper's Besu connector run on a compatible Node version? | Howin | 2026-10-15 | Answered 2026-10-02 (see `docs/spike-results.md`) |
-| 6 | Which skills to install for FireFly, Paladin and Caliper work? | Howin | Before Phase 2 starts | Open — resolved by `/skills-required` |
+| 6 | Which skills to install for FireFly, Paladin and Caliper work? | Howin | Before Phase 2 starts | Answered 2026-10-02: `solidity-security`, `web3-testing`, `hardhat` and `ethereum` installed; `docker-patterns` skipped (Snyk Fail). See `docs/skills-required.md` |
 | 7 | Does FireFly offer idempotency for contract invoke, and what are the exact operation status names for the pinned version? | Howin | 2026-10-15 | Answered 2026-10-01: `idempotencyKey` gives HTTP 409 `FF10431` on a duplicate, success status is `Succeeded` (failure status not yet observed) |
 
 ---
