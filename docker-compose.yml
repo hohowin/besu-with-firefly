@@ -1,0 +1,93 @@
+# Besu QBFT network: 4 validators (no published ports) and, from Task 8, two RPC nodes.
+# Genesis, validator keys and static-nodes.json come from `python scripts/stack.py init`
+# and are committed under network-config/ (demo keys only, plan D-10).
+name: besu-with-firefly
+
+x-besu: &besu
+  image: hyperledger/besu:26.8.1
+  networks:
+    - besu
+
+services:
+  besu-validator-1:
+    <<: *besu
+    container_name: besu-validator-1
+    command:
+      - --data-path=/opt/besu/data
+      - --genesis-file=/config/genesis.json
+      - --node-private-key-file=/config/key
+      - --min-gas-price=0
+      - --host-allowlist=*
+      - --p2p-host=172.28.0.11
+      - --p2p-port=30303
+    volumes:
+      - ./network-config/genesis.json:/config/genesis.json:ro
+      - ./network-config/validator-keys/validator-1/key:/config/key:ro
+      - ./network-config/static-nodes.json:/opt/besu/data/static-nodes.json:ro
+    networks:
+      besu:
+        ipv4_address: 172.28.0.11
+
+  besu-validator-2:
+    <<: *besu
+    container_name: besu-validator-2
+    command:
+      - --data-path=/opt/besu/data
+      - --genesis-file=/config/genesis.json
+      - --node-private-key-file=/config/key
+      - --min-gas-price=0
+      - --host-allowlist=*
+      - --p2p-host=172.28.0.12
+      - --p2p-port=30303
+    volumes:
+      - ./network-config/genesis.json:/config/genesis.json:ro
+      - ./network-config/validator-keys/validator-2/key:/config/key:ro
+      - ./network-config/static-nodes.json:/opt/besu/data/static-nodes.json:ro
+    networks:
+      besu:
+        ipv4_address: 172.28.0.12
+
+  besu-validator-3:
+    <<: *besu
+    container_name: besu-validator-3
+    command:
+      - --data-path=/opt/besu/data
+      - --genesis-file=/config/genesis.json
+      - --node-private-key-file=/config/key
+      - --min-gas-price=0
+      - --host-allowlist=*
+      - --p2p-host=172.28.0.13
+      - --p2p-port=30303
+    volumes:
+      - ./network-config/genesis.json:/config/genesis.json:ro
+      - ./network-config/validator-keys/validator-3/key:/config/key:ro
+      - ./network-config/static-nodes.json:/opt/besu/data/static-nodes.json:ro
+    networks:
+      besu:
+        ipv4_address: 172.28.0.13
+
+  besu-validator-4:
+    <<: *besu
+    container_name: besu-validator-4
+    command:
+      - --data-path=/opt/besu/data
+      - --genesis-file=/config/genesis.json
+      - --node-private-key-file=/config/key
+      - --min-gas-price=0
+      - --host-allowlist=*
+      - --p2p-host=172.28.0.14
+      - --p2p-port=30303
+    volumes:
+      - ./network-config/genesis.json:/config/genesis.json:ro
+      - ./network-config/validator-keys/validator-4/key:/config/key:ro
+      - ./network-config/static-nodes.json:/opt/besu/data/static-nodes.json:ro
+    networks:
+      besu:
+        ipv4_address: 172.28.0.14
+
+networks:
+  besu:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16

@@ -1,12 +1,13 @@
 """Command line for the stack: `python scripts/stack.py <command>`.
 
-Only `init` exists so far. `up` and `reset` arrive with the Compose stack (Phase 1, Tasks 6 and 10).
+`init` and `up` exist so far. `reset` arrives in Phase 1, Task 10.
 """
 
 import argparse
 import sys
 from collections.abc import Sequence
 from pathlib import Path
+from typing import Protocol
 
 from src.adapters.besu_config import (
     BESU_IMAGE,
@@ -16,6 +17,8 @@ from src.adapters.besu_config import (
     docker_generator,
     init_network,
 )
+from src.adapters.docker_stack import DockerStack, StackError
+from src.core.network.health import ContainerState
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -37,11 +40,24 @@ def build_parser() -> argparse.ArgumentParser:
         "--besu-image", default=BESU_IMAGE, help=f"Besu image (default: {BESU_IMAGE})"
     )
     init.add_argument("--force", action="store_true", help="overwrite existing generated files")
+
+    up = commands.add_parser("up", help="start the stack and wait until every service is healthy")
+    up.add_argument(
+        "--timeout", type=float, default=120.0, help="seconds to wait for healthy (default: 120)"
+    )
     return parser
 
 
-def main(argv: Sequence[str] | None = None, generator: Generator | None = None) -> int:
-    """Run a command and return the process exit code. `generator` lets tests avoid Docker."""
+class Stack(Protocol):
+    def up(self, wait_timeout: float) -> list[ContainerState]: ...
+
+
+def main(
+    argv: Sequence[str] | None = None,
+    generator: Generator | None = None,
+    stack: Stack | None = None,
+) -> int:
+    """Run a command and return the process exit code. Tests inject `generator` and `stack`."""
     args = build_parser().parse_args(argv)
     if args.command == "init":
         try:
@@ -56,4 +72,12 @@ def main(argv: Sequence[str] | None = None, generator: Generator | None = None) 
         for number, address in enumerate(result.validator_addresses, start=1):
             print(f"validator-{number}  {address}")
         print(f"wrote {len(result.files)} files to {args.network_dir}")
+    if args.command == "up":
+        try:
+            states = (stack or DockerStack()).up(wait_timeout=args.timeout)
+        except StackError as error:
+            print(f"error: {error}", file=sys.stderr)
+            return 1
+        for state in states:
+            print(f"{state.service}  {state.state}  {state.health or '-'}")
     return 0

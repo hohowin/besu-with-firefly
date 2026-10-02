@@ -161,13 +161,13 @@ Sizes: no task is L or larger.
 **Description:** Write `docker-compose.yml` with `besu-validator-1..4` on a bridge network with fixed IPs (the subnet from Task 3), each mounting the shared genesis, its own key as `--node-private-key-file`, and `static-nodes.json` in its data path. Flags follow `docs/spike-results.md`: `--min-gas-price=0`, `--host-allowlist=*`, `--p2p-host=0.0.0.0`, no published ports. Add `python scripts/stack.py up`, which runs `docker compose up -d` and waits until the containers are healthy.
 
 **Acceptance criteria:**
-- [ ] `docker compose config` exits 0, and `python scripts/stack.py up` brings all four validators to `healthy` with no restart loop
-- [ ] Each validator log shows at least 3 peers, and `Produced #N` lines appear every ~2 seconds
-- [ ] The chosen subnet does not collide with an existing Docker network on this machine (checked at the start of the task)
+- [x] `docker compose config` exits 0, and `python scripts/stack.py up` brings all four validators to `healthy` with no restart loop
+- [x] Each validator log shows at least 3 peers, and `Produced #N` lines appear every ~2 seconds
+- [x] The chosen subnet does not collide with an existing Docker network on this machine (checked at the start of the task)
 
 **Verification:**
-- [ ] Tests pass: `pytest -m integration -k validators` (the test reads container health and logs through the Docker CLI)
-- [ ] Checks clean: `docker compose config`, `ruff check .`, `mypy .`
+- [x] Tests pass: `pytest -m integration -k validators` (the test reads container health and logs through the Docker CLI)
+- [x] Checks clean: `docker compose config`, `ruff check .`, `mypy .`
 
 **Dependencies:** Task 4
 
@@ -178,6 +178,8 @@ Sizes: no task is L or larger.
 - `tests/integration/test_validators.py`
 
 **Size:** M
+
+**Status:** Done 2026-10-02. Test-first. `docker compose config` is valid, `python scripts/stack.py up` cold-starts all four validators to `healthy` in about 30 seconds and is idempotent. Subnet `172.28.0.0/16` collides with no existing Docker network (checked: 172.17 to 172.20 are in use). Besu's built-in healthcheck only checks a pid file, so `healthy` means started; block production and peers are proven from the logs (`Produced #N` or `Imported empty block #N` every ~2 s, `Currently checking 3 peers`). New pure helpers `besu_logs.py` and `health.py` in `src/core/network/`, plus `DockerStack` with injected runner, sleep and clock. 87 unit tests and 12 validator integration tests (health, 3 peers each, blocks advance, no restart, no published ports).
 
 ### Task 7: One validator can fail without halting the chain
 

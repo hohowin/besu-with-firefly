@@ -2,7 +2,9 @@ from pathlib import Path
 
 import pytest
 
+from src.adapters.docker_stack import StackError
 from src.adapters.stack_cli import main
+from src.core.network.health import ContainerState
 from tests.support.besu_fake import fake_generator
 
 
@@ -55,3 +57,28 @@ def test_unknown_command_is_a_usage_error() -> None:
     with pytest.raises(SystemExit) as excinfo:
         main(["bogus"])
     assert excinfo.value.code == 2
+
+
+class FakeStack:
+    def __init__(self, error: str | None = None) -> None:
+        self.error = error
+        self.timeouts: list[float] = []
+
+    def up(self, wait_timeout: float) -> list[ContainerState]:
+        self.timeouts.append(wait_timeout)
+        if self.error:
+            raise StackError(self.error)
+        return [ContainerState("besu-validator-1", "running", "healthy")]
+
+
+def test_up_prints_each_service_and_exits_zero(capsys: pytest.CaptureFixture[str]) -> None:
+    stack = FakeStack()
+    assert main(["up", "--timeout", "30"], stack=stack) == 0
+    assert stack.timeouts == [30.0]
+    out = capsys.readouterr().out
+    assert "besu-validator-1" in out and "healthy" in out
+
+
+def test_up_failure_exits_one_with_the_reason(capsys: pytest.CaptureFixture[str]) -> None:
+    assert main(["up"], stack=FakeStack(error="besu-validator-2 is starting")) == 1
+    assert "besu-validator-2 is starting" in capsys.readouterr().err
