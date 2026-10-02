@@ -195,7 +195,7 @@ Always check these areas when reviewing or writing Solidity code:
 
 - `/ethereum add Pausable and TimelockController to this admin token flow`
 
-If the task becomes mostly contract-level hardening or audit preparation, switch to `solidity-security`. If it expands into signer, backend, node, or full DLT-stack review, switch to `dlt-security-review`.
+If the task becomes mostly contract-level hardening or audit preparation, switch to `solidity-security`.
 
 ## Quality Bar
 
