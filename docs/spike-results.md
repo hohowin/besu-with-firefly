@@ -211,7 +211,11 @@ All deployed sizes are under the 24,576-byte limit and all init sizes under the 
 | trex-factory | TREXFactory | 23,495 | 25,125 | 1,081 |
 | claim-issuer | ClaimIssuer | 19,987 | 21,311 | 4,589 |
 
-**Verdict so far: the infrastructure deploys through FireFly and D-04 and risk R3 hold.** The `TREXFactory` deployment itself works on our Besu. Not yet proven: `deployTREXSuite` (Task 7).
+**Verdict: the full suite deploys through FireFly on our Besu, and D-04 and risk R3 hold** (see "Creating COIN" below).
+
+### Creating COIN (run, Task 7)
+
+`TREXFactory.deployTREXSuite("coin", tokenDetails, claimDetails)` is one FireFly invoke as Admin. It succeeded on the first try on our Besu (about 6 seconds, one transaction), creating the token and its identity registry, identity registry storage, claim topics registry, trusted issuers registry and modular compliance as proxies, all code-checked on chain. The token's details are `Coin`, `COIN`, 18 decimals, owner Admin, Admin as agent of both the registry and the token, one claim topic (`1`, KYC) and the `ClaimIssuer` as trusted issuer for it; no compliance modules. The addresses are read back, not assumed: `factory.getToken("coin")`, then `token.identityRegistry()` and `token.compliance()`, then `identityRegistry.identityStorage()`, `.topicsRegistry()` and `.issuersRegistry()` (the registry getter is `identityStorage`, not `identityRegistryStorage`; a test checks every name read against the real ABIs). Gas was not an issue: the genesis gas limit is `0x1fffffffffffff` and evmconnect estimates it.
 
 ### Deploying through FireFly (run, Task 6)
 

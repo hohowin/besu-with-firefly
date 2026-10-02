@@ -17,6 +17,13 @@ from typing import Any
 TREX_VERSION = {"major": 4, "minor": 1, "patch": 6}
 KNOWN_ACCOUNTS = frozenset({"admin", "anson", "beatrice"})
 
+ZERO_ADDRESS = "0x" + "00" * 20
+COIN_SALT = "coin"  # the factory finds the token again by this salt (`getToken`)
+COIN_NAME = "Coin"
+COIN_SYMBOL = "COIN"
+COIN_DECIMALS = 18
+KYC_TOPIC = 1  # the claim topic an identity needs to be verified
+
 
 class PlanError(Exception):
     """The plan refers to something that does not exist yet, or repeats a name."""
@@ -97,7 +104,7 @@ _IMPLEMENTATIONS = {
 
 
 def build_plan() -> list[Step]:
-    """Everything needed before a token can be created through the TREXFactory."""
+    """The T-REX infrastructure, then the creation of the `COIN` token through the factory."""
     plan: list[Step] = [
         # OnchainID: the identity implementation (a library), its authority, and the factory
         # that creates one identity proxy per wallet.
@@ -125,7 +132,7 @@ def build_plan() -> list[Step]:
         Deploy(
             "trex-implementation-authority",
             _trex("proxy/authority/TREXImplementationAuthority.sol/TREXImplementationAuthority.json"),
-            (True, "0x" + "00" * 20, "0x" + "00" * 20),
+            (True, ZERO_ADDRESS, ZERO_ADDRESS),
         ),
         # The factory's constructor reverts unless the authority already holds all six
         # implementations, so the version is added before the factory is deployed.
@@ -151,6 +158,33 @@ def build_plan() -> list[Step]:
         # Register the factory with the authority and with the identity factory.
         Call("trex-implementation-authority", "setTREXFactory", (Ref("trex-factory"),)),
         Call("id-factory", "addTokenFactory", (Ref("trex-factory"),)),
+        # Create COIN: the token, its identity registry (with a new storage), claim topics
+        # registry, trusted issuers registry and modular compliance, all as proxies. Admin owns
+        # them and is an agent of the registry and the token, so it can register, mint and pause.
+        Call(
+            "trex-factory",
+            "deployTREXSuite",
+            (
+                COIN_SALT,
+                {
+                    "owner": Account("admin"),
+                    "name": COIN_NAME,
+                    "symbol": COIN_SYMBOL,
+                    "decimals": COIN_DECIMALS,
+                    "irs": ZERO_ADDRESS,
+                    "ONCHAINID": ZERO_ADDRESS,
+                    "irAgents": [Account("admin")],
+                    "tokenAgents": [Account("admin")],
+                    "complianceModules": [],
+                    "complianceSettings": [],
+                },
+                {
+                    "claimTopics": [KYC_TOPIC],
+                    "issuers": [Ref("claim-issuer")],
+                    "issuerClaims": [[KYC_TOPIC]],
+                },
+            ),
+        ),
     ]
     return plan
 

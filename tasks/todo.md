@@ -189,13 +189,13 @@ Sizes: no task is L or larger. Tasks 7 and 9 are the largest (M).
 **Description:** Use the deployed `TREXFactory` to create the token suite for `COIN`: call `deployTREXSuite` through FireFly's invoke API as `admin` with token details (name `Coin`, symbol `COIN`, 18 decimals), claim topics (KYC), trusted issuers, and the compliance setup, then read the created token, IdentityRegistry, IdentityRegistryStorage, ClaimTopicsRegistry, TrustedIssuersRegistry and ModularCompliance addresses from the factory (`getToken(salt)` and the proxies' own getters) and add them to `deployed-addresses.json`. Add the deployment of the `ClaimIssuer` contract that Admin will use to sign KYC claims (needed in Task 10). If the factory call cannot fit the plan, raise it as a change to D-04.
 
 **Acceptance criteria:**
-- [ ] `deployed-addresses.json` contains the token and every registry address, all non-zero, each with code on-chain
-- [ ] `name()` and `symbol()` on the token read back `Coin` and `COIN` (read through FireFly's query API with an inline ABI, since the interface is registered in Task 8)
-- [ ] The token's IdentityRegistry, ClaimTopicsRegistry and TrustedIssuersRegistry are the contracts in `deployed-addresses.json` (read from the token, not assumed)
+- [x] `deployed-addresses.json` contains the token and every registry address, all non-zero, each with code on-chain
+- [x] `name()` and `symbol()` on the token read back `Coin` and `COIN` (read through FireFly's query API with FireFly-generated methods, since the interface is registered in Task 8)
+- [x] The token's IdentityRegistry, ClaimTopicsRegistry and TrustedIssuersRegistry are the contracts in `deployed-addresses.json` (read from the token, not assumed)
 
 **Verification:**
-- [ ] Tests pass: `pytest tests/unit` and `pytest -m integration -k "deploy and coin"`
-- [ ] Checks clean: `ruff check .` and `mypy .`
+- [x] Tests pass: `pytest tests/unit` and `pytest -m integration -k "deploy and coin"`
+- [x] Checks clean: `ruff check .` and `mypy .`
 
 **Dependencies:** Task 6
 
@@ -204,6 +204,8 @@ Sizes: no task is L or larger. Tasks 7 and 9 are the largest (M).
 - `tests/integration/test_deploy.py`, `tests/unit/core/test_trex_plan.py`
 
 **Size:** M
+
+**Status:** Done 2026-10-02. Test-first. `deployTREXSuite` is now the last step of the plan (so idempotency, retry and the unit tests of Task 6 apply to it); `read_suite` (new `src/adapters/trex_suite.py`) reads the token and its five proxies back from the factory and the token and checks `Coin`/`COIN` and code on chain. From a reset stack, `deploy` creates COIN on the first try (one transaction, about 6 s). **Caught by a real-ABI test:** the registry getter is `identityStorage`; my fake client had accepted the wrong name, so a test now runs `read_suite` against the real artifacts' method names. 7 deploy integration tests (from a reset stack, `deploy` took about 2 minutes this time, 33 s for the infrastructure alone earlier; the cold start of the whole stack varies). `deployed-addresses.json` now has 18 names, the 12 plan contracts plus the six suite contracts.
 
 ### Task 8: Register the contract interface and API for `COIN` and the IdentityRegistry
 

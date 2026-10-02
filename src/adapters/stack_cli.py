@@ -20,7 +20,8 @@ from src.adapters.besu_config import (
 from src.adapters.docker_stack import DockerStack, StackError
 from src.adapters.rpc import chain_heights_reader
 from src.adapters.trex_artifacts import ArtifactsMissingError
-from src.adapters.trex_deploy import DeployStepError, deploy_trex
+from src.adapters.trex_command import deploy_trex
+from src.adapters.trex_deploy import DeployStepError
 from src.core.network.health import ContainerState
 
 REPO_ROOT = Path(__file__).resolve().parents[2]

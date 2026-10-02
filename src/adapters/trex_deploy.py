@@ -1,25 +1,13 @@
 """Run the T-REX plan through FireFly: deploy contracts and make the wiring calls (adapter)."""
 
-import json
 from collections.abc import Callable, Mapping, Sequence
-from pathlib import Path
 from typing import Any, Protocol
 
-from src.adapters.firefly import (
-    AlreadySubmitted,
-    DeployResult,
-    FireflyClient,
-    FireflyError,
-    http_transport,
-)
-from src.adapters.rpc import get_code
-from src.adapters.trex_artifacts import REPO_ROOT, LoadedArtifact, load_artifact
+from src.adapters.firefly import AlreadySubmitted, DeployResult, FireflyError
+from src.adapters.trex_artifacts import LoadedArtifact
 from src.core.firefly.operations import Operation, find_method
-from src.core.network.wallets import account_addresses
-from src.core.trex.plan import Artifact, Call, Deploy, Step, build_plan, validate_plan
+from src.core.trex.plan import Artifact, Call, Deploy, Step, validate_plan
 from src.core.trex.resolve import call_input, resolve_args
-
-DEPLOYED_ADDRESSES = REPO_ROOT / "deployed-addresses.json"
 
 
 class DeployStepError(Exception):
@@ -172,30 +160,3 @@ def _retry_key(base_key: str, transaction_id: str) -> str:
     """FireFly keeps an idempotency key even after the transaction failed, so retry under a new
     one that is the same every time for the same failed transaction."""
     return f"{base_key}-after-{transaction_id[:8]}"
-
-
-def deploy_trex(
-    network_dir: Path,
-    out: Path = DEPLOYED_ADDRESSES,
-    log: Callable[[str], None] = print,
-) -> dict[str, str]:
-    """Deploy the T-REX infrastructure through the running FireFly. Writes `out` as it goes."""
-    document = json.loads((network_dir / "wallets.json").read_text(encoding="utf-8"))
-    existing: dict[str, str] = {}
-    if out.is_file():
-        existing = json.loads(out.read_text(encoding="utf-8"))
-
-    def save(addresses: dict[str, str]) -> None:
-        text = json.dumps(addresses, indent=2) + "\n"
-        out.write_text(text, encoding="utf-8", newline="\n")
-
-    return run_plan(
-        build_plan(),
-        client=FireflyClient(http_transport()),
-        load=load_artifact,
-        accounts=account_addresses(document),
-        code_at=get_code,
-        existing=existing,
-        save=save,
-        log=log,
-    )
