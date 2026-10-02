@@ -29,3 +29,8 @@ def block_number(url: str) -> int:
 
 def peer_count(url: str) -> int:
     return int(rpc_call(url, "net_peerCount"), 16)
+
+
+def peer_public_keys(url: str) -> set[str]:
+    """Public keys (128 hex characters, no 0x) of the node's current peers."""
+    return {peer["id"].removeprefix("0x").lower() for peer in rpc_call(url, "admin_peers")}

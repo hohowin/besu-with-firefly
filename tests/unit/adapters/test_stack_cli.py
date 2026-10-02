@@ -63,12 +63,19 @@ class FakeStack:
     def __init__(self, error: str | None = None) -> None:
         self.error = error
         self.timeouts: list[float] = []
+        self.resets = 0
 
     def up(self, wait_timeout: float) -> list[ContainerState]:
         self.timeouts.append(wait_timeout)
         if self.error:
             raise StackError(self.error)
         return [ContainerState("besu-validator-1", "running", "healthy")]
+
+    def reset(self) -> list[str]:
+        self.resets += 1
+        if self.error:
+            raise StackError(self.error)
+        return ["besu-validator-1", "besu-rpc-anson"]
 
 
 def test_up_prints_each_service_and_exits_zero(capsys: pytest.CaptureFixture[str]) -> None:
@@ -82,3 +89,25 @@ def test_up_prints_each_service_and_exits_zero(capsys: pytest.CaptureFixture[str
 def test_up_failure_exits_one_with_the_reason(capsys: pytest.CaptureFixture[str]) -> None:
     assert main(["up"], stack=FakeStack(error="besu-validator-2 is starting")) == 1
     assert "besu-validator-2 is starting" in capsys.readouterr().err
+
+
+def test_reset_prints_what_it_removed_and_exits_zero(capsys: pytest.CaptureFixture[str]) -> None:
+    stack = FakeStack()
+    assert main(["reset"], stack=stack) == 0
+    assert stack.resets == 1
+    out = capsys.readouterr().out
+    assert "besu-validator-1" in out and "besu-rpc-anson" in out
+
+
+def test_reset_with_nothing_to_remove_says_so(capsys: pytest.CaptureFixture[str]) -> None:
+    class Empty(FakeStack):
+        def reset(self) -> list[str]:
+            return []
+
+    assert main(["reset"], stack=Empty()) == 0
+    assert "nothing to remove" in capsys.readouterr().out
+
+
+def test_reset_exits_one_when_docker_is_not_reachable(capsys: pytest.CaptureFixture[str]) -> None:
+    assert main(["reset"], stack=FakeStack(error="docker is not reachable")) == 1
+    assert "docker is not reachable" in capsys.readouterr().err

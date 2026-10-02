@@ -18,9 +18,10 @@ def ps(*health: str) -> str:
 class FakeRunner:
     """Replays canned results for each docker command and records what was run."""
 
-    def __init__(self, ps_outputs: list[str], up_code: int = 0) -> None:
+    def __init__(self, ps_outputs: list[str], up_code: int = 0, down_code: int = 0) -> None:
         self.ps_outputs = list(ps_outputs)
         self.up_code = up_code
+        self.down_code = down_code
         self.commands: list[list[str]] = []
 
     def __call__(self, command: Sequence[str]) -> tuple[int, str, str]:
@@ -29,6 +30,8 @@ class FakeRunner:
             return 0, SERVICES, ""
         if command[:3] == ["docker", "compose", "up"]:
             return self.up_code, "", "boom" if self.up_code else ""
+        if command[:3] == ["docker", "compose", "down"]:
+            return self.down_code, "", "daemon not reachable" if self.down_code else ""
         if command[:3] == ["docker", "compose", "ps"]:
             return 0, self.ps_outputs.pop(0) if len(self.ps_outputs) > 1 else self.ps_outputs[0], ""
         raise AssertionError(f"unexpected command {command}")
@@ -130,3 +133,20 @@ def test_logs_without_a_tail_return_the_whole_log() -> None:
 
     DockerStack(runner=runner).logs("besu-validator-1")
     assert seen == [["docker", "logs", "besu-validator-1"]]
+
+
+def test_reset_removes_containers_and_volumes_and_names_what_it_removed() -> None:
+    runner = FakeRunner([ps("healthy", "healthy")])
+    removed = make_stack(runner).reset()
+    assert removed == ["besu-validator-1", "besu-validator-2"]
+    assert ["docker", "compose", "ps", "-a", "--format", "json"] in runner.commands
+    assert ["docker", "compose", "down", "--volumes", "--remove-orphans"] in runner.commands
+
+
+def test_reset_of_a_stack_that_is_not_running_removes_nothing() -> None:
+    assert make_stack(FakeRunner([""])).reset() == []
+
+
+def test_reset_reports_a_docker_failure() -> None:
+    with pytest.raises(StackError, match="daemon not reachable"):
+        make_stack(FakeRunner([ps("healthy")], down_code=1)).reset()

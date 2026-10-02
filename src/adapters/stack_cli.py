@@ -1,6 +1,6 @@
 """Command line for the stack: `python scripts/stack.py <command>`.
 
-`init` and `up` exist so far. `reset` arrives in Phase 1, Task 10.
+`init`, `up` and `reset`. `deploy` arrives with the FireFly phases.
 """
 
 import argparse
@@ -45,11 +45,16 @@ def build_parser() -> argparse.ArgumentParser:
     up.add_argument(
         "--timeout", type=float, default=120.0, help="seconds to wait for healthy (default: 120)"
     )
+    commands.add_parser(
+        "reset", help="remove the containers and volumes, so the chain restarts at genesis"
+    )
     return parser
 
 
 class Stack(Protocol):
     def up(self, wait_timeout: float) -> list[ContainerState]: ...
+
+    def reset(self) -> list[str]: ...
 
 
 def main(
@@ -80,4 +85,14 @@ def main(
             return 1
         for state in states:
             print(f"{state.service}  {state.state}  {state.health or '-'}")
+    if args.command == "reset":
+        try:
+            removed = (stack or DockerStack()).reset()
+        except StackError as error:
+            print(f"error: {error}", file=sys.stderr)
+            return 1
+        if removed:
+            print(f"removed {len(removed)} containers and their volumes: {', '.join(removed)}")
+        else:
+            print("nothing to remove")
     return 0

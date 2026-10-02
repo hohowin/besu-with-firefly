@@ -2,12 +2,14 @@
 
 import subprocess
 import time
+from functools import partial
 
 import pytest
 
-from src.adapters.docker_stack import DockerStack
-from src.core.network.besu_logs import latest_block_number, peer_count
+from src.adapters.docker_stack import REPO_ROOT, DockerStack
+from src.core.network.besu_logs import latest_block_number
 from tests.support.polling import wait_for
+from tests.support.rpc import RPC_ANSON, RPC_BEATRICE, peer_public_keys
 
 VALIDATORS = [f"besu-validator-{n}" for n in (1, 2, 3, 4)]
 
@@ -29,13 +31,26 @@ def test_all_four_validators_are_running_and_healthy(stack: DockerStack) -> None
 
 
 @pytest.mark.parametrize("validator", VALIDATORS)
-def test_each_validator_has_at_least_three_peers(stack: DockerStack, validator: str) -> None:
-    def peers() -> int | None:
-        # Whole log: a validator that has run for a while only mentions peers at start-up.
-        count = peer_count(stack.logs(validator))
-        return count if count is not None and count >= 3 else None
+def test_each_validator_is_peered_with_both_rpc_nodes(stack: DockerStack, validator: str) -> None:
+    """Validators publish no RPC and Besu only logs peer counts at start-up, so the RPC nodes
+    vouch for them: a validator that is in a node's peer list is connected to the network."""
+    public_key = (
+        (REPO_ROOT / "network-config" / "validator-keys" / f"validator-{validator[-1]}" / "key.pub")
+        .read_text(encoding="utf-8")
+        .strip()
+        .removeprefix("0x")
+        .lower()
+    )
+    for node, url in {"besu-rpc-anson": RPC_ANSON, "besu-rpc-beatrice": RPC_BEATRICE}.items():
+        wait_for(
+            partial(_is_peer, url, public_key),
+            describe=f"{node} to list {validator} as a peer",
+            timeout=90,
+        )
 
-    assert wait_for(peers, describe=f"{validator} to report 3 or more peers", timeout=90) >= 3
+
+def _is_peer(url: str, public_key: str) -> bool:
+    return public_key in peer_public_keys(url)
 
 
 def test_validators_keep_producing_blocks(stack: DockerStack) -> None:

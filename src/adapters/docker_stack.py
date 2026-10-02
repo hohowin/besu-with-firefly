@@ -86,6 +86,16 @@ class DockerStack:
                 raise StackError(f"not healthy after {wait_timeout:g}s: {', '.join(waiting)}")
             self._sleep(poll_seconds)
 
+    def reset(self) -> list[str]:
+        """Remove every container, network and volume, so the chain restarts at genesis.
+
+        Returns the names of the services that were removed. A stack that is not running is fine.
+        """
+        existing = parse_compose_ps(self._compose("ps", "-a", "--format", "json"))
+        removed = [state.service for state in existing]
+        self._compose("down", "--volumes", "--remove-orphans")
+        return removed
+
     def stop(self, container: str) -> None:
         """Stop one container (it stays stopped; the stack has no restart policy)."""
         self._checked(["docker", "stop", "--time", "10", container])

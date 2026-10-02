@@ -269,13 +269,13 @@ Sizes: no task is L or larger.
 **Description:** Add `python scripts/stack.py reset` for the Phase 1 scope (`docker compose down -v`, so the chain returns to genesis). Prove repeatability: reset, up, and the integration suite pass three times in a row.
 
 **Acceptance criteria:**
-- [ ] After `reset`, no Besu container or volume remains and a new `up` starts again from block 0
-- [ ] `reset && up` followed by `pytest -m integration` passes in three consecutive runs
-- [ ] `reset` prints what it removed and exits non-zero if Docker is not reachable
+- [x] After `reset`, no Besu container or volume remains and a new `up` starts again from block 0
+- [x] `reset && up` followed by `pytest -m integration` passes in three consecutive runs
+- [x] `reset` prints what it removed and exits non-zero if Docker is not reachable
 
 **Verification:**
-- [ ] Tests pass: `pytest -m integration` three times after `python scripts/stack.py reset && python scripts/stack.py up`
-- [ ] Checks clean: `ruff check .` and `mypy .`
+- [x] Tests pass: `pytest -m integration` three times after `python scripts/stack.py reset && python scripts/stack.py up`
+- [x] Checks clean: `ruff check .` and `mypy .`
 
 **Dependencies:** Task 9
 
@@ -285,6 +285,8 @@ Sizes: no task is L or larger.
 - `tests/integration/test_reset.py`
 
 **Size:** S
+
+**Status:** Done 2026-10-02. `DockerStack.reset()` and `stack.py reset` written test-first (`docker compose down --volumes --remove-orphans`; prints the removed services; exits 1 when Docker is unreachable, checked for real with a bogus `DOCKER_HOST`). `test_reset.py` proves no container or volume remains and that the new chain starts below block 10 again. Three consecutive `reset`, `up`, `pytest -m integration` runs: 26 passed each (about 5 min per run). The first attempt exposed a flaw in the Task 6 peer test: Besu only logs a peer count at start-up if it happens to have no sync target yet, so a validator that peers at once logs nothing. **Deviation from Task 6's wording:** each validator is now shown to be peered through the RPC nodes' `admin_peers` (validators still publish no RPC), and the log-based `peer_count` was removed.
 
 ## Checkpoint: After Tasks 8–10 (Phase 1 exit gate)
 
