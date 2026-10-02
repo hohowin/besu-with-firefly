@@ -91,6 +91,16 @@ After the table, ask:
 
 If the user confirms, invoke `/find-skills <skill-name>` for each selected skill in sequence.
 
+### Install and remove rules (project-local only)
+
+Skills for this repo are installed **inside the repo**, never globally. The skills CLI keeps the real files in `.agents/skills/<name>/`, links them into `.claude/skills/<name>`, and records them in the root `skills-lock.json`. All three must agree after any change.
+
+- **Install without `-g`.** `/find-skills` suggests `-g` by default; do not use it here. Run from the repo root, as one command per install, never in parallel with a `cd` in another call: `npx skills add <owner/repo> -s <skill-name> -s <other-skill> -y`. Use `-s` once per skill (the `owner/repo@skill` form with several packages in one call installed only the first).
+- **Remove with the CLI, not `rm`.** `npx skills remove <names> -y` from the repo root. Deleting only `.claude/skills/<name>` leaves the copy in `.agents/skills/` and the lock entry, and the skill comes back on restore.
+- **Verify after every change:** `ls .agents/skills`, `ls .claude/skills`, and the keys in `skills-lock.json` all list the same skills. Check for stray `.claude/skills/.agents/` or `.claude/skills/skills-lock.json`; they mean the CLI ran from the wrong directory, so delete them and rerun from the repo root.
+- Skills authored in this repo (`architecture`, `plan`, `prd`, `usecase`, `deliverables`, `grill-me`, `tasks`, `q`, `skills-required`, and others) are not in `skills-lock.json`. The CLI does not manage them, so `remove` will not touch them.
+- A harmless `UV_HANDLE_CLOSING` assertion may print on Windows after "Done!". Check the result with the `ls` and lock checks above, not the exit message.
+
 ---
 
 ## Step 3: Summary
