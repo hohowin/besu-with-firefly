@@ -9,7 +9,7 @@ from src.adapters.rpc import get_code
 from src.adapters.trex_apis import register_apis, unpause_token
 from src.adapters.trex_artifacts import REPO_ROOT, load_artifact
 from src.adapters.trex_deploy import run_plan
-from src.adapters.trex_onboard import issue_claims, register_identities
+from src.adapters.trex_onboard import issue_claims, mint_initial_supply, register_identities
 from src.adapters.trex_suite import read_suite
 from src.core.network.wallets import account_addresses, wallet_private_key
 from src.core.trex.plan import build_plan
@@ -25,7 +25,8 @@ def deploy_trex(
     """Deploy the T-REX infrastructure through the running FireFly and create `COIN`.
 
     Then registers the contract APIs `coin` and `identity-registry`, unpauses the token and
-    registers and verifies the demo investors (the same as `onboard_trex`).
+    registers and verifies the demo investors and mints the initial supply (the same as
+    `onboard_trex`).
 
     Writes every address to `out`, including those of the token and its registries, which are
     read back from the factory and the token. Running it again sends nothing that is done.
@@ -61,6 +62,7 @@ def deploy_trex(
     register_identities(client, load_artifact, everything, accounts, log)
     issuer_key = wallet_private_key(document, "admin")
     issue_claims(client, load_artifact, everything, accounts, issuer_key, log)
+    mint_initial_supply(client, accounts, log)
     return everything
 
 
@@ -77,3 +79,4 @@ def onboard_trex(
     register_identities(client, load_artifact, addresses, accounts, log)
     issuer_key = wallet_private_key(document, "admin")
     issue_claims(client, load_artifact, addresses, accounts, issuer_key, log)
+    mint_initial_supply(client, accounts, log)

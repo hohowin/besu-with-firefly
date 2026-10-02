@@ -4,10 +4,11 @@ import time
 from collections.abc import Callable, Mapping, Sequence
 from typing import Any, Protocol
 
-from src.adapters.trex_apis import API_REGISTRY
+from src.adapters.trex_apis import API_COIN, API_REGISTRY
 from src.adapters.trex_artifacts import LoadedArtifact
 from src.adapters.trex_deploy import DeployStepError, submit
 from src.core.firefly.operations import Operation, find_method
+from src.core.trex.amounts import MINT_AMOUNT, mint_needed, to_base_units
 from src.core.trex.claims import KYC_CLAIM_DATA, SCHEME_ECDSA, needs_claim, sign_claim
 from src.core.trex.onboarding import (
     COUNTRY,
@@ -48,6 +49,24 @@ class Firefly(Protocol):
         idempotency_key: str | None = None,
         timeout: float = ...,
     ) -> Operation: ...
+
+
+class TokenApi(Protocol):
+    """What minting needs from FireFly: reads and writes through the `coin` API."""
+
+    def api_query(self, api: str, method: str, inputs: Mapping[str, Any]) -> Any: ...
+
+    def api_invoke(
+        self,
+        api: str,
+        method: str,
+        inputs: Mapping[str, Any],
+        key: str | None = None,
+        idempotency_key: str | None = None,
+        timeout: float = ...,
+    ) -> Operation: ...
+
+    def transaction_operations(self, transaction_id: str) -> list[Operation]: ...
 
 
 def register_identities(
@@ -171,3 +190,29 @@ def issue_claims(
 
         submit(name, add_claim, f"trex-addClaim-{name}", client, sleep, clock)
         log(f"{name}  verified (KYC claim added)")
+
+
+def mint_initial_supply(
+    client: TokenApi,
+    accounts: Mapping[str, str],
+    log: Callable[[str], None],
+    sleep: Callable[[float], None] = time.sleep,
+    clock: Callable[[], float] = time.monotonic,
+) -> None:
+    """Mint the initial supply (1000 COIN) to Anson as Admin, unless it has been minted.
+
+    The check is the total supply, not Anson's balance, because Anson's balance drops once he
+    transfers. Anson must be verified first or the token refuses the mint.
+    """
+    if not mint_needed(client.api_query(API_COIN, "totalSupply", {})):
+        return
+    anson = accounts["anson"]
+    inputs = {"_to": anson, "_amount": str(to_base_units(MINT_AMOUNT))}
+
+    def mint(key: str) -> Operation:
+        return client.api_invoke(
+            API_COIN, "mint", inputs, key=accounts["admin"], idempotency_key=key
+        )
+
+    submit("coin.mint", mint, "trex-mint-anson", client, sleep, clock)
+    log(f"coin  minted {MINT_AMOUNT} to anson")

@@ -192,3 +192,22 @@ def test_up_treats_an_unreachable_node_as_not_ready() -> None:
     heights = Heights({"besu-rpc-anson": None, "besu-rpc-beatrice": 3})
     with pytest.raises(StackError, match=r"besu-rpc-anson.*unreachable"):
         make_stack(FakeRunner([ps("healthy", "healthy")]), heights).up(wait_timeout=5)
+
+
+def test_a_command_that_runs_too_long_is_reported_as_a_timeout_not_a_traceback() -> None:
+    import sys
+
+    from src.adapters.docker_stack import subprocess_runner
+
+    run = subprocess_runner(timeout=0.5)
+    code, _out, err = run([sys.executable, "-c", "import time; time.sleep(30)"])
+    assert code == 124
+    assert "timed out after 0.5s" in err
+
+
+def test_a_timed_out_compose_command_becomes_a_stack_error_that_says_so() -> None:
+    def runner(command: Sequence[str]) -> tuple[int, str, str]:
+        return 124, "", "timed out after 900s"
+
+    with pytest.raises(StackError, match="timed out after 900s"):
+        DockerStack(runner=runner).states()

@@ -292,13 +292,13 @@ Sizes: no task is L or larger. Tasks 7 and 9 are the largest (M).
 **Description:** Complete onboarding and add the first compliant transfer: after Tasks 9 and 10, mint 1000 `COIN` to Anson as Admin (through the contract API, waiting for the final status), then transfer 25 from Anson to Beatrice as the `anson` key. Mint is skipped if Anson already holds the target amount.
 
 **Acceptance criteria:**
-- [ ] After onboarding: Anson 1000, Beatrice 0, both verified (DL-2.4)
-- [ ] After the transfer: Anson 975, Beatrice 25 (both balances change by the amount)
-- [ ] Re-running onboarding sends no redundant mint, register or claim
+- [x] After onboarding: Anson 1000, Beatrice 0, both verified (DL-2.4)
+- [x] After the transfer: Anson 975, Beatrice 25 (both balances change by the amount)
+- [x] Re-running onboarding sends no redundant mint, register or claim
 
 **Verification:**
-- [ ] Tests pass: `pytest -m integration -k "onboarding or transfer"`
-- [ ] Checks clean: `ruff check .` and `mypy .`
+- [x] Tests pass: `pytest -m integration -k "onboarding or transfer"`
+- [x] Checks clean: `ruff check .` and `mypy .`
 
 **Dependencies:** Task 10
 
@@ -307,6 +307,8 @@ Sizes: no task is L or larger. Tasks 7 and 9 are the largest (M).
 - `tests/integration/test_transfer.py`
 
 **Size:** S
+
+**Status:** Done 2026-10-02. Test-first (pure `src/core/trex/amounts.py`, `mint_initial_supply`, 3 integration tests). The token has 18 decimals, so "1000 COIN" is `1000 * 10**18` base units, passed to FireFly as a string; `amounts.py` converts both ways and rejects non-whole amounts. Minting is guarded by the **total supply**, not Anson's balance (his balance drops after a transfer, which would have caused a second mint). `deploy` and `onboard` mint 1000 to Anson once, silently skipping afterwards. Integration: on a freshly reset chain Anson holds 1000 and Beatrice 0 (that exact test skips once any transfer has happened, and the invariants stay: supply 1000, Admin 0, Anson plus Beatrice 1000), and a transfer of 25 from Anson (signing with his own key) moves exactly 25, supply unchanged. **Also fixed:** a `docker compose up -d` that took over 5 minutes (a cold start where the signer's calls to `besu-rpc-anson` timed out for about 3.5 minutes on a heavily loaded machine; three earlier cold starts were fine) crashed with a raw `TimeoutExpired`. The runner now returns code 124 and a message that says it timed out, and its limit is 900 s.
 
 ### Task 12: On-chain compliance rejection
 

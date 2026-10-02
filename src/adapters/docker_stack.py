@@ -29,18 +29,24 @@ class StackError(Exception):
     """A Docker or Compose command failed, or the stack did not become healthy in time."""
 
 
-def subprocess_runner(cwd: Path = REPO_ROOT, timeout: float = 300) -> Runner:
+def subprocess_runner(cwd: Path = REPO_ROOT, timeout: float = 900) -> Runner:
+    """Run commands with the Docker CLI. `docker compose up -d` waits for each service's
+    dependencies to be healthy, so on a slow cold start it can legitimately take minutes."""
+
     def run(command: Sequence[str]) -> tuple[int, str, str]:
-        proc = subprocess.run(
-            list(command),
-            cwd=cwd,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=timeout,
-            check=False,
-        )
+        try:
+            proc = subprocess.run(
+                list(command),
+                cwd=cwd,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=timeout,
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
+            return 124, "", f"timed out after {timeout:g}s"  # 124 is the `timeout` command's code
         return proc.returncode, proc.stdout, proc.stderr
 
     return run
