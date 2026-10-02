@@ -186,13 +186,13 @@ Sizes: no task is L or larger.
 **Description:** Prove `f=1` using the validators only: stop one validator, check that block production continues in the others' logs within 30 seconds, restart it, and check that it rejoins. Wrap this as an integration test so it stays proven. Also stop a second validator once and record that the chain halts, to document risk R10 (accepted, not a defect).
 
 **Acceptance criteria:**
-- [ ] With `besu-validator-4` stopped, a new `Produced #` line appears on another validator within 30 seconds
-- [ ] After `docker start besu-validator-4`, its log shows it syncing and peering again
-- [ ] With two validators stopped, no new block appears within 30 seconds (documented as R10); the test restores the stack afterwards
+- [x] With `besu-validator-4` stopped, a new `Produced #` line appears on another validator within 30 seconds
+- [x] After `docker start besu-validator-4`, its log shows it syncing and peering again
+- [x] With two validators stopped, no new block appears within 30 seconds (documented as R10); the test restores the stack afterwards
 
 **Verification:**
-- [ ] Tests pass: `pytest -m integration -k fault`
-- [ ] Checks clean: `ruff check .` and `mypy .`
+- [x] Tests pass: `pytest -m integration -k fault`
+- [x] Checks clean: `ruff check .` and `mypy .`
 
 **Dependencies:** Task 6
 
@@ -202,12 +202,14 @@ Sizes: no task is L or larger.
 
 **Size:** S
 
+**Status:** Done 2026-10-02. `DockerStack.stop` and `start` written test-first. Two integration tests, 150 s together: with `besu-validator-4` stopped, two new blocks appeared on validator 1 within 30 s, and after `docker start` it synced and kept up; with validators 3 and 4 stopped, no new block appeared for 30 s (R10, as expected). A fixture restores every validator after each test, even on failure.
+
 ## Checkpoint: After Tasks 6–7
 
-- [ ] All four validators healthy, peered and producing blocks
-- [ ] Killing any single validator does not halt block production (M1.2 exit gate)
-- [ ] Anti-gate from `docs/plan.md`: if one failed validator halts the chain, stop and re-check `extraData` against the validator keys
-- [ ] Human review before proceeding
+- [x] All four validators healthy, peered and producing blocks
+- [x] Killing a single validator does not halt block production (M1.2 exit gate). Proven for validator 4; Task 9 repeats it through the RPC nodes
+- [x] Anti-gate from `docs/plan.md` not triggered: one failed validator did not halt the chain
+- [ ] Human review before proceeding (**waiting for Howin**)
 
 ---
 

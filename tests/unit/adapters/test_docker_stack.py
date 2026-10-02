@@ -97,3 +97,36 @@ def test_published_ports_lists_what_docker_reports() -> None:
 def test_published_ports_is_empty_for_a_container_without_ports() -> None:
     stack = DockerStack(runner=lambda _command: (0, "", ""))
     assert stack.published_ports("besu-validator-1") == []
+
+
+def test_stop_and_start_run_the_matching_docker_commands() -> None:
+    commands: list[list[str]] = []
+
+    def runner(command: Sequence[str]) -> tuple[int, str, str]:
+        commands.append(list(command))
+        return 0, "", ""
+
+    stack = DockerStack(runner=runner)
+    stack.stop("besu-validator-4")
+    stack.start("besu-validator-4")
+    assert commands == [
+        ["docker", "stop", "--time", "10", "besu-validator-4"],
+        ["docker", "start", "besu-validator-4"],
+    ]
+
+
+def test_stop_of_a_missing_container_raises_stack_error() -> None:
+    stack = DockerStack(runner=lambda _command: (1, "", "No such container: nope"))
+    with pytest.raises(StackError, match="No such container"):
+        stack.stop("nope")
+
+
+def test_logs_without_a_tail_return_the_whole_log() -> None:
+    seen: list[list[str]] = []
+
+    def runner(command: Sequence[str]) -> tuple[int, str, str]:
+        seen.append(list(command))
+        return 0, "line", ""
+
+    DockerStack(runner=runner).logs("besu-validator-1")
+    assert seen == [["docker", "logs", "besu-validator-1"]]

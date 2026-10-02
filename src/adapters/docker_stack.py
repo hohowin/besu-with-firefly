@@ -86,6 +86,13 @@ class DockerStack:
                 raise StackError(f"not healthy after {wait_timeout:g}s: {', '.join(waiting)}")
             self._sleep(poll_seconds)
 
+    def stop(self, container: str) -> None:
+        """Stop one container (it stays stopped; the stack has no restart policy)."""
+        self._checked(["docker", "stop", "--time", "10", container])
+
+    def start(self, container: str) -> None:
+        self._checked(["docker", "start", container])
+
     def started_at(self, container: str) -> str:
         """The container's last start time. It changes if the container restarts."""
         out = self._checked(
