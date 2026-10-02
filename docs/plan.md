@@ -95,6 +95,8 @@ Timelines are rough estimates for a solo developer, not commitments.
 
 **Goal**: The 4-validator QBFT Besu network with 2 RPC nodes, zero-gas, generated from scripts.
 
+**Status**: Complete 2026-10-02 (exit gate passed; the developer's review of the task checkpoints is still to do). Evidence: `tasks/todo.md` and `pytest -m integration`, 26 passed in three consecutive fresh-stack runs.
+
 **Scope**:
 - Genesis, key and `static-nodes.json` generator; Compose for validators and RPC nodes
 - Out of scope: FireFly, Paladin, contracts, CLI
@@ -117,8 +119,8 @@ Phase 1 is sliced horizontally by layer, not by vertical slice (see rationale be
    > **Gate ✓** — `static-nodes.json` lists 4 enodes; wallet keys exist
 
 **Exit gate**:
-- [ ] Running the generator twice from scratch produces a consistent, valid set
-- [ ] `docker compose config` exits 0
+- [x] Running the generator twice from scratch produces a consistent, valid set
+- [x] `docker compose config` exits 0
 
 #### M1.2 — Validators and fault tolerance (Day 1–2)
 
@@ -136,7 +138,7 @@ Phase 1 is sliced horizontally by layer, not by vertical slice (see rationale be
    > **Gate ✓** — block height continues to increase within 30s; the validator rejoins on restart
 
 **Exit gate**:
-- [ ] Killing any single validator does not halt block production
+- [x] Killing any single validator does not halt block production
 
 #### M1.3 — RPC nodes and consistency (Day 2–3)
 
@@ -154,9 +156,9 @@ Phase 1 is sliced horizontally by layer, not by vertical slice (see rationale be
    > **Gate ✓** — `eth_blockNumber` agrees within 1 block 5s apart; `eth_gasPrice` is `0x0` on both
 
 **Exit gate (= Phase 1 exit gate)**:
-- [ ] 4 validators healthy and tolerant of 1 failure
-- [ ] 2 RPC nodes consistent
-- [ ] `pytest -m integration` network tests pass
+- [x] 4 validators healthy and tolerant of 1 failure
+- [x] 2 RPC nodes consistent
+- [x] `pytest -m integration` network tests pass
 
 **Anti-gate**: if killing 1 of 4 validators halts the chain, stop and re-check `extraData` against the validator keys. Do not proceed.
 

@@ -27,7 +27,7 @@ Python 3.11+ (developed on 3.13). Run these from the repo root inside the virtua
 | Type-check | `mypy .` |
 | Unit tests | `pytest` (integration tests are skipped) |
 | Integration tests | `pytest -m integration` (needs Docker and, for most of them, a running stack) |
-| Stack | `python scripts/stack.py up\|deploy\|reset` (planned, plan D-16; arrives in Phase 1 Task 4 onward) |
+| Stack | `python scripts/stack.py init\|up\|reset` (`deploy` arrives with the FireFly phases, plan D-16) |
 
 Lint and type checks skip `spike/`, `.agents/` and `.claude/` (Phase 0 evidence and installed third-party skills). They cover all our own code.
 

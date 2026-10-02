@@ -2,7 +2,7 @@
 
 A local learning project: a 4-validator QBFT Hyperledger Besu network provisioned with **Hyperledger FireFly** (gateway mode) and **Paladin**, an ERC-3643 (T-REX) compliance token deployed through FireFly, a private **Noto** token on Paladin, a small Python CLI client for FireFly, and **Caliper** performance tests.
 
-> **Status: Phase 0 (spike) is complete and signed off (2026-10-02), see [docs/spike-results.md](docs/spike-results.md).** Phases 1-5 are not started, so the commands below are planned names. Items marked *TBD* are filled in as each phase is built. See [docs/plan.md](docs/plan.md).
+> **Status: Phase 0 (spike) and Phase 1 (the Besu network) are complete (2026-10-02), see [docs/spike-results.md](docs/spike-results.md) and [docs/plan.md](docs/plan.md).** Phases 2-5 are not started: FireFly, Paladin, T-REX, the CLI and Caliper are planned, and so are the `deploy` command and the items marked *TBD*.
 
 ## Who it serves and how they interact
 
@@ -49,18 +49,26 @@ Caliper 0.6.0 (`perf/`, Node.js) and the Python CLI run on the host. Caliper 0.7
 
 ## Getting started
 
-*TBD — filled in after Phase 1–2.* Planned shape:
+What works today is the Besu network (Phase 1). The commands run from the repo root.
 
 ```bash
 git clone <repo> && cd besu-with-firefly
-python scripts/stack.py up        # Besu network + FireFly + Paladin
-python scripts/stack.py deploy    # deploy T-REX via FireFly, register interface/API, onboard Admin/Anson/Beatrice
-python scripts/stack.py reset     # docker compose down -v; resets chain, FireFly DB and Paladin DB together
+python -m venv .venv                  # then activate: .venv\Scripts\activate (Windows) or source .venv/bin/activate
+pip install -e ".[dev]"
+python scripts/stack.py up            # 4 validators + 2 RPC nodes; waits until all are healthy
+pytest -m integration                 # proves the network (about 5 minutes; it stops and restarts validators)
+python scripts/stack.py reset         # removes the containers and volumes; the next `up` starts at block 0
 ```
+
+The genesis, validator keys, `static-nodes.json` and demo wallets are already committed in `network-config/`, so `up` needs no generation step. `python scripts/stack.py init --force` regenerates them (it needs Docker for Besu's own generator and refuses to overwrite without `--force`).
+
+Planned, not built yet: `python scripts/stack.py deploy` (T-REX through FireFly, onboarding), and FireFly and Paladin joining `up` and `reset`.
 
 ## Accessing the application
 
-*TBD.* Planned: FireFly Explorer and Swagger on the FireFly port, Besu RPC on `localhost:8545` / `localhost:8555`, and the CLI as `besu-ff <command>`.
+- Besu RPC: Anson `http://localhost:8545` (WS `8546`), Beatrice `http://localhost:8555` (WS `8556`). Validators publish no ports.
+- Quick check: `curl -s -X POST -H "Content-Type: application/json" --data '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' http://localhost:8545`
+- *TBD:* FireFly Explorer and Swagger, and the CLI as `besu-ff <command>` (later phases).
 
 ## Key documents
 
@@ -76,7 +84,7 @@ python scripts/stack.py reset     # docker compose down -v; resets chain, FireFl
 
 - Python: `ruff check .`, `mypy .`, `pytest`
 - `src/core/` is pure logic with no I/O; the FireFly HTTP client is an adapter
-- The chain, FireFly DB and Paladin DB are not persistent across a reset (but Paladin's DB must survive a plain restart). `python scripts/stack.py reset` resets all three.
+- The chain, FireFly DB and Paladin DB are not persistent across a reset (but Paladin's DB must survive a plain restart). `python scripts/stack.py reset` resets all three (today it resets the chain).
 
 ## Compliance notes
 

@@ -6,7 +6,7 @@ Companion docs: [docs/plan.md](plan.md) · [docs/prd.md](prd.md) · [docs/archit
 
 This document is the single reference for what is deliverable and verifiable at the end of each project phase, and how to try each deliverable from a cold start.
 
-> **Read this first.** Nothing is built yet. Commands that call Docker, `curl`, `pytest`, `ruff` and `mypy` are real. The stack script (`python scripts/stack.py up|deploy|reset`), other script names, file paths and CLI command names (`python scripts/stack.py up`, `python scripts/stack.py deploy`, `python scripts/stack.py reset`, `besu-ff`, `network/generate.py`, `perf/`) are **planned names** from the PRD. Check them against the repo when each phase is built. Ports other than Besu's `8545/8546` and `8555/8556` are TBD until Phase 0 (FireFly's default is `5000`). There is no web frontend, so there is no Playwright anywhere in this document.
+> **Read this first.** Phases 0 and 1 are built, and their commands were run for real: `python scripts/stack.py init|up|reset`, `docker compose`, `curl`, `pytest`, `ruff` and `mypy`. Everything for Phases 2 to 5 (`python scripts/stack.py deploy`, `besu-ff`, `perf/`, the FireFly and Paladin ports) is still a **planned name** from the PRD, to be checked against the repo when each phase is built. There is no web frontend, so there is no Playwright anywhere in this document.
 
 ---
 
@@ -16,10 +16,10 @@ This document is the single reference for what is deliverable and verifiable at 
 |---|---|---|---|---|---|
 | DL-0.1 | Phase 0 — Spike | N/A | infra | Throwaway minimal Compose (1 Besu, FireFly, Paladin) | Done |
 | DL-0.2 | Phase 0 — Spike | N/A | doc | `docs/spike-results.md` with 4 answered risks | Done |
-| DL-1.1 | Phase 1 — Network | M1.1 | infra | Genesis, key and `static-nodes.json` generator | Planned |
-| DL-1.2 | Phase 1 — Network | M1.2 | infra | 4 QBFT validators in Compose | Planned |
-| DL-1.3 | Phase 1 — Network | M1.3 | infra | 2 RPC nodes, zero-gas, consistent | Planned |
-| DL-1.4 | Phase 1 — Network | M1.3 | test | Network integration tests | Planned |
+| DL-1.1 | Phase 1 — Network | M1.1 | infra | Genesis, key and `static-nodes.json` generator | Done |
+| DL-1.2 | Phase 1 — Network | M1.2 | infra | 4 QBFT validators in Compose | Done |
+| DL-1.3 | Phase 1 — Network | M1.3 | infra | 2 RPC nodes, zero-gas, consistent | Done |
+| DL-1.4 | Phase 1 — Network | M1.3 | test | Network integration tests | Done |
 | DL-2.1 | Phase 2 — FireFly + ERC-3643 | N/A | infra | FireFly (gateway mode) in Compose | Planned |
 | DL-2.2 | Phase 2 — FireFly + ERC-3643 | N/A | feature | T-REX deployed through FireFly as `COIN` | Planned |
 | DL-2.3 | Phase 2 — FireFly + ERC-3643 | N/A | api | Contract interface and API for `COIN` and IdentityRegistry | Planned |
@@ -144,22 +144,26 @@ This document is the single reference for what is deliverable and verifiable at 
 
 **How to try it**:
 ```
-1. Run the generator: `python network/generate.py` (planned name)
-2. Open `network-config/genesis.json`
-   Expect a `qbft` block with `chainId` 20260916, `blockperiodseconds` 2, and `extraData` encoding 4 addresses.
-3. List `network-config/validator-keys/`
-   Expect 4 key folders.
-4. Open `network-config/static-nodes.json`
-   Expect 4 enode URLs.
-5. Validate Compose: `docker compose config` -- exits 0
+1. Create the environment and install: `python -m venv .venv`, activate it, `pip install -e ".[dev]"`
+2. Look at what is committed: `network-config/` already holds a generated set (demo keys, D-10).
+   To regenerate it: `python scripts/stack.py init --force` (without `--force` it refuses to overwrite)
+3. Open `network-config/genesis.json`
+   Expect a `qbft` block with `chainId` 20260916, `blockperiodseconds` 2, `zeroBaseFee` true, and `extraData` encoding 4 addresses.
+4. List `network-config/validator-keys/`
+   Expect `validator-1` to `validator-4`, each with `key`, `key.pub` and `address.txt`.
+5. Open `network-config/static-nodes.json`
+   Expect 4 enode URLs on `172.28.0.11` to `.14`.
+6. Open `network-config/wallets.json`
+   Expect `admin`, `anson` and `beatrice` with an address and a private key each.
+7. Validate Compose: `docker compose config -q` -- exits 0
 ```
 
 **Verification checklist**:
-- [ ] `genesis.json` has a `qbft` block and 4 validator addresses
-- [ ] 4 validator keys and the `admin`/`anson`/`beatrice` wallet keys exist
-- [ ] `docker compose config` exits 0
-- [ ] Running the generator again yields a consistent, valid set
-- [ ] `ruff check .` and `mypy .` pass if the generator is Python
+- [x] `genesis.json` has a `qbft` block and 4 validator addresses
+- [x] 4 validator keys and the `admin`/`anson`/`beatrice` wallet keys exist
+- [x] `docker compose config` exits 0
+- [x] Running the generator again (`--force`) yields a consistent, valid set
+- [x] `ruff check .` and `mypy .` pass
 
 **Known limitations at this phase**: the files are generated but no node has booted from them yet (DL-1.2).
 
@@ -177,20 +181,22 @@ This document is the single reference for what is deliverable and verifiable at 
 
 **How to try it**:
 ```
-1. Start validators: `docker compose up -d besu-validator-1 besu-validator-2 besu-validator-3 besu-validator-4`
-2. Check status: `docker compose ps` -- all 4 `running`, none restarting
-3. Check peers: `docker compose logs besu-validator-1 | grep -i peer`
-   Expect peer count of at least 3.
-4. Stop one: `docker stop besu-validator-4`
-5. Watch height (needs an RPC node, see DL-1.3, or a validator RPC if enabled): repeat `eth_blockNumber` for 30 seconds
+1. Start the stack: `python scripts/stack.py up` (starts the validators and the RPC nodes and waits until all are healthy)
+2. Check status: `docker compose ps` -- all 4 validators `running`, none restarting
+3. Watch blocks: `docker compose logs --tail 5 besu-validator-1`
+   Expect `Produced #N` or `Imported empty block #N` lines about every 2 seconds. Validators publish no RPC.
+4. Check peering: `curl -s -X POST -H "Content-Type: application/json" --data '{"jsonrpc":"2.0","method":"admin_peers","params":[],"id":1}' http://localhost:8545`
+   Expect all 4 validators in the list (their `id` is the `key.pub` content). Besu only logs a peer count at start-up, so the logs are not a reliable peer source.
+5. Stop one: `docker stop besu-validator-4`
+6. Watch height through an RPC node: repeat `eth_blockNumber` against `http://localhost:8545` for 30 seconds
    Expect the number to keep increasing.
-6. Restart: `docker start besu-validator-4` -- it rejoins
+7. Restart: `docker start besu-validator-4` -- it syncs and rejoins
 ```
 
 **Verification checklist**:
-- [ ] All 4 validators healthy, peer count at least 3
-- [ ] Block height increases within 30 seconds of stopping one validator
-- [ ] The stopped validator rejoins cleanly
+- [x] All 4 validators healthy and listed as peers by both RPC nodes
+- [x] Block height increases within 30 seconds of stopping one validator
+- [x] The stopped validator rejoins cleanly
 
 **Known limitations at this phase**: stopping 2 validators halts the chain (R10, accepted).
 
@@ -208,19 +214,21 @@ This document is the single reference for what is deliverable and verifiable at 
 
 **How to try it**:
 ```
-1. Start everything: `docker compose up -d`
+1. Start everything: `python scripts/stack.py up`
 2. Query Anson: `curl -s -X POST -H "Content-Type: application/json" --data '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' http://localhost:8545`
 3. Wait 5 seconds and query Beatrice: same command against `http://localhost:8555`
    Expect block numbers within 1 of each other.
 4. Gas price on both: `--data '{"jsonrpc":"2.0","method":"eth_gasPrice","params":[],"id":1}'`
    Expect `"result":"0x0"` on both.
+5. Validator set: `--data '{"jsonrpc":"2.0","method":"qbft_getValidatorsByBlockNumber","params":["latest"],"id":1}'`
+   Expect the 4 addresses from `network-config/validator-keys/*/address.txt` and nothing else.
 ```
 
 **Verification checklist**:
-- [ ] Both RPC nodes `running`
-- [ ] Block numbers agree within 1 block
-- [ ] `eth_gasPrice` is `0x0` on both
-- [ ] Neither RPC node starts with a validator key
+- [x] Both RPC nodes `running` and healthy
+- [x] Block numbers agree within 1 block
+- [x] `eth_gasPrice` is `0x0` on both
+- [x] Neither RPC node starts with a validator key
 
 **Known limitations at this phase**: no FireFly or Paladin yet.
 
@@ -238,21 +246,23 @@ This document is the single reference for what is deliverable and verifiable at 
 
 **How to try it**:
 ```
-1. Run: `pytest -m integration -k network`
-2. Expect all selected tests to pass, e.g. `2 passed` for `test_network_consistency` and `test_single_validator_failure`
+1. Start from nothing: `python scripts/stack.py reset` then `python scripts/stack.py up`
+2. Run everything: `pytest -m integration` -- expect `26 passed` (about 5 minutes)
+   The network tests alone: `pytest -m integration -k network`
+3. Reset and repeat: `python scripts/stack.py reset`, `up`, `pytest -m integration`
 ```
 
 **Verification checklist**:
-- [ ] Tests pass against a freshly started network
-- [ ] `ruff check .` and `mypy .` pass
+- [x] Tests pass against a freshly started network (three consecutive runs, 2026-10-02)
+- [x] `ruff check .` and `mypy .` pass
 
-**Known limitations at this phase**: test names are planned and may change.
+**Known limitations at this phase**: the integration tests start and stop validators, so do not run them while you use the stack for something else. Stopping 2 validators halts the chain (R10), and the test restores them afterwards.
 
 **Phase exit gate summary** (from plan.md):
-- [ ] All DL-1.x deliverables verified
-- [ ] 4 validators healthy and tolerant of 1 failure
-- [ ] 2 RPC nodes consistent
-- [ ] `pytest -m integration` network tests pass
+- [x] All DL-1.x deliverables verified
+- [x] 4 validators healthy and tolerant of 1 failure
+- [x] 2 RPC nodes consistent
+- [x] `pytest -m integration` network tests pass
 
 ---
 
