@@ -46,7 +46,7 @@ This document is the single reference for what is deliverable and verifiable at 
 - [ ] Docker Desktop with Compose v2 running
 - [ ] Python 3.11+ installed
 - [ ] Node.js installed (version to be recorded by this phase)
-- [ ] FireFly CLI `ff` installed (version to be recorded)
+- [ ] *(optional)* FireFly CLI `ff`, only as a reference for generating config. There is no Windows release, so build it with `go install github.com/hyperledger-firefly/cli/ff@v1.5.0`. `ff start` is not used.
 - [ ] Repo cloned, on branch main
 ```
 
@@ -70,7 +70,7 @@ This document is the single reference for what is deliverable and verifiable at 
    Expect a JSON result with a hex block number that grows on repeat.
 4. Check FireFly: `curl -s http://localhost:5000/api/v1/status` (port TBD, FireFly default is 5000)
    Expect a JSON status document.
-5. Attach and write: with `ff init ethereum` using `--blockchain-node besu --remote-node-url http://HOST:8545`, send one contract invoke and read the operation status.
+5. Write through FireFly: `POST http://localhost:5000/api/v1/namespaces/default/contracts/deploy?confirm=true` with `{contract, definition, input, key}`, then a `contracts/invoke` and a `contracts/query`. Expect `"status":"Succeeded"` and the stored value back. Working scripts: `spike/firefly/deploy.mjs`, `invoke.mjs`, `idem.mjs`.
 ```
 
 **Verification checklist**:

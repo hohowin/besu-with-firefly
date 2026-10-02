@@ -45,7 +45,7 @@ Caliper (`perf/`, Node.js) and the Python CLI run on the host.
 - Docker Desktop with Docker Compose v2
 - Python 3.11+ (CLI, tests)
 - Node.js (Caliper, Hardhat — version *TBD* by spike)
-- FireFly CLI `ff` (version *TBD* by spike)
+- *(optional)* FireFly CLI `ff`, only as a reference for generating config (no Windows release: `go install github.com/hyperledger-firefly/cli/ff@v1.5.0`). The stack uses its own Compose, not `ff start`.
 
 ## Getting started
 
