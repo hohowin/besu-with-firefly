@@ -53,13 +53,13 @@ Sizes: no task is L or larger.
 **Description:** In `src/core/network/`, add a pure function that builds the input for `besu operator generate-blockchain-config` from parameters (chainId, block period, request timeout, fork settings, validator count). The output is a plain dict equal to the spike's `qbft-config.json`: `berlinBlock 0`, `londonBlock 0`, `zeroBaseFee true`, `shanghaiTime 0`, the `qbft` block, `alloc {}`, `blockchain.nodes.generate true` and `count`. It validates inputs (count at least 4 for `f=1`, positive timing values). No file or Docker access.
 
 **Acceptance criteria:**
-- [ ] With the project defaults, the result equals the spike's `spike/qbft/qbft-config.json` except `count` 4
-- [ ] A validator count below 4 raises a clear error that names the `n = 3f + 1` rule
-- [ ] The module has no imports of `os`, `subprocess`, `pathlib` I/O calls or `print`
+- [x] With the project defaults, the result equals the spike's `spike/qbft/qbft-config.json` except `count` 4
+- [x] A validator count below 4 raises a clear error that names the `n = 3f + 1` rule
+- [x] The module has no imports of `os`, `subprocess`, `pathlib` I/O calls or `print`
 
 **Verification:**
-- [ ] Tests pass: `pytest tests/unit/core/test_genesis.py`
-- [ ] Checks clean: `ruff check .` and `mypy .`
+- [x] Tests pass: `pytest tests/unit/core/test_genesis.py`
+- [x] Checks clean: `ruff check .` and `mypy .`
 
 **Dependencies:** Task 1
 
@@ -69,18 +69,20 @@ Sizes: no task is L or larger.
 
 **Size:** S
 
+**Status:** Done 2026-10-02. Written test-first (collection failed with `No module named 'src.core.network'`). Output verified identical to `spike/qbft/qbft-config.json` with count 4. 11 unit tests.
+
 ### Task 3: Pure enode and static-nodes builder
 
 **Description:** In `src/core/network/`, add pure functions that turn a validator public key (128 hex characters, with or without `0x`) plus an IP and port into `enode://PUBKEY@IP:30303`, and build the `static-nodes.json` list from the four validators with their fixed IPs. The subnet and per-node IPs come from a small configuration value object (default subnet `172.28.0.0/16`, validators `.11` to `.14`, RPC nodes `.21` and `.22`).
 
 **Acceptance criteria:**
-- [ ] A known public key and IP produce the exact expected enode string
-- [ ] A public key that is not 128 hex characters raises a clear error
-- [ ] The validator and RPC addresses are all inside the configured subnet and unique, checked by a unit test
+- [x] A known public key and IP produce the exact expected enode string
+- [x] A public key that is not 128 hex characters raises a clear error
+- [x] The validator and RPC addresses are all inside the configured subnet and unique, checked by a unit test
 
 **Verification:**
-- [ ] Tests pass: `pytest tests/unit/core/test_enode.py`
-- [ ] Checks clean: `ruff check .` and `mypy .`
+- [x] Tests pass: `pytest tests/unit/core/test_enode.py`
+- [x] Checks clean: `ruff check .` and `mypy .`
 
 **Dependencies:** Task 1
 
@@ -89,6 +91,8 @@ Sizes: no task is L or larger.
 - `tests/unit/core/test_enode.py`
 
 **Size:** S
+
+**Status:** Done 2026-10-02. Written test-first. 13 unit tests.
 
 ### Task 4: `stack.py init` generates genesis, validator keys and static nodes
 
