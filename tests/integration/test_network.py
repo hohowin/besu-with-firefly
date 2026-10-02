@@ -99,11 +99,13 @@ def test_one_failed_validator_does_not_halt_the_chain_and_it_rejoins(
         return mine if mine > stopped_at and mine >= block_number(RPC_ANSON) - 3 else None
 
     wait_for(caught_up, describe="besu-validator-4 to sync and keep up", timeout=90)
+    # An RPC node dials its static peers again on a 60 s cycle (measured: 61 s after the
+    # validator restarted), so allow a full cycle plus the validator's own start-up.
     for name, url in RPC_NODES.items():
         wait_for(
             partial(_has_peers, url, 4),
             describe=f"{name} to report 4 or more peers after the restart",
-            timeout=90,
+            timeout=150,
         )
 
 
