@@ -4,6 +4,8 @@ import subprocess
 import sys
 
 from src.adapters.docker_stack import REPO_ROOT
+from src.adapters.trex_artifacts import load_artifact
+from src.core.trex.plan import Deploy, build_plan
 
 
 def run_deploy() -> subprocess.CompletedProcess[str]:
@@ -14,3 +16,9 @@ def run_deploy() -> subprocess.CompletedProcess[str]:
         timeout=900,
         check=False,
     )
+
+
+def abi_of(name: str) -> list[dict[str, object]]:
+    """The ABI of a contract in the deploy plan, from the pinned artifacts."""
+    step = next(s for s in build_plan() if isinstance(s, Deploy) and s.name == name)
+    return load_artifact(step.artifact).abi

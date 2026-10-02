@@ -152,3 +152,25 @@ def test_deploy_without_the_npm_packages_exits_one_with_the_hint(
 
     assert main(["deploy", "--network-dir", str(tmp_path)], deployer=deployer) == 1
     assert "npm ci" in capsys.readouterr().err
+
+
+def test_onboard_runs_the_onboarder_and_exits_zero(tmp_path: Path) -> None:
+    seen: list[Path] = []
+
+    def onboarder(network_dir: Path) -> None:
+        seen.append(network_dir)
+
+    assert main(["onboard", "--network-dir", str(tmp_path)], onboarder=onboarder) == 0
+    assert seen == [tmp_path]
+
+
+def test_onboard_failure_exits_one_with_the_reason(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from src.adapters.trex_deploy import DeployStepError
+
+    def onboarder(_network_dir: Path) -> None:
+        raise DeployStepError("anson", "HTTP 500: boom")
+
+    assert main(["onboard", "--network-dir", str(tmp_path)], onboarder=onboarder) == 1
+    assert "anson: HTTP 500: boom" in capsys.readouterr().err

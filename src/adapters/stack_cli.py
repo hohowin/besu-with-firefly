@@ -1,6 +1,6 @@
 """Command line for the stack: `python scripts/stack.py <command>`.
 
-`init`, `up`, `deploy` and `reset`.
+`init`, `up`, `deploy`, `onboard` and `reset`.
 """
 
 import argparse
@@ -18,9 +18,10 @@ from src.adapters.besu_config import (
     init_network,
 )
 from src.adapters.docker_stack import DockerStack, StackError
+from src.adapters.firefly import FireflyError
 from src.adapters.rpc import chain_heights_reader
 from src.adapters.trex_artifacts import ArtifactsMissingError
-from src.adapters.trex_command import deploy_trex
+from src.adapters.trex_command import deploy_trex, onboard_trex
 from src.adapters.trex_deploy import DeployStepError
 from src.core.network.health import ContainerState
 
@@ -61,6 +62,15 @@ def build_parser() -> argparse.ArgumentParser:
         default=REPO_ROOT / "network-config",
         help="where wallets.json is (default: network-config/)",
     )
+    onboard = commands.add_parser(
+        "onboard", help="register the demo investors (needs deploy; sends only what is missing)"
+    )
+    onboard.add_argument(
+        "--network-dir",
+        type=Path,
+        default=REPO_ROOT / "network-config",
+        help="where wallets.json is (default: network-config/)",
+    )
     commands.add_parser(
         "reset", help="remove the containers and volumes, so the chain restarts at genesis"
     )
@@ -78,10 +88,11 @@ def main(
     generator: Generator | None = None,
     stack: Stack | None = None,
     deployer: Callable[[Path], dict[str, str]] | None = None,
+    onboarder: Callable[[Path], None] | None = None,
 ) -> int:
     """Run a command and return the process exit code.
 
-    Tests inject `generator`, `stack` and `deployer`.
+    Tests inject `generator`, `stack`, `deployer` and `onboarder`.
     """
     args = build_parser().parse_args(argv)
     if args.command == "init":
@@ -111,6 +122,12 @@ def main(
         try:
             (deployer or deploy_trex)(args.network_dir)
         except (DeployStepError, ArtifactsMissingError, OSError) as error:
+            print(f"error: {error}", file=sys.stderr)
+            return 1
+    if args.command == "onboard":
+        try:
+            (onboarder or onboard_trex)(args.network_dir)
+        except (DeployStepError, FireflyError, OSError) as error:
             print(f"error: {error}", file=sys.stderr)
             return 1
     if args.command == "reset":

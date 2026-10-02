@@ -9,6 +9,7 @@ from src.adapters.rpc import get_code
 from src.adapters.trex_apis import register_apis, unpause_token
 from src.adapters.trex_artifacts import REPO_ROOT, load_artifact
 from src.adapters.trex_deploy import run_plan
+from src.adapters.trex_onboard import register_identities
 from src.adapters.trex_suite import read_suite
 from src.core.network.wallets import account_addresses
 from src.core.trex.plan import build_plan
@@ -23,7 +24,8 @@ def deploy_trex(
 ) -> dict[str, str]:
     """Deploy the T-REX infrastructure through the running FireFly and create `COIN`.
 
-    Then registers the contract APIs `coin` and `identity-registry`, and unpauses the token.
+    Then registers the contract APIs `coin` and `identity-registry`, unpauses the token and
+    registers the demo investors (the same as `onboard_trex`).
 
     Writes every address to `out`, including those of the token and its registries, which are
     read back from the factory and the token. Running it again sends nothing that is done.
@@ -56,4 +58,22 @@ def deploy_trex(
     save(everything)
     register_apis(client, load_artifact, suite, log)
     unpause_token(client, accounts["admin"], log)
+    register_identities(client, load_artifact, everything, accounts, log)
     return everything
+
+
+def onboard_trex(
+    network_dir: Path,
+    out: Path = DEPLOYED_ADDRESSES,
+    log: Callable[[str], None] = print,
+) -> None:
+    """Register the demo investors. Needs `deploy` to have run; sends only what is missing."""
+    document = json.loads((network_dir / "wallets.json").read_text(encoding="utf-8"))
+    addresses: dict[str, str] = json.loads(out.read_text(encoding="utf-8"))
+    register_identities(
+        FireflyClient(http_transport()),
+        load_artifact,
+        addresses,
+        account_addresses(document),
+        log,
+    )

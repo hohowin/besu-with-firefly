@@ -9,7 +9,7 @@ from src.adapters.docker_stack import REPO_ROOT
 from src.adapters.trex_artifacts import load_artifact
 from src.adapters.trex_suite import SUITE_NAMES
 from src.core.trex.plan import Deploy, build_plan
-from tests.support.deploy import run_deploy
+from tests.support.deploy import abi_of, run_deploy
 from tests.support.firefly import ff_get, ff_query
 from tests.support.rpc import RPC_ANSON, rpc_call
 
@@ -18,11 +18,6 @@ PLAN_NAMES = [step.name for step in build_plan() if isinstance(step, Deploy)]
 ZERO = "0x" + "00" * 20
 
 pytestmark = pytest.mark.integration
-
-
-def abi_of(name: str) -> list[dict[str, object]]:
-    step = next(s for s in build_plan() if isinstance(s, Deploy) and s.name == name)
-    return load_artifact(step.artifact).abi
 
 
 def deploy_operations() -> list[dict[str, Any]]:

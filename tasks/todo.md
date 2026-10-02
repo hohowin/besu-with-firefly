@@ -235,7 +235,7 @@ Sizes: no task is L or larger. Tasks 7 and 9 are the largest (M).
 - [x] `ruff check .`, `mypy .` and `pytest` clean (227 unit tests)
 - [x] `python scripts/stack.py up && python scripts/stack.py deploy` gives a working `COIN`: addresses non-zero with code, `Coin`/`COIN`, read and write through the API (full `pytest -m integration` on a freshly reset stack: 46 passed in 8.5 min)
 - [x] The Task 5 findings are in `docs/spike-results.md`, and no plan assumption (D-04, R3) was broken (one correction: the order of `addAndUseTREXVersion`, found on the chain)
-- [ ] Human review before proceeding (**waiting for Howin**)
+- [x] Human review before proceeding (Howin, 2026-10-02: ok)
 
 ---
 
@@ -246,13 +246,13 @@ Sizes: no task is L or larger. Tasks 7 and 9 are the largest (M).
 **Description:** Pure onboarding logic in `src/core/trex/onboarding.py`: given the observed state (`isRegistered`), return the list of steps still needed, so a second run sends nothing. Adapter: for Anson and Beatrice, create an OnchainID through the OnchainID factory (`createIdentity(wallet, salt)`), then `registerIdentity(wallet, identity, country)` on the IdentityRegistry as Admin (the token's registered agent), all through FireFly. A step runs only if the state says it is missing. Add `python scripts/stack.py onboard` (or an `onboard` step of `deploy`, decided with Open Question 8) so it can be re-run.
 
 **Acceptance criteria:**
-- [ ] After the step, `isRegistered` is true for Anson and Beatrice and false for Admin
-- [ ] A second run sends **no** FireFly write (the integration test counts FireFly operations before and after)
-- [ ] The pure logic is unit-tested for each state (nothing done, partly done, all done)
+- [x] After the step, `isRegistered` is true for Anson and Beatrice and false for Admin
+- [x] A second run sends **no** FireFly write (the integration test counts FireFly operations before and after)
+- [x] The pure logic is unit-tested for each state (nothing done, partly done, all done)
 
 **Verification:**
-- [ ] Tests pass: `pytest tests/unit` and `pytest -m integration -k onboarding_register`
-- [ ] Checks clean: `ruff check .` and `mypy .`
+- [x] Tests pass: `pytest tests/unit` and `pytest -m integration -k onboarding_register`
+- [x] Checks clean: `ruff check .` and `mypy .`
 
 **Dependencies:** Task 8
 
@@ -261,6 +261,8 @@ Sizes: no task is L or larger. Tasks 7 and 9 are the largest (M).
 - `tests/unit/core/test_onboarding.py`, `tests/integration/test_onboarding.py`
 
 **Size:** M
+
+**Status:** Done 2026-10-02. Test-first (11 unit tests with a stateful fake chain, 5 integration tests). Pure `src/core/trex/onboarding.py` decides the missing steps from `AccountState(identity, registered)` (including the inconsistent "registered without identity" case); `src/adapters/trex_onboard.py` reads `IdFactory.getIdentity` and `identity-registry.contains` and sends only what is missing: `IdFactory.createIdentity(wallet, salt=account name)` then `registerIdentity(wallet, identity, 124)` as Admin. `deploy` runs it as its last step and `python scripts/stack.py onboard` repeats it alone. On the real stack it worked first time; a second `onboard` printed nothing and the FireFly operation count did not change (also true for a second `deploy`). Admin stays unregistered and without an OnchainID, ready for Task 12. No idempotency keys are used here because every write is guarded by a state read.
 
 ### Task 10: Issue and add KYC claims so identities become verified
 
