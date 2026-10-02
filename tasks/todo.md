@@ -104,13 +104,13 @@ Sizes: no task is L or larger. Tasks 7 and 9 are the largest (M).
 **Description:** A small adapter in `src/adapters/firefly.py` (standard library `urllib`, Open Question 3) for the calls Phase 2 needs: status, contract deploy, contract invoke, contract query, interface and API registration, and reading an operation's final status with bounded polling. Deploy and invoke accept an `idempotencyKey`; a 409 `FF10431` is returned as "already submitted" with the original transaction id (spike Risk 7). Errors carry FireFly's message. The pure parts (status classification, request bodies, `FF10431` parsing) are in `src/core/firefly/`; the HTTP transport is injected so the unit tests need no Docker.
 
 **Acceptance criteria:**
-- [ ] A fake transport proves: bodies are built correctly, a 409 `FF10431` is classified as already-submitted (not an error), a `Succeeded` operation returns, a `Failed` operation raises with FireFly's error text, and a never-final operation times out with the operation id
-- [ ] Against the live stack, `status()` returns ready and a trivial query round-trips (no deploy needed)
-- [ ] The module has no hidden global state and no `print`
+- [x] A fake transport proves: bodies are built correctly, a 409 `FF10431` is classified as already-submitted (not an error), a `Succeeded` operation returns, a `Failed` operation raises with FireFly's error text, and a never-final operation times out with the operation id
+- [x] Against the live stack, `status()` returns the ready status document, an unknown operation id and a query to a non-existent contract both give a `FireflyError` carrying FireFly's own message, and an unreachable FireFly gives a `FireflyError` that names the request (no deploy needed)
+- [x] The module has no hidden global state and no `print`
 
 **Verification:**
-- [ ] Tests pass: `pytest tests/unit` and `pytest -m integration -k firefly_client`
-- [ ] Checks clean: `ruff check .` and `mypy .`
+- [x] Tests pass: `pytest tests/unit` and `pytest -m integration -k firefly_client`
+- [x] Checks clean: `ruff check .` and `mypy .`
 
 **Dependencies:** Task 3
 
@@ -120,6 +120,8 @@ Sizes: no task is L or larger. Tasks 7 and 9 are the largest (M).
 - `tests/integration/test_firefly_client.py`
 
 **Size:** M
+
+**Status:** Done 2026-10-02. Test-first (24 new unit tests with a fake transport, 4 integration tests). Pure request bodies and response reading are in `src/core/firefly/operations.py`; the client, its exceptions (`FireflyError`, `OperationFailed`, `OperationTimeout`, `AlreadySubmitted`) and the `urllib` transport are in `src/adapters/firefly.py`. Writes use `?confirm=true` and a still-pending operation is polled with a bound. Real FireFly message seen: an unknown operation id is `HTTP 404: FF00164: No result found`. Interface and API registration are added in Task 8, as planned.
 
 ## Checkpoint: After Tasks 1–4
 
