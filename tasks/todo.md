@@ -232,10 +232,10 @@ Sizes: no task is L or larger. Tasks 7 and 9 are the largest (M).
 
 ## Checkpoint: After Tasks 5–8
 
-- [ ] `ruff check .`, `mypy .` and `pytest` clean
-- [ ] `python scripts/stack.py up && python scripts/stack.py deploy` gives a working `COIN`: addresses non-zero with code, `Coin`/`COIN`, read and write through the API
-- [ ] The Task 5 findings are in `docs/spike-results.md`, and no plan assumption (D-04, R3) was broken
-- [ ] Human review before proceeding
+- [x] `ruff check .`, `mypy .` and `pytest` clean (227 unit tests)
+- [x] `python scripts/stack.py up && python scripts/stack.py deploy` gives a working `COIN`: addresses non-zero with code, `Coin`/`COIN`, read and write through the API (full `pytest -m integration` on a freshly reset stack: 46 passed in 8.5 min)
+- [x] The Task 5 findings are in `docs/spike-results.md`, and no plan assumption (D-04, R3) was broken (one correction: the order of `addAndUseTREXVersion`, found on the chain)
+- [ ] Human review before proceeding (**waiting for Howin**)
 
 ---
 
