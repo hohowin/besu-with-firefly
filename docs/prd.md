@@ -7,7 +7,7 @@
 A personal learning project: the same multi-validator, multi-RPC-node Hyperledger Besu network as the earlier reference project, but with **Hyperledger FireFly** (gateway mode) and **Paladin** in place of the hand-built `mock-middleware`. FireFly is the chain transport and contract API layer. Paladin adds a private token (Noto) alongside it.
 
 It proves four things:
-1. A 4-validator QBFT network with genuine `f=1` Byzantine fault tolerance, with FireFly attached to external Besu nodes.
+1. A QBFT network (one validator since 2026-10-03, plan D-17; originally 4 validators with `f=1` fault tolerance), with FireFly attached to external Besu nodes.
 2. The official ERC-3643 (T-REX, with OnchainID) suite deployed through FireFly's real contract deploy process, not a Hardhat bypass.
 3. A Paladin Noto private token running on the same Besu network.
 4. Measured performance (Caliper) at the chain layer and the FireFly layer, so the gateway overhead is a number, not a guess.
@@ -26,7 +26,7 @@ A small Python CLI is the only client.
 
 ## 2. Goals
 
-- Stand up a 4-validator QBFT Besu network (`f=1`) with 2 RPC nodes (`besu-rpc-anson`, `besu-rpc-beatrice`), zero-gas, chainId `20260916`
+- Stand up a QBFT Besu network with one validator and one RPC node (`besu-rpc-anson`), zero-gas, chainId `20260916` (originally 4 validators and 2 RPC nodes; plan D-17)
 - Provision FireFly (gateway mode) against that network using the genesis we generate, not the one `ff init` generates
 - Deploy the official T-REX suite as `COIN` through FireFly's contract deploy API and expose it as a contract interface and contract API
 - Run register → claim → mint → transfer through FireFly, with an on-chain compliance rejection for unverified recipients
@@ -50,22 +50,22 @@ N/A. Personal local learning PoC, no monetization, no users beyond the developer
 - [x] The EVM fork level in D-08 is confirmed or revised from what Paladin and `evmconnect` actually need
 - [x] No Phase 1 work starts before this is signed off
 
-### US-002: 4-validator QBFT network with real fault tolerance
-**Description:** As a developer, I want a 4-validator QBFT genesis so the network tolerates one failed validator.
+### US-002: QBFT network with one validator
+**Description:** As a developer, I want a QBFT genesis with a validator so the chain produces blocks. (Changed 2026-10-03, plan D-17: it was a 4-validator network that tolerates one failed validator; one validator tolerates no failure.)
 
 **Acceptance Criteria:**
-- [ ] A generator script produces `genesis.json` with a `qbft` block listing all 4 validator addresses in `extraData`, plus 4 validator key pairs and `static-nodes.json`
-- [ ] `docker compose up -d` starts 4 `besu-validator-*` containers healthy, no restart loop
-- [ ] `docker stop` of any single validator leaves `eth_blockNumber` (via either RPC node) still increasing within 30s
-- [ ] `eth_gasPrice` returns `0x0` on both RPC nodes
+- [ ] A generator script produces `genesis.json` with a `qbft` block listing the validator address in `extraData`, plus the validator key pair and `static-nodes.json`
+- [ ] `docker compose up -d` starts `besu-validator-1` healthy, no restart loop
+- [ ] `eth_blockNumber` (via the RPC node) keeps increasing
+- [ ] `eth_gasPrice` returns `0x0` on the RPC node
 
-### US-003: Two independently addressable RPC nodes
-**Description:** As a developer, I want two RPC nodes so Anson's and Beatrice's traffic can be shown going through distinct, identical endpoints.
+### US-003: An addressable RPC node
+**Description:** As a developer, I want an RPC node so FireFly, Paladin and the tests have one endpoint. (Changed 2026-10-03, plan D-17: it was two RPC nodes so Anson's and Beatrice's traffic went through distinct endpoints.)
 
 **Acceptance Criteria:**
-- [ ] `besu-rpc-anson` (`:8545`/`:8546`) and `besu-rpc-beatrice` (`:8555`/`:8556`) both peer with all 4 validators
-- [ ] `eth_blockNumber` on both agrees within 1 block when queried 5s apart
-- [ ] Neither RPC node has a `--node-private-key-file` set to a validator key
+- [ ] `besu-rpc-anson` (`:8545`/`:8546`) peers with the validator
+- [ ] `eth_blockNumber` on it keeps increasing
+- [ ] The RPC node has no `--node-private-key-file` set to a validator key
 
 ### US-004: FireFly runs in gateway mode against the external Besu network
 **Description:** As a developer, I want FireFly attached to our own Besu network so the project uses FireFly's real provisioning path on our topology.
@@ -138,7 +138,7 @@ N/A. Personal local learning PoC, no monetization, no users beyond the developer
 **Description:** As a developer, I want automated proof the whole stack works end to end.
 
 **Acceptance Criteria:**
-- [ ] `pytest -m integration` runs against the live stack and covers: network fault tolerance, FireFly status, T-REX deploy result, onboarding, compliant transfer, compliance rejection, Noto private transfer
+- [ ] `pytest -m integration` runs against the live stack and covers: the network, FireFly status, T-REX deploy result, onboarding, compliant transfer, compliance rejection, Noto private transfer
 - [ ] All integration tests pass across 3 consecutive runs, each after `python scripts/stack.py reset && python scripts/stack.py up && python scripts/stack.py deploy`
 - [ ] No Playwright (there is no web frontend)
 
@@ -155,8 +155,8 @@ N/A. Personal local learning PoC, no monetization, no users beyond the developer
 ## 5. Functional Requirements
 
 **MVP:**
-- FR-1: A script generates the QBFT genesis (4 validators in `extraData`), validator keys, wallet keys and `static-nodes.json`. (US-002)
-- FR-2: `docker-compose.yml` defines `besu-validator-1..4` and `besu-rpc-anson`/`besu-rpc-beatrice`, all peered, `--min-gas-price=0`. (US-002, US-003)
+- FR-1: A script generates the QBFT genesis (the validator in `extraData`), validator key, wallet keys and `static-nodes.json`. (US-002)
+- FR-2: `docker-compose.yml` defines `besu-validator-1` and `besu-rpc-anson`, peered, `--min-gas-price=0`. (US-002, US-003)
 - FR-3: FireFly runs in gateway mode against `besu-rpc-*` with signing keys `admin`, `anson`, `beatrice`. (US-004)
 - FR-4: T-REX contracts are deployed only through FireFly's contract deploy API. (US-005)
 - FR-5: A contract interface and contract API are registered for `COIN` and the IdentityRegistry. (US-006)
@@ -220,8 +220,8 @@ N/A. Personal local learning PoC, no monetization, no users beyond the developer
 
 | NFR | MVP target | How the architecture supports it | Tradeoff / phase gate |
 |---|---|---|---|
-| Availability (consensus) | Chain keeps producing blocks with 1 of 4 validators down | QBFT `n=4`, `f=1` (FR-1, FR-2) | 2 validators down halts the chain; accepted. Gate: Phase 1 |
-| Consistency (RPC) | Both RPC nodes within 1 block, 5s apart | Both statically peered to all 4 validators | No partition guarantees on a local Docker network |
+| Availability (consensus) | Chain keeps producing blocks while the validator runs | QBFT with one validator (plan D-17; it was `n=4`, `f=1`) | Any validator failure halts the chain; accepted |
+| Consistency (RPC) | The RPC node follows the validator | Statically peered to the validator | No partition guarantees on a local Docker network |
 | Reliability (delivery) | A write sent through FireFly is confirmed or reported failed, never silently lost | FireFly's own transaction tracking; CLI waits for confirmation (FR-6) | Gap: if FireFly's DB is lost mid-flight, state is lost. Accepted for PoC |
 | Performance | Measured, not targeted; numbers reported for chain layer and FireFly layer | Caliper rounds (FR-13) | Results describe this demo config (2s blocks), not Besu's limits |
 | Observability | Transaction and event state visible without reading logs | FireFly Explorer and `tx`/events CLI command | No metrics or tracing stack |
@@ -234,7 +234,7 @@ N/A. Personal local learning PoC, no monetization, no users beyond the developer
 ## 9. Success Metrics
 
 - Spike proof: 0/4 risks resolved → 4/4 with written result and fallback, by Phase 0 exit
-- Fault tolerance: unverified → killing 1 of 4 validators leaves `eth_blockNumber` increasing within 30s, by Phase 1 exit
+- Fault tolerance: dropped on 2026-10-03 (plan D-17); with one validator there is nothing to tolerate
 - FireFly deploy proof: 0 → `COIN` fully deployed through FireFly's deploy API and `balanceOf` read through the contract API, by Phase 2 exit
 - Compliance proof: unverified → a transfer to an unverified recipient reverts on-chain and balances stay unchanged, by Phase 2 exit
 - Privacy proof: unverified → a Noto transfer is visible to its parties and not to a non-party node, by Phase 3 exit
@@ -280,8 +280,8 @@ Cross-referenced against the project risk register in `docs/plan.md` §7.
 
 | # | Deliverable | Notes |
 |---|-------------|-------|
-| PD-1.1 | Genesis/key generator script | Output: `genesis.json`, 4 validator keys, wallet keys, `static-nodes.json` |
-| PD-1.2 | `docker-compose.yml` with 4 validators and 2 RPC nodes | Zero-gas confirmed |
+| PD-1.1 | Genesis/key generator script | Output: `genesis.json`, the validator key, wallet keys, `static-nodes.json` |
+| PD-1.2 | `docker-compose.yml` with 1 validator and 1 RPC node | Zero-gas confirmed |
 | PD-1.3 | Fault-tolerance and RPC-consistency integration tests | `pytest -m integration` |
 
 #### Phase 2 — FireFly + ERC-3643

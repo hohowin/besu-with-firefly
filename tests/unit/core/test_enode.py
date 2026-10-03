@@ -36,20 +36,14 @@ def test_default_addressing_is_inside_the_subnet_and_unique() -> None:
     addressing = NetworkAddressing()
     network = ipaddress.ip_network(addressing.subnet)
     ips = addressing.all_ips()
-    assert len(ips) == len(set(ips)) == 6
+    assert len(ips) == len(set(ips)) == 2
     assert all(ipaddress.ip_address(ip) in network for ip in ips)
 
 
 def test_default_addresses_follow_the_plan() -> None:
     addressing = NetworkAddressing()
-    assert [addressing.validator_ip(n) for n in (1, 2, 3, 4)] == [
-        "172.28.0.11",
-        "172.28.0.12",
-        "172.28.0.13",
-        "172.28.0.14",
-    ]
+    assert addressing.validator_ip(1) == "172.28.0.11"
     assert addressing.rpc_ip("anson") == "172.28.0.21"
-    assert addressing.rpc_ip("beatrice") == "172.28.0.22"
 
 
 def test_an_address_outside_the_subnet_is_rejected() -> None:
@@ -65,14 +59,14 @@ def test_duplicate_offsets_are_rejected() -> None:
 def test_unknown_validator_or_rpc_name_is_rejected() -> None:
     addressing = NetworkAddressing()
     with pytest.raises(ValueError, match="validator"):
-        addressing.validator_ip(5)
+        addressing.validator_ip(2)
     with pytest.raises(ValueError, match="rpc"):
-        addressing.rpc_ip("charlie")
+        addressing.rpc_ip("beatrice")  # there is a single RPC node
 
 
 def test_static_nodes_lists_one_enode_per_validator_in_order() -> None:
     keys = [format(i, "x").zfill(128) for i in range(1, 5)]
-    nodes = static_nodes(keys, NetworkAddressing())
+    nodes = static_nodes(keys, NetworkAddressing(validator_offsets=(11, 12, 13, 14)))
     assert nodes == [
         f"enode://{keys[0]}@172.28.0.11:30303",
         f"enode://{keys[1]}@172.28.0.12:30303",
@@ -82,5 +76,5 @@ def test_static_nodes_lists_one_enode_per_validator_in_order() -> None:
 
 
 def test_static_nodes_rejects_a_key_count_that_does_not_match_the_validators() -> None:
-    with pytest.raises(ValueError, match="4 validators"):
-        static_nodes([PUBKEY], NetworkAddressing())
+    with pytest.raises(ValueError, match="1 validators"):
+        static_nodes([PUBKEY, PUBKEY], NetworkAddressing())

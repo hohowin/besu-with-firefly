@@ -43,10 +43,15 @@ def test_parameters_are_applied() -> None:
     assert config["blockchain"]["nodes"]["count"] == 7
 
 
-@pytest.mark.parametrize("count", [0, 1, 3])
-def test_fewer_than_four_validators_is_rejected_and_names_the_rule(count: int) -> None:
-    with pytest.raises(ValueError, match=r"n = 3f \+ 1"):
+@pytest.mark.parametrize("count", [0, -1])
+def test_fewer_than_one_validator_is_rejected(count: int) -> None:
+    with pytest.raises(ValueError, match="at least 1 validator"):
         build_qbft_config(validator_count=count)
+
+
+def test_a_single_validator_is_a_valid_network() -> None:
+    config = build_qbft_config(validator_count=1)
+    assert config["blockchain"]["nodes"]["count"] == 1
 
 
 @pytest.mark.parametrize(

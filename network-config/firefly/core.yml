@@ -37,7 +37,7 @@ namespaces:
   predefined:
   - name: default
     description: Default predefined namespace
-    defaultKey: 0xd11858978201f77ae5a863043a967d7ba1ae3b7c
+    defaultKey: 0x6789a6e90e2a7ede268916170a43ce658ae4aae1
     plugins: [database0, blockchain0]
     multiparty:
       enabled: false

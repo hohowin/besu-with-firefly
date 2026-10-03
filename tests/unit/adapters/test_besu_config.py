@@ -20,14 +20,20 @@ def test_init_writes_the_expected_layout(tmp_path: Path) -> None:
     assert (tmp_path / "genesis.json").is_file()
     assert (tmp_path / "static-nodes.json").is_file()
     assert (tmp_path / "README.md").is_file()
-    for number in (1, 2, 3, 4):
-        folder = tmp_path / "validator-keys" / f"validator-{number}"
-        assert {p.name for p in folder.iterdir()} == {"key", "key.pub", "address.txt"}
-    assert len(result.validator_addresses) == 4
+    folder = tmp_path / "validator-keys" / "validator-1"
+    assert {p.name for p in folder.iterdir()} == {"key", "key.pub", "address.txt"}
+    assert len(result.validator_addresses) == 1
 
 
 def test_validators_are_numbered_by_sorted_address(tmp_path: Path) -> None:
-    result = init_network(tmp_path, generator=fake_generator())
+    """The network has one validator, but the numbering rule matters for any number of them."""
+    result = init_network(
+        tmp_path,
+        generator=fake_generator(count=4),
+        validator_count=4,
+        addressing=NetworkAddressing(validator_offsets=(11, 12, 13, 14)),
+    )
+    assert len(result.validator_addresses) == 4
     assert result.validator_addresses == sorted(result.validator_addresses)
     for number, address in enumerate(result.validator_addresses, start=1):
         text = (tmp_path / "validator-keys" / f"validator-{number}" / "address.txt").read_text(
@@ -40,7 +46,7 @@ def test_static_nodes_match_the_key_files_and_the_fixed_ips(tmp_path: Path) -> N
     init_network(tmp_path, generator=fake_generator())
     nodes = json.loads((tmp_path / "static-nodes.json").read_text(encoding="utf-8"))
     addressing = NetworkAddressing()
-    assert len(nodes) == 4
+    assert len(nodes) == 1
     for number, enode in enumerate(nodes, start=1):
         pub = (tmp_path / "validator-keys" / f"validator-{number}" / "key.pub").read_text(
             encoding="utf-8"
@@ -73,7 +79,7 @@ def test_force_regenerates_and_removes_old_validator_keys(tmp_path: Path) -> Non
     before = (tmp_path / "static-nodes.json").read_bytes()
     init_network(tmp_path, generator=fake_generator(seed=2), force=True)
     assert (tmp_path / "static-nodes.json").read_bytes() != before
-    assert len(list((tmp_path / "validator-keys").iterdir())) == 4
+    assert len(list((tmp_path / "validator-keys").iterdir())) == 1
 
 
 def test_generator_output_missing_an_address_in_extra_data_is_rejected(tmp_path: Path) -> None:
@@ -83,8 +89,8 @@ def test_generator_output_missing_an_address_in_extra_data_is_rejected(tmp_path:
 
 
 def test_generator_producing_the_wrong_number_of_validators_is_rejected(tmp_path: Path) -> None:
-    with pytest.raises(GenerationError, match="expected 4"):
-        init_network(tmp_path, generator=fake_generator(count=3))
+    with pytest.raises(GenerationError, match="expected 1"):
+        init_network(tmp_path, generator=fake_generator(count=3, asked_for=1))
     assert not (tmp_path / "genesis.json").exists()
 
 

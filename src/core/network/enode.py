@@ -27,8 +27,8 @@ class NetworkAddressing:
     """Fixed IPs for the Compose network: a subnet plus a host offset per node."""
 
     subnet: str = "172.28.0.0/16"
-    validator_offsets: tuple[int, ...] = (11, 12, 13, 14)
-    rpc_offsets: dict[str, int] = field(default_factory=lambda: {"anson": 21, "beatrice": 22})
+    validator_offsets: tuple[int, ...] = (11,)
+    rpc_offsets: dict[str, int] = field(default_factory=lambda: {"anson": 21})
 
     def __post_init__(self) -> None:
         network = ipaddress.ip_network(self.subnet)
@@ -52,7 +52,7 @@ class NetworkAddressing:
         return self._ip(self.validator_offsets[number - 1])
 
     def rpc_ip(self, name: str) -> str:
-        """IP of the RPC node with the given label (anson or beatrice)."""
+        """IP of the RPC node with the given label (`anson`, the only one)."""
         if name not in self.rpc_offsets:
             raise ValueError(
                 f"unknown rpc node {name!r}, expected one of {sorted(self.rpc_offsets)}"

@@ -1,6 +1,6 @@
 # besu-with-firefly
 
-A local learning project: a 4-validator QBFT Hyperledger Besu network provisioned with **Hyperledger FireFly** (gateway mode) and **Paladin**, an ERC-3643 (T-REX) compliance token deployed through FireFly, a private **Noto** token on Paladin, a small Python CLI client for FireFly, and **Caliper** performance tests.
+A local learning project: a single-validator QBFT Hyperledger Besu network with one RPC node, provisioned with **Hyperledger FireFly** (gateway mode) and **Paladin**, an ERC-3643 (T-REX) compliance token deployed through FireFly, a private **Noto** token on Paladin, a small Python CLI client for FireFly, and **Caliper** performance tests.
 
 > **Status: Phases 0 (spike), 1 (the Besu network) and 2 (FireFly and the ERC-3643 `COIN` token) are built (2026-10-02), see [docs/plan.md](docs/plan.md) and [docs/spike-results.md](docs/spike-results.md).** Phases 3-5 are not started: Paladin, the Python CLI and Caliper are planned, and so are the items marked *TBD*.
 
@@ -16,7 +16,7 @@ No real users, no real personal data, no authentication. Everything is bound to 
 
 ## Key capabilities
 
-- 4-validator QBFT Besu network with `f=1` fault tolerance and 2 RPC nodes, zero-gas
+- QBFT Besu network with one validator and one RPC node, zero-gas (it was 4 validators and 2 RPC nodes until 2026-10-03; one validator tolerates no failure, but runs on a laptop without the consensus pauses of a bare quorum)
 - Genesis generated with `besu operator generate-blockchain-config`; FireFly attached to the external Besu nodes
 - Official ERC-3643 T-REX suite (with OnchainID) deployed through FireFly's contract deploy API, exposed via a FireFly contract interface and API
 - Compliant transfers: register → claim → mint → transfer, with an on-chain compliance rejection for unverified recipients
@@ -30,9 +30,8 @@ All services run in one Docker Compose stack.
 
 | Service | Role | Port |
 |---|---|---|
-| `besu-validator-1..4` | QBFT validators | none published |
-| `besu-rpc-anson` | RPC node | 8545 (HTTP), 8546 (WS) |
-| `besu-rpc-beatrice` | RPC node | 8555 (HTTP), 8556 (WS) |
+| `besu-validator-1` | QBFT validator | none published |
+| `besu-rpc-anson` | RPC node (the only one, used by everything) | 8545 (HTTP), 8546 (WS) |
 | `firefly-core`, `firefly-evmconnect`, `firefly-signer` | Gateway mode, single node, keys: admin / anson / beatrice; reaches the chain through `besu-rpc-anson` | 5000 (API, Swagger, Explorer) |
 | `firefly-postgres` | FireFly state | internal |
 | Paladin node1 (notary, registry admin), node2 (Anson), node3 (Beatrice) | Noto private token (`lfdecentralizedtrust/paladin:v1.0.0`), gRPC with mTLS between nodes | RPC 8548, 8648, 8748 (spike values) |
@@ -49,17 +48,16 @@ Caliper 0.6.0 (`perf/`, Node.js) and the Python CLI run on the host. Caliper 0.7
 
 ## Getting started
 
-The commands run from the repo root. Phases 1 and 2 are built: a 4-validator Besu network, FireFly in gateway mode, and the ERC-3643 token `COIN`.
+The commands run from the repo root. Phases 1 and 2 are built: a one-validator Besu network, FireFly in gateway mode, and the ERC-3643 token `COIN`.
 
 ```bash
 git clone <repo> && cd besu-with-firefly
 python -m venv .venv                  # then activate: .venv\Scripts\activate (Windows) or source .venv/bin/activate
 pip install -e ".[dev]"
 (cd contracts && npm ci)              # the pinned T-REX and OnchainID contract artifacts
-python scripts/stack.py up            # 4 validators, 2 RPC nodes, FireFly; waits until all is healthy and the chain moves
+python scripts/stack.py up            # 1 validator, 1 RPC node, FireFly; waits until all is healthy and the chain moves
 python scripts/stack.py deploy        # T-REX through FireFly, the COIN APIs, onboarding of Anson and Beatrice, 1000 COIN minted
-pytest -m "integration and not fault_injection"   # the integration gate (about 5 minutes)
-pytest -m fault_injection             # stops and restarts validators (about 5 minutes; see below)
+pytest -m integration                 # proves it all (about 5 minutes)
 python scripts/stack.py reset         # removes containers, volumes and deployed-addresses.json; the next `up` starts at block 0
 ```
 
@@ -67,15 +65,13 @@ The genesis, validator keys, `static-nodes.json`, demo wallets and the FireFly c
 
 `deploy` and `onboard` only do what is missing, so running them again sends nothing, and running `deploy` again finishes an interrupted run. `python scripts/stack.py onboard` repeats just the investor onboarding.
 
-The two fault-injection tests are kept apart because with 4 validators and one stopped, the other three are exactly the quorum: if one of them is slow, QBFT's round timer doubles and blocks can pause for minutes, so they can fail on a loaded machine (details in `docs/spike-results.md`). `pytest -m integration` runs everything.
-
 A cold `up` takes 2 to 3 minutes (it waits up to 5) and can take longer on a busy machine. Planned, not built yet: Paladin joining `up`, `deploy` and `reset` (Phase 3).
 
 ## Accessing the application
 
 - FireFly API and Swagger UI: `http://localhost:5000/api`. The FireFly Explorer: `http://localhost:5000/ui`.
 - Generated contract APIs (Swagger UI): `http://localhost:5000/api/v1/namespaces/default/apis/coin/api` for the token and `.../apis/identity-registry/api` for the identity registry. For example, the token name: `curl -s -X POST -H "Content-Type: application/json" --data '{}' http://localhost:5000/api/v1/namespaces/default/apis/coin/query/name`
-- Besu RPC: Anson `http://localhost:8545` (WS `8546`), Beatrice `http://localhost:8555` (WS `8556`). Validators publish no ports.
+- Besu RPC: `http://localhost:8545` (WS `8546`). The validator publishes no ports.
 - Contract addresses: `deployed-addresses.json` (created by `deploy`, not committed). Wallet addresses and keys: `network-config/wallets.json` (demo only).
 - *TBD:* the CLI as `besu-ff <command>` (Phase 4). Step-by-step examples with `curl` are in [docs/deliverables.md](docs/deliverables.md) §4.
 

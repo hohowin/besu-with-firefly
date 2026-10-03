@@ -3,5 +3,5 @@ description = "File based configuration"
 
 [signing]
 type = "file-based-signer"
-key-file = "/data/keystore/fa8f0b57721943aa560b809f6309ff2bfecc8f2f"
+key-file = "/data/keystore/1077b3dded596660c258dcb702035efb5ec24f45"
 password-file = "/data/password"

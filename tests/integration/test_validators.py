@@ -1,4 +1,4 @@
-"""The four QBFT validators: healthy, peered, producing blocks, closed to the host."""
+"""The QBFT validator: healthy, peered with the RPC node, producing blocks, closed to the host."""
 
 import subprocess
 import time
@@ -9,9 +9,9 @@ import pytest
 from src.adapters.docker_stack import REPO_ROOT, DockerStack
 from src.core.network.besu_logs import latest_block_number
 from tests.support.polling import wait_for
-from tests.support.rpc import RPC_ANSON, RPC_BEATRICE, peer_public_keys
+from tests.support.rpc import RPC_ANSON, peer_public_keys
 
-VALIDATORS = [f"besu-validator-{n}" for n in (1, 2, 3, 4)]
+VALIDATORS = ["besu-validator-1"]
 
 pytestmark = pytest.mark.integration
 
@@ -23,7 +23,7 @@ def test_compose_file_is_valid() -> None:
     assert result.returncode == 0, result.stderr
 
 
-def test_all_four_validators_are_running_and_healthy(stack: DockerStack) -> None:
+def test_the_validator_is_running_and_healthy(stack: DockerStack) -> None:
     states = {s.service: s for s in stack.states()}
     for name in VALIDATORS:
         assert name in states, f"{name} is not part of the stack"
@@ -31,9 +31,9 @@ def test_all_four_validators_are_running_and_healthy(stack: DockerStack) -> None
 
 
 @pytest.mark.parametrize("validator", VALIDATORS)
-def test_each_validator_is_peered_with_both_rpc_nodes(stack: DockerStack, validator: str) -> None:
-    """Validators publish no RPC and Besu only logs peer counts at start-up, so the RPC nodes
-    vouch for them: a validator that is in a node's peer list is connected to the network."""
+def test_each_validator_is_peered_with_the_rpc_node(stack: DockerStack, validator: str) -> None:
+    """Validators publish no RPC and Besu only logs peer counts at start-up, so the RPC node
+    vouches for them: a validator that is in its peer list is connected to the network."""
     public_key = (
         (REPO_ROOT / "network-config" / "validator-keys" / f"validator-{validator[-1]}" / "key.pub")
         .read_text(encoding="utf-8")
@@ -41,12 +41,11 @@ def test_each_validator_is_peered_with_both_rpc_nodes(stack: DockerStack, valida
         .removeprefix("0x")
         .lower()
     )
-    for node, url in {"besu-rpc-anson": RPC_ANSON, "besu-rpc-beatrice": RPC_BEATRICE}.items():
-        wait_for(
-            partial(_is_peer, url, public_key),
-            describe=f"{node} to list {validator} as a peer",
-            timeout=90,
-        )
+    wait_for(
+        partial(_is_peer, RPC_ANSON, public_key),
+        describe=f"besu-rpc-anson to list {validator} as a peer",
+        timeout=150,  # an RPC node dials its static peers on a 60 s cycle
+    )
 
 
 def _is_peer(url: str, public_key: str) -> bool:

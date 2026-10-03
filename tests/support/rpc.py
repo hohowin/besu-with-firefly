@@ -5,7 +5,6 @@ import urllib.request
 from typing import Any
 
 RPC_ANSON = "http://localhost:8545"
-RPC_BEATRICE = "http://localhost:8555"
 
 
 def rpc_call(url: str, method: str, params: list[Any] | None = None, timeout: float = 10.0) -> Any:

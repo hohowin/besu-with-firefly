@@ -18,7 +18,7 @@ This document is the single reference for what is deliverable and verifiable at 
 | DL-0.2 | Phase 0 — Spike | N/A | doc | `docs/spike-results.md` with 4 answered risks | Done |
 | DL-1.1 | Phase 1 — Network | M1.1 | infra | Genesis, key and `static-nodes.json` generator | Done |
 | DL-1.2 | Phase 1 — Network | M1.2 | infra | 4 QBFT validators in Compose | Done |
-| DL-1.3 | Phase 1 — Network | M1.3 | infra | 2 RPC nodes, zero-gas, consistent | Done |
+| DL-1.3 | Phase 1 — Network | M1.3 | infra | RPC node, zero-gas (originally 2 RPC nodes) | Done |
 | DL-1.4 | Phase 1 — Network | M1.3 | test | Network integration tests | Done |
 | DL-2.1 | Phase 2 — FireFly + ERC-3643 | N/A | infra | FireFly (gateway mode) in Compose | Done |
 | DL-2.2 | Phase 2 — FireFly + ERC-3643 | N/A | feature | T-REX deployed through FireFly as `COIN` | Done |
@@ -167,40 +167,37 @@ This document is the single reference for what is deliverable and verifiable at 
 
 **Known limitations at this phase**: the files are generated but no node has booted from them yet (DL-1.2).
 
-### DL-1.2 — 4 QBFT validators
+> **Changed 2026-10-03 (plan D-17).** DL-1.2 to DL-1.4 were first built and verified with 4 validators and 2 RPC nodes (including stopping a validator and checking the chain went on). The network was then reduced to 1 validator and 1 RPC node, so the deliverables below describe what exists now.
+
+### DL-1.2 — QBFT validator
 
 | Field | Value |
 |---|---|
 | **Type** | infra |
 | **Phase** | Phase 1 — Network |
 | **Milestone** | M1.2 |
-| **Traces to** | US-002, FR-2, UC-02, UC-03 |
+| **Traces to** | US-002, FR-2, UC-02 |
 | **Demo surface** | CLI |
 
-**What it is**: `besu-validator-1..4` in Compose, peered by `static-nodes.json`, producing a block every 2 seconds.
+**What it is**: `besu-validator-1` in Compose, peered with the RPC node by `static-nodes.json`, producing a block every 2 seconds.
 
 **How to try it**:
 ```
-1. Start the stack: `python scripts/stack.py up` (starts the validators and the RPC nodes and waits until all are healthy)
-2. Check status: `docker compose ps` -- all 4 validators `running`, none restarting
+1. Start the stack: `python scripts/stack.py up` (starts the validator, the RPC node and FireFly and waits until all are healthy and the chain moves)
+2. Check status: `docker compose ps` -- `besu-validator-1` `running (healthy)`, not restarting
 3. Watch blocks: `docker compose logs --tail 5 besu-validator-1`
-   Expect `Produced #N` or `Imported empty block #N` lines about every 2 seconds. Validators publish no RPC.
-4. Check peering: `curl -s -X POST -H "Content-Type: application/json" --data '{"jsonrpc":"2.0","method":"admin_peers","params":[],"id":1}' http://localhost:8545`
-   Expect all 4 validators in the list (their `id` is the `key.pub` content). Besu only logs a peer count at start-up, so the logs are not a reliable peer source.
-5. Stop one: `docker stop besu-validator-4`
-6. Watch height through an RPC node: repeat `eth_blockNumber` against `http://localhost:8545` for 30 seconds
-   Expect the number to keep increasing.
-7. Restart: `docker start besu-validator-4` -- it syncs and rejoins
+   Expect `Produced #N` lines about every 2 seconds. The validator publishes no RPC.
+4. Check peering through the RPC node: `curl -s -X POST -H "Content-Type: application/json" --data '{"jsonrpc":"2.0","method":"admin_peers","params":[],"id":1}' http://localhost:8545`
+   Expect one peer whose `id` is the content of `network-config/validator-keys/validator-1/key.pub`. (An RPC node dials its static peers on a 60 s cycle, so it can take up to a minute after a cold start.)
 ```
 
 **Verification checklist**:
-- [x] All 4 validators healthy and listed as peers by both RPC nodes
-- [x] Block height increases within 30 seconds of stopping one validator
-- [x] The stopped validator rejoins cleanly
+- [x] The validator is healthy, produces blocks, and is listed as a peer by the RPC node
+- [x] The validator publishes no ports to the host
 
-**Known limitations at this phase**: stopping 2 validators halts the chain (R10, accepted).
+**Known limitations at this phase**: one validator tolerates no failure: if it stops, the chain stops (R10, now the normal case, plan D-17).
 
-### DL-1.3 — 2 RPC nodes
+### DL-1.3 — RPC node
 
 | Field | Value |
 |---|---|
@@ -210,27 +207,25 @@ This document is the single reference for what is deliverable and verifiable at 
 | **Traces to** | US-003, FR-2 |
 | **Demo surface** | `curl` |
 
-**What it is**: `besu-rpc-anson` (`:8545`/`:8546`) and `besu-rpc-beatrice` (`:8555`/`:8556`), non-validating, zero-gas.
+**What it is**: `besu-rpc-anson` (`:8545`/`:8546`), non-validating, zero-gas. FireFly, and later Paladin, use it as their only chain endpoint.
 
 **How to try it**:
 ```
 1. Start everything: `python scripts/stack.py up`
-2. Query Anson: `curl -s -X POST -H "Content-Type: application/json" --data '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' http://localhost:8545`
-3. Wait 5 seconds and query Beatrice: same command against `http://localhost:8555`
-   Expect block numbers within 1 of each other.
-4. Gas price on both: `--data '{"jsonrpc":"2.0","method":"eth_gasPrice","params":[],"id":1}'`
-   Expect `"result":"0x0"` on both.
-5. Validator set: `--data '{"jsonrpc":"2.0","method":"qbft_getValidatorsByBlockNumber","params":["latest"],"id":1}'`
-   Expect the 4 addresses from `network-config/validator-keys/*/address.txt` and nothing else.
+2. Block height: `curl -s -X POST -H "Content-Type: application/json" --data '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' http://localhost:8545`
+   Run it twice a few seconds apart: the number goes up.
+3. Gas price: `--data '{"jsonrpc":"2.0","method":"eth_gasPrice","params":[],"id":1}'`
+   Expect `"result":"0x0"`.
+4. Validator set: `--data '{"jsonrpc":"2.0","method":"qbft_getValidatorsByBlockNumber","params":["latest"],"id":1}'`
+   Expect the single address in `network-config/validator-keys/validator-1/address.txt` and nothing else.
 ```
 
 **Verification checklist**:
-- [x] Both RPC nodes `running` and healthy
-- [x] Block numbers agree within 1 block
-- [x] `eth_gasPrice` is `0x0` on both
-- [x] Neither RPC node starts with a validator key
+- [x] The RPC node is `running` and healthy and its block height keeps increasing
+- [x] `eth_gasPrice` is `0x0`
+- [x] The RPC node does not run the validator key and is not in the validator set
 
-**Known limitations at this phase**: no FireFly or Paladin yet.
+**Known limitations at this phase**: a single RPC node, so there is no consistency to compare between nodes.
 
 ### DL-1.4 — Network integration tests
 
@@ -242,26 +237,25 @@ This document is the single reference for what is deliverable and verifiable at 
 | **Traces to** | US-002, US-003, US-011 |
 | **Demo surface** | automated test |
 
-**What it is**: `pytest` tests that prove fault tolerance and RPC consistency against the live network.
+**What it is**: `pytest` tests that prove the validator produces blocks, the RPC node follows it and gas is zero, against the live network.
 
 **How to try it**:
 ```
 1. Start from nothing: `python scripts/stack.py reset` then `python scripts/stack.py up`
-2. Run everything: `pytest -m integration` -- expect `26 passed` (about 5 minutes)
-   The network tests alone: `pytest -m integration -k network`
-3. Reset and repeat: `python scripts/stack.py reset`, `up`, `pytest -m integration`
+2. Run the network tests: `pytest -m integration -k "network or validators"`
+3. Run everything: `pytest -m integration`
 ```
 
 **Verification checklist**:
-- [x] Tests pass against a freshly started network (three consecutive runs, 2026-10-02)
+- [x] Tests pass against a freshly started network
 - [x] `ruff check .` and `mypy .` pass
 
-**Known limitations at this phase**: the integration tests start and stop validators, so do not run them while you use the stack for something else. Stopping 2 validators halts the chain (R10), and the test restores them afterwards.
+**Known limitations at this phase**: the `f=1` fault-injection tests and the two-RPC-node consistency test were removed with the move to one validator (plan D-17).
 
 **Phase exit gate summary** (from plan.md):
 - [x] All DL-1.x deliverables verified
-- [x] 4 validators healthy and tolerant of 1 failure
-- [x] 2 RPC nodes consistent
+- [x] The validator is healthy and produces blocks (originally: 4 validators tolerant of 1 failure)
+- [x] The RPC node follows it (originally: 2 RPC nodes consistent)
 - [x] `pytest -m integration` network tests pass
 
 ---
@@ -301,7 +295,7 @@ FF=http://localhost:5000/api/v1/namespaces/default
 **How to try it**:
 ```
 1. Start: `python scripts/stack.py up`
-   It waits until all 10 containers are healthy, FireFly is ready and both RPC nodes are past block 0.
+   It waits until all 6 containers are healthy, FireFly is ready and the RPC node is past block 0.
 2. Check containers: `docker compose ps` -- 4 `firefly-*` services `running (healthy)`
 3. Status: `curl -s http://localhost:5000/api/v1/status`
    Expect `"namespace":{"name":"default",...}` and `"multiparty":{"enabled":false}`.
@@ -471,15 +465,15 @@ FF=http://localhost:5000/api/v1/namespaces/default
 **Verification checklist**:
 - [x] After reset, no container or volume remains, `deployed-addresses.json` is gone, and no contract interface or API is left in FireFly
 - [x] An interrupted `deploy` (killed in the middle of the plan) is finished by running `deploy` again, with one token and no duplicate
-- [x] Three consecutive runs all pass: `reset && up && deploy` then `pytest -m "integration and not fault_injection"` passed 63 of 63 three times in a row. The two fault-injection tests (`pytest -m fault_injection`) passed in all three of those runs too, but failed about once per full run earlier, so they are not part of the gate (details in `tasks/todo.md` Task 13)
+- [x] Three consecutive runs all pass: see `tasks/todo.md` Task 13 for the runs on the original 4-validator network (gate `integration and not fault_injection`, 63 of 63 three times, the fault-injection tests kept apart) and the repeat on the current network below
 
-**Known limitations at this phase**: Paladin's database is added to `reset` in DL-3.3. The fault-injection tests stop validators, so with 4 validators and `f=1` the 3 that remain are exactly the quorum: if one of them is slow, QBFT's round timer doubles (4, 8, 16, 32, 64 s) and block production can pause for minutes. This is an accepted risk of the 30-second assertion (see `docs/spike-results.md`), but on the development machine it made about one full run in one fail, so the fault-injection tests (`test_fault_tolerance.py` and the single-validator test in `test_network.py`, marker `fault_injection`) are kept out of the gate and reported separately.
+**Known limitations at this phase**: Paladin's database is added to `reset` in DL-3.3. On the original 4-validator network the fault-injection tests (stopping a validator) failed about once per full run, because the 3 validators left were exactly the quorum and QBFT's round timer doubles (4, 8, 16, 32, 64 s). That is why the network was reduced to one validator on 2026-10-03 (plan D-17) and those tests were removed; `pytest -m integration` is now the only suite.
 
 **Phase exit gate summary** (from plan.md):
 - [x] All DL-2.x deliverables verified
 - [x] Integration tests (onboarding, transfer, rejection) pass
 - [x] Re-running register or claim sends no redundant transaction
-- [x] Reset repeatability proven: three consecutive clean runs of the integration gate (the fault-injection tests are reported separately, see the note above)
+- [x] Reset repeatability proven (on the original network three clean runs of the gate; on the current one-validator network see Task 13 in `tasks/todo.md`)
 
 ---
 
@@ -785,7 +779,7 @@ All containers should be `running`. (The stack script is a planned name.)
 - Optional: DL-5.2 and DL-5.3 for the numbers.
 
 **3. Show the key outputs**
-- `curl` against `:8545` and `:8555` shows consistent blocks and `0x0` gas price
+- `curl` against `:8545` shows increasing blocks and a `0x0` gas price
 - `deployed-addresses.json` with non-zero addresses
 - CLI output with balances and the compliance error
 - FireFly Explorer showing the deploy and transfer operations

@@ -1,7 +1,7 @@
 # Tasks — Phase 3: Paladin + Noto
 
 > Source: `docs/plan.md` Phase 3 (steps 1 to 6), `docs/prd.md` US-009 and FR-8, `docs/deliverables.md` DL-3.1 to DL-3.3, `docs/use-cases.md` UC-08, `docs/spike-results.md` (Risk 2 and "Versions to pin"), and the working spike in `spike/paladin/`. Decisions: D-05 (Noto only, three nodes), D-09 (Compose, `lfdecentralizedtrust/paladin:v1.0.0`, hand-written config, Postgres, self-signed TLS, DB volume), D-10 (demo keys committed), D-16 (`python scripts/stack.py`). Phases 1 and 2 are complete and reviewed; their lists are `tasks/phase-1-network.md` and `tasks/phase-2-firefly.md`.
-> **Status: draft, waiting for Howin's approval. No Phase 3 code has been written.**
+> **Status: draft, waiting for Howin's approval. No Phase 3 code has been written.** Updated 2026-10-03: the network is now 1 validator and 1 RPC node (plan D-17), so the stack is 6 containers today and 10 with Paladin.
 
 ## Overview
 
@@ -15,8 +15,8 @@ Design choices that apply to every task:
 - **Generated material is committed** (D-10), like the FireFly material: per-node mnemonics, TLS certificates, base config and the Postgres init script under `network-config/paladin/`, created by `init`.
 - **Key derivation depends on the database.** Paladin hands out BIP32 path indexes in the order it first resolves key names and stores them in its DB, so the Postgres volume must survive a plain restart, and any DB wipe must come with a chain wipe (`reset` does both). The bootstrap order is therefore fixed and must not change between runs.
 - **Image facts (read from `lfdecentralizedtrust/paladin:v1.0.0`):** it has `curl` and `openssl`, runs as uid 1001, needs `/app/jna` writable and executable (`tmpfs: /app/jna:exec,mode=1777`), and does **not** contain the registry and Noto contract artifacts (those come from the release assets).
-- **Tests.** Unit tests need no Docker. Integration tests use the real stack. The gate is `pytest -m "integration and not fault_injection"` (as in Phase 2); Noto tests are not fault-injection tests. Each Noto test deploys its own token, so tests do not depend on each other's state.
-- **Verification commands** (from `PROJECT.md`): `ruff check .`, `mypy .`, `pytest`, `pytest -m "integration and not fault_injection"`, `docker compose config -q`.
+- **Tests.** Unit tests need no Docker. Integration tests use the real stack. The gate is `pytest -m integration` (the fault-injection tests were removed on 2026-10-03 with the move to one validator, plan D-17). Each Noto test deploys its own token, so tests do not depend on each other's state.
+- **Verification commands** (from `PROJECT.md`): `ruff check .`, `mypy .`, `pytest`, `pytest -m integration`, `docker compose config -q`.
 - **Working branch:** `main`, committing per task.
 
 Sizes: no task is L or larger. Tasks 1, 5 and 7 are the largest (M).
@@ -50,7 +50,7 @@ Sizes: no task is L or larger. Tasks 1, 5 and 7 are the largest (M).
 
 ### Task 2: Paladin and Postgres containers start and answer
 
-**Description:** Add `paladin-postgres` (`postgres:17-alpine`, one server, a database per node, data on a volume so a plain restart keeps it) and `paladin-node1` to `paladin-node3` to `docker-compose.yml`, image pinned to `lfdecentralizedtrust/paladin:v1.0.0`, mounting each node's config from a runtime folder and its certificates, with the `/app/jna` tmpfs, starting after Postgres is healthy. The nodes read their config from `paladin-runtime/nodeN/` (gitignored); `stack.py up` copies the committed base config there when it is missing, so a fresh clone needs no extra step (Open Question 4). Node1 and node2 talk to `besu-rpc-anson`, node3 to `besu-rpc-beatrice` (Open Question 1). Publish only each node's HTTP RPC port (`8548`, `8648`, `8748`; Open Question 6). Healthcheck: `curl` of `transport_nodeName` inside the container. Log level `info` (Open Question 7).
+**Description:** Add `paladin-postgres` (`postgres:17-alpine`, one server, a database per node, data on a volume so a plain restart keeps it) and `paladin-node1` to `paladin-node3` to `docker-compose.yml`, image pinned to `lfdecentralizedtrust/paladin:v1.0.0`, mounting each node's config from a runtime folder and its certificates, with the `/app/jna` tmpfs, starting after Postgres is healthy. The nodes read their config from `paladin-runtime/nodeN/` (gitignored); `stack.py up` copies the committed base config there when it is missing, so a fresh clone needs no extra step (Open Question 4). All three nodes talk to `besu-rpc-anson`, the only RPC node (Open Question 1). Publish only each node's HTTP RPC port (`8548`, `8648`, `8748`; Open Question 6). Healthcheck: `curl` of `transport_nodeName` inside the container. Log level `info` (Open Question 7).
 
 **Acceptance criteria:**
 - [ ] `docker compose config -q` exits 0, and `python scripts/stack.py up` brings the 3 nodes and Postgres to `healthy` along with the existing 10 services, with no restart loop
@@ -73,8 +73,8 @@ Sizes: no task is L or larger. Tasks 1, 5 and 7 are the largest (M).
 ## Checkpoint: After Tasks 1–2
 
 - [ ] `ruff check .`, `mypy .` and `pytest` clean
-- [ ] `python scripts/stack.py reset && python scripts/stack.py up` leaves 14 healthy containers, the three Paladin nodes answering and connected to Besu
-- [ ] The Phase 1 and 2 gate still passes (`pytest -m "integration and not fault_injection"`); note the effect of four more containers on start time and on the fault-injection tests
+- [ ] `python scripts/stack.py reset && python scripts/stack.py up` leaves 10 healthy containers (6 now plus 4 Paladin), the three Paladin nodes answering and connected to Besu
+- [ ] The Phase 1 and 2 tests still pass (`pytest -m integration`); note the effect of four more containers on start time
 - [ ] Human review before proceeding
 
 ---
@@ -304,7 +304,7 @@ Sizes: no task is L or larger. Tasks 1, 5 and 7 are the largest (M).
 **Description:** Prove `reset && up && deploy` leaves a working Noto setup three times in a row with the full gate. Then update `README.md` (Getting started, Accessing, the Paladin ports and `noto-demo`), `PROJECT.md`, `docs/deliverables.md` (DL-3.1 to DL-3.3 with runnable examples, every one run against the live stack), `docs/plan.md` (Phase 3 status) and `docs/spike-results.md` (Phase 3 findings), and verify the README from a fresh clone.
 
 **Acceptance criteria:**
-- [ ] `reset && up && deploy` followed by `pytest -m "integration and not fault_injection"` passes in three consecutive runs
+- [ ] `reset && up && deploy` followed by `pytest -m integration` passes in three consecutive runs
 - [ ] Following the README literally from a clean clone brings up the stack, deploys COIN and the Noto setup, and the gate passes
 - [ ] `docs/deliverables.md` DL-3.1 to DL-3.3 are `Done` with commands that were actually run, and `docs/plan.md` marks Phase 3 with the date and the exact result
 
@@ -334,7 +334,7 @@ Sizes: no task is L or larger. Tasks 1, 5 and 7 are the largest (M).
 
 | # | Question | Owner | Needed by | Recommendation |
 |---|----------|-------|-----------|----------------|
-| 1 | Which Besu RPC node does each Paladin node use? | Howin | Task 2 | **node1 (notary) and node2 (Anson) use `besu-rpc-anson`; node3 (Beatrice) uses `besu-rpc-beatrice`**, so both RPC nodes carry Paladin traffic and match the party names |
+| 1 | Which Besu RPC node does each Paladin node use? | Howin | Task 2 | **Answered by the move to one RPC node (plan D-17, 2026-10-03): all three use `besu-rpc-anson`** |
 | 2 | The registry and Noto contract artifacts and the private Noto ABI are not in the image; they are Apache-2.0 release assets (~95 KB). Vendor them, or download them at `deploy` time? | Howin | Task 3 | **Vendor them unchanged under `contracts/paladin/`** with source URLs and SHA-256, so a fresh clone works offline and the exact bytes are pinned. (T-REX is different: it is installed with `npm ci` because it is GPL and large) |
 | 3 | TLS certificates: generate with `openssl` inside the Paladin image (same Docker pattern as the Besu generator), or add the `cryptography` Python dependency? | Howin | Task 1 | **`openssl` in the image**: no new dependency (CLAUDE.md §12), and it is the tool the spike used |
 | 4 | Two-phase config: the nodes start with a base config, and `deploy` writes the final one (with the domain and registry addresses). Keep the base config committed in `network-config/paladin/` and the final config in a gitignored `paladin-runtime/` folder that Compose mounts, seeded by `up` when missing? | Howin | Task 2 | **Yes.** The addresses only exist after `deploy`, so the final config cannot be committed, and `up` must still work on a fresh clone |

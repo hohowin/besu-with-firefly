@@ -20,7 +20,7 @@ Names follow `architecture.md`. Where a FireFly or Paladin behaviour is not yet 
 | CLI | Python CLI: CLI adapter, `core`, FireFly adapter (see architecture §2) |
 | FireFly | Gateway mode, single node. Deploys contracts, generates the contract API, signs for admin, anson, beatrice |
 | Paladin node1 / node2 / node3 | node1 is the notary and registry admin, node2 is Anson, node3 is Beatrice. They host the Noto token and talk over gRPC with mTLS. Peers are found through the on-chain EVM registry |
-| Besu network | 4 validators plus `besu-rpc-anson` and `besu-rpc-beatrice` |
+| Besu network | 1 validator plus `besu-rpc-anson` (it was 4 validators and 2 RPC nodes until plan D-17, 2026-10-03) |
 | T-REX contracts | On-chain compliance suite, the real authorization boundary |
 | Caliper | Benchmark tool in `perf/` |
 
@@ -83,7 +83,7 @@ sequenceDiagram
 
 ## UC-02: Generate and start the network
 
-**Goal:** A 4-validator QBFT network with 2 RPC nodes is running and consistent.
+**Goal:** A QBFT network with one validator and one RPC node is running. *(Changed 2026-10-03, plan D-17: the diagram and notes below show the original 4 validators and 2 RPC nodes; the flow is the same with one of each.)*
 
 **Trigger:** Developer runs `python scripts/stack.py up`.
 
@@ -128,7 +128,7 @@ sequenceDiagram
 
 ## UC-03: Survive a validator failure
 
-**Goal:** Show that the chain keeps producing blocks with 1 of 4 validators down.
+**Goal:** ~~Show that the chain keeps producing blocks with 1 of 4 validators down.~~ **Removed 2026-10-03 (plan D-17): with one validator there is no fault tolerance to show.** The text below is the original use case, kept as a record.
 
 **Trigger:** Developer stops one validator container.
 

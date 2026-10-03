@@ -7,10 +7,7 @@ from collections.abc import Mapping
 
 from src.adapters.docker_stack import ChainHeights
 
-RPC_NODES = {
-    "besu-rpc-anson": "http://localhost:8545",
-    "besu-rpc-beatrice": "http://localhost:8555",
-}
+RPC_NODES = {"besu-rpc-anson": "http://localhost:8545"}
 
 
 def _block_number(url: str, timeout: float) -> int:

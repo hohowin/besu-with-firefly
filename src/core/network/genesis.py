@@ -2,7 +2,7 @@
 
 from typing import Any
 
-MIN_VALIDATORS = 4  # n = 3f + 1 with f = 1
+MIN_VALIDATORS = 1  # one validator is a valid QBFT network; it just tolerates no failure (f = 0)
 
 
 def build_qbft_config(
@@ -18,8 +18,7 @@ def build_qbft_config(
     """
     if validator_count < MIN_VALIDATORS:
         raise ValueError(
-            f"QBFT needs at least {MIN_VALIDATORS} validators for f = 1 (n = 3f + 1), "
-            f"got {validator_count}"
+            f"QBFT needs at least {MIN_VALIDATORS} validator, got {validator_count}"
         )
     for name, value in (
         ("chain_id", chain_id),

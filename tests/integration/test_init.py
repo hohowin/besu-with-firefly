@@ -17,11 +17,11 @@ def test_init_with_the_real_besu_tool(tmp_path: Path) -> None:
     assert "qbft" in genesis["config"]
     assert genesis["config"]["chainId"] == 20260916
     assert genesis["config"]["zeroBaseFee"] is True
-    assert len(result.validator_addresses) == 4
+    assert len(result.validator_addresses) == 1
     assert extra_data_lists_all(genesis["extraData"], result.validator_addresses)
 
     nodes = json.loads((tmp_path / "static-nodes.json").read_text(encoding="utf-8"))
-    assert len(nodes) == 4
+    assert len(nodes) == 1
     for number, enode in enumerate(nodes, start=1):
         pub = (tmp_path / "validator-keys" / f"validator-{number}" / "key.pub").read_text("utf-8")
         assert enode.startswith("enode://" + pub.strip().removeprefix("0x") + "@172.28.0.")

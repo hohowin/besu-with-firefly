@@ -7,12 +7,22 @@ from pathlib import Path
 Generator = Callable[[Path, Path], None]
 
 
-def fake_generator(seed: int = 1, count: int = 4, omit_from_extra_data: bool = False) -> Generator:
-    """Write what `besu operator generate-blockchain-config` writes, with made-up keys."""
+def fake_generator(
+    seed: int = 1,
+    count: int = 1,
+    omit_from_extra_data: bool = False,
+    asked_for: int | None = None,
+) -> Generator:
+    """Write what `besu operator generate-blockchain-config` writes, with made-up keys.
+
+    It makes `count` validators and checks that this is what it was asked for (`asked_for`
+    defaults to `count`; a test can set it differently to model a tool that misbehaves).
+    """
 
     def run(config_file: Path, out_dir: Path) -> None:
         requested = json.loads(config_file.read_text(encoding="utf-8"))["blockchain"]["nodes"]
-        assert requested["count"] == 4 and requested["generate"] is True
+        assert requested["count"] == (count if asked_for is None else asked_for)
+        assert requested["generate"] is True
         addresses = [f"0x{seed:02x}{i:02x}".ljust(42, "0") for i in range(count, 0, -1)]
         out_dir.mkdir(parents=True)
         listed = addresses[:-1] if omit_from_extra_data else addresses

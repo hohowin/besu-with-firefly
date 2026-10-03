@@ -13,7 +13,7 @@ from src.adapters.docker_stack import REPO_ROOT, DockerStack
 from tests.support.deploy import run_deploy
 from tests.support.firefly import ff_get
 from tests.support.polling import wait_for
-from tests.support.rpc import RPC_ANSON, RPC_BEATRICE, block_number
+from tests.support.rpc import RPC_ANSON, block_number
 
 PROJECT = "besu-with-firefly"
 
@@ -51,7 +51,7 @@ ADDRESSES_FILE = REPO_ROOT / "deployed-addresses.json"
 def test_reset_removes_everything_and_the_next_up_starts_from_block_zero(
     stack: DockerStack, deployed: dict[str, str]
 ) -> None:
-    for url in (RPC_ANSON, RPC_BEATRICE):
+    for url in (RPC_ANSON,):
         wait_for(partial(_reached, url, 10), describe=f"{url} past block 10")
     assert ADDRESSES_FILE.exists() and ff_get("/api/v1/namespaces/default/apis")
 
@@ -67,14 +67,14 @@ def test_reset_removes_everything_and_the_next_up_starts_from_block_zero(
     up = stack_py("up")
     assert up.returncode == 0, up.stderr
     # `up` only returns once the chain moves and FireFly is ready, so no waiting here.
-    for url in (RPC_ANSON, RPC_BEATRICE):
+    for url in (RPC_ANSON,):
         assert block_number(url) >= 1, f"{url} is still at block 0 right after `up`"
     assert ff_get("/api/v1/status")["namespace"]["name"] == "default"
     assert ff_get("/api/v1/namespaces/default/apis") == [], "a contract API survived the reset"
     assert ff_get("/api/v1/namespaces/default/contracts/interfaces") == []
     # A chain restarted at genesis makes one block per 2 s, so its height cannot exceed that.
     limit = (time.monotonic() - started) / 2 + 5
-    for url in (RPC_ANSON, RPC_BEATRICE):
+    for url in (RPC_ANSON,):
         height = wait_for(partial(block_number, url), describe=f"{url} to answer")
         assert height <= limit, f"{url} is at block #{height}, above {limit:.0f}: not a new chain"
 

@@ -3,18 +3,18 @@
   "wallets": [
     {
       "name": "admin",
-      "address": "0xd11858978201f77ae5a863043a967d7ba1ae3b7c",
-      "privateKey": "0x6ba20d8b97a1eed5e58b90cd6d20adcff8aab226259c0f5951f8efdda93be72f"
+      "address": "0x6789a6e90e2a7ede268916170a43ce658ae4aae1",
+      "privateKey": "0x598e9cf6acebc6b88225cde7e5089d50d19c7fa0ba3c6211f0998eef2396a405"
     },
     {
       "name": "anson",
-      "address": "0xfa8f0b57721943aa560b809f6309ff2bfecc8f2f",
-      "privateKey": "0x7ee5c04fcc77e1ee05a40b91c2d00a1033323f329029d37ec7677170b3e9934d"
+      "address": "0x5bee25122377a77de6a98af10eaef20464658279",
+      "privateKey": "0xd7ffd58275e57a4cff31154a4ee349cb03476b2d36abd3c6842183cf23da18b1"
     },
     {
       "name": "beatrice",
-      "address": "0x71e03d2855c7e7dc70009540e4a1e032d2f52027",
-      "privateKey": "0x8f8456ff90f1284d1a46d23273c71f2237a7ef8b5e24ed96a155e540683a7707"
+      "address": "0x1077b3dded596660c258dcb702035efb5ec24f45",
+      "privateKey": "0x71cf6a92fd2f498e73ba40dbeef53c4725929d65d71b29707a6104c632a25e97"
     }
   ]
 }
