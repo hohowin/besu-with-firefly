@@ -137,14 +137,14 @@ Sizes: no task is L or larger. Tasks 1, 5 and 7 are the largest (M).
 **Description:** Extend `stack.py deploy` with a Paladin phase (run after the FireFly phase). Pure plan in `src/core/paladin/bootstrap.py`: deploy, through node1's RPC and in the operator's order, `registry` (constructor `[false]`, key `registry.operator`), `noto`, `noto_factory`, then `noto_factory_proxy` (constructor: the factory address and the `initialize(noto)` call data, built purely from the Noto address). Save the four addresses in `deployed-addresses.json` (as `paladin-registry`, `paladin-noto`, `paladin-noto-factory`, `paladin-noto-factory-proxy`). Then write each node's runtime config with the Noto domain (`registryAddress` = the factory proxy) and the EVM registry (`contractAddress` = the registry), restart the three Paladin containers, and wait until each answers again and `domain_listDomains` returns `noto`. Re-running `deploy` skips what is done (contracts that still have code on chain; a config that already holds the addresses is not rewritten and the nodes are not restarted).
 
 **Acceptance criteria:**
-- [ ] The four addresses are non-zero and have code on chain, deployed by Paladin's own keys (the integration test checks the deployer is node1's `registry.operator` key and that FireFly has no operation for them)
-- [ ] After `deploy`, `domain_listDomains` returns `noto` on all three nodes
-- [ ] A second `deploy` sends no Paladin transaction and does not restart the nodes (unit-tested on the pure plan and checked by the integration test through the nodes' start times)
-- [ ] An interrupted bootstrap (killed after some contracts) is finished by running `deploy` again
+- [x] The four addresses are non-zero and have code on chain, deployed by Paladin's own keys (the integration test checks the deployer is node1's `registry.operator` key and that FireFly has no operation for them)
+- [x] After `deploy`, `domain_listDomains` returns `noto` on all three nodes
+- [x] A second `deploy` sends no Paladin transaction and does not restart the nodes (unit-tested on the pure plan and checked by the integration test through the nodes' start times)
+- [x] An interrupted bootstrap (killed after some contracts) is finished by running `deploy` again
 
 **Verification:**
-- [ ] Tests pass: `pytest tests/unit` and `pytest -m integration -k paladin_bootstrap`
-- [ ] Checks clean: `ruff check .` and `mypy .`
+- [x] Tests pass: `pytest tests/unit` and `pytest -m integration -k paladin_bootstrap`
+- [x] Checks clean: `ruff check .` and `mypy .`
 
 **Dependencies:** Tasks 3, 4
 
@@ -154,6 +154,8 @@ Sizes: no task is L or larger. Tasks 1, 5 and 7 are the largest (M).
 - `tests/unit/core/test_paladin_bootstrap.py`, `tests/unit/adapters/test_paladin_deploy.py`, `tests/integration/test_paladin_bootstrap.py`
 
 **Size:** M
+
+**Status:** Done 2026-10-03. Test-first (11 pure tests for the bootstrap plan, 16 for the runner, 4 for the addresses file, CLI and `DockerStack.restart` tests; 8 new integration tests). `stack.py deploy` now runs a Paladin phase after the T-REX phase: the four contracts are deployed through node1 in the operator's order by Paladin's own keys (`registry.operator` and the others; the registry with `[false]`, the proxy with the factory and `initialize(noto)` call data), each address is saved as `paladin-registry`, `paladin-noto`, `paladin-noto-factory` and `paladin-noto-factory-proxy`, each node's config in `paladin-runtime/` is rebuilt as the committed base plus the Noto domain and EVM registry blocks, and a node is restarted only if its config changed or its domain is not loaded. **On the real stack it worked first time:** all three nodes list `noto`, a second `deploy` took 4 s, sent nothing and restarted no node, and a bootstrap killed after two contracts was finished by running the phase again without redeploying them. Runtime code sizes are checked on chain (all under 24,576). `deployed-addresses.json` is now written by merging (`src/adapters/addresses.py`), because the T-REX phase used to replace the whole file and would have erased the Paladin entries; it has 22 entries. Proof of who deployed: each contract's creation transaction on Besu is from the key node1 resolves for its label (`ptx_queryTransactionReceipts` gives the transaction hash), and FireFly has no deploy operation for them. A test-order issue showed up in the full run (`paladin_nodes` ran just after the interruption test had restarted the nodes and saw one `starting`); the interruption test now waits for a healthy stack before it ends. Full suite from a fresh `reset`, `up`, `deploy`: 79 passed plus that one, and the two modules re-run together passed (12).
 
 ### Task 6: Register the three nodes in the EVM registry
 

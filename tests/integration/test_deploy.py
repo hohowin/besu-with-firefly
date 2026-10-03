@@ -8,6 +8,7 @@ import pytest
 from src.adapters.docker_stack import REPO_ROOT
 from src.adapters.trex_artifacts import load_artifact
 from src.adapters.trex_suite import SUITE_NAMES
+from src.core.paladin.bootstrap import ADDRESS_NAMES as PALADIN_NAMES
 from src.core.trex.plan import Deploy, build_plan
 from tests.support.deploy import abi_of, run_deploy
 from tests.support.firefly import ff_get, ff_query
@@ -33,7 +34,7 @@ def invoke_operations() -> list[dict[str, Any]]:
 
 
 def test_every_contract_has_a_non_zero_address_with_code_on_chain(deployed: dict[str, str]) -> None:
-    assert sorted(deployed) == sorted(PLAN_NAMES + SUITE_NAMES)
+    assert sorted(deployed) == sorted(PLAN_NAMES + SUITE_NAMES + list(PALADIN_NAMES.values()))
     for name, address in deployed.items():
         assert int(address, 16) != 0, f"{name} has the zero address"
         assert rpc_call(RPC_ANSON, "eth_getCode", [address, "latest"]) not in ("0x", ""), name

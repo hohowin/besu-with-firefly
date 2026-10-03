@@ -211,3 +211,24 @@ def test_a_timed_out_compose_command_becomes_a_stack_error_that_says_so() -> Non
 
     with pytest.raises(StackError, match="timed out after 900s"):
         DockerStack(runner=runner).states()
+
+
+def test_restart_runs_docker_restart_for_the_container() -> None:
+    runner = FakeRunner([ps("healthy")])
+
+    def fake(command: Sequence[str]) -> tuple[int, str, str]:
+        if command[:2] == ["docker", "restart"]:
+            runner.commands.append(list(command))
+            return 0, "", ""
+        return runner(command)
+
+    DockerStack(runner=fake).restart("paladin-node1")
+    assert ["docker", "restart", "--time", "10", "paladin-node1"] in runner.commands
+
+
+def test_restart_of_a_missing_container_raises_stack_error() -> None:
+    def runner(command: Sequence[str]) -> tuple[int, str, str]:
+        return 1, "", "No such container: nope"
+
+    with pytest.raises(StackError, match="No such container"):
+        DockerStack(runner=runner).restart("nope")

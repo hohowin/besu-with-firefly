@@ -138,14 +138,16 @@ class DockerStack:
         """Stop one container (it stays stopped; the stack has no restart policy)."""
         self._checked(["docker", "stop", "--time", "10", container])
 
+    def restart(self, container: str) -> None:
+        """Restart one container; its volumes and mounted files stay (the files are read again)."""
+        self._checked(["docker", "restart", "--time", "10", container])
+
     def start(self, container: str) -> None:
         self._checked(["docker", "start", container])
 
     def started_at(self, container: str) -> str:
         """The container's last start time. It changes if the container restarts."""
-        out = self._checked(
-            ["docker", "inspect", "--format", "{{.State.StartedAt}}", container]
-        )
+        out = self._checked(["docker", "inspect", "--format", "{{.State.StartedAt}}", container])
         return out.strip()
 
     def published_ports(self, container: str) -> list[str]:

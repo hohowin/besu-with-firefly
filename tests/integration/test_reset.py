@@ -106,12 +106,12 @@ def test_an_interrupted_deploy_is_finished_by_running_deploy_again(stack: Docker
         process.kill()  # in the middle of the plan
         process.wait()
     partial_addresses = json.loads(ADDRESSES_FILE.read_text("utf-8"))
-    assert 3 <= len(partial_addresses) < 18, "the run was not interrupted part-way"
+    assert 3 <= len(partial_addresses) < 22, "the run was not interrupted part-way"
 
     result = run_deploy()
     assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
     final = json.loads(ADDRESSES_FILE.read_text("utf-8"))
-    assert len(final) == 18
+    assert len(final) == 22  # 12 T-REX contracts, 6 suite contracts, 4 Paladin contracts
     assert all(final[name] == address for name, address in partial_addresses.items())
 
     # One token only, and a third run finds nothing left to do.

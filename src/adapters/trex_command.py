@@ -4,17 +4,16 @@ import json
 from collections.abc import Callable
 from pathlib import Path
 
+from src.adapters.addresses import DEPLOYED_ADDRESSES, read_addresses, update_addresses
 from src.adapters.firefly import FireflyClient, http_transport
 from src.adapters.rpc import get_code
 from src.adapters.trex_apis import register_apis, unpause_token
-from src.adapters.trex_artifacts import REPO_ROOT, load_artifact
+from src.adapters.trex_artifacts import load_artifact
 from src.adapters.trex_deploy import run_plan
 from src.adapters.trex_onboard import issue_claims, mint_initial_supply, register_identities
 from src.adapters.trex_suite import read_suite
 from src.core.network.wallets import account_addresses, wallet_private_key
 from src.core.trex.plan import build_plan
-
-DEPLOYED_ADDRESSES = REPO_ROOT / "deployed-addresses.json"
 
 
 def deploy_trex(
@@ -33,14 +32,11 @@ def deploy_trex(
     """
     document = json.loads((network_dir / "wallets.json").read_text(encoding="utf-8"))
     accounts = account_addresses(document)
-    existing: dict[str, str] = {}
-    if out.is_file():
-        existing = json.loads(out.read_text(encoding="utf-8"))
+    existing = read_addresses(out)
     client = FireflyClient(http_transport())
 
     def save(addresses: dict[str, str]) -> None:
-        text = json.dumps(addresses, indent=2) + "\n"
-        out.write_text(text, encoding="utf-8", newline="\n")
+        update_addresses(out, addresses)  # adds to the file; other phases' entries stay
 
     deployed = run_plan(
         build_plan(),
@@ -73,7 +69,7 @@ def onboard_trex(
 ) -> None:
     """Register and verify the demo investors. Needs `deploy`; sends only what is missing."""
     document = json.loads((network_dir / "wallets.json").read_text(encoding="utf-8"))
-    addresses: dict[str, str] = json.loads(out.read_text(encoding="utf-8"))
+    addresses = read_addresses(out)
     client = FireflyClient(http_transport())
     accounts = account_addresses(document)
     register_identities(client, load_artifact, addresses, accounts, log)

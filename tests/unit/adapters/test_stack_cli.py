@@ -16,6 +16,7 @@ def isolated_paladin_folders(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) ->
 
     source = tmp_path / "_paladin"
     write_paladin_files(source, fake_cert_maker())
+    monkeypatch.setattr(stack_cli, "deploy_paladin_phase", lambda: None)  # never the live nodes
     monkeypatch.setattr(stack_cli, "PALADIN_SOURCE", source)
     monkeypatch.setattr(stack_cli, "PALADIN_RUNTIME", tmp_path / "_paladin-runtime")
 
@@ -277,3 +278,55 @@ def test_a_failed_reset_keeps_the_paladin_runtime_folder(tmp_path: Path) -> None
     )
     assert code == 1
     assert runtime.exists()
+
+
+def test_deploy_runs_the_paladin_phase_after_the_trex_phase(tmp_path: Path) -> None:
+    order: list[str] = []
+
+    def deployer(_network_dir: Path) -> dict[str, str]:
+        order.append("trex")
+        return {}
+
+    def paladin() -> None:
+        order.append("paladin")
+
+    assert (
+        main(
+            ["deploy", "--network-dir", str(tmp_path)], deployer=deployer, paladin_deployer=paladin
+        )
+        == 0
+    )
+    assert order == ["trex", "paladin"]
+
+
+def test_a_failed_trex_phase_skips_the_paladin_phase(tmp_path: Path) -> None:
+    from src.adapters.trex_deploy import DeployStepError
+
+    ran: list[str] = []
+
+    def deployer(_network_dir: Path) -> dict[str, str]:
+        raise DeployStepError("trex-factory", "boom")
+
+    code = main(
+        ["deploy", "--network-dir", str(tmp_path)],
+        deployer=deployer,
+        paladin_deployer=lambda: ran.append("paladin"),
+    )
+    assert code == 1 and ran == []
+
+
+def test_a_failed_paladin_phase_exits_one_and_names_the_step(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from src.adapters.paladin_deploy import PaladinBootstrapError
+
+    def paladin() -> None:
+        raise PaladinBootstrapError("noto_factory", "reverted")
+
+    code = main(
+        ["deploy", "--network-dir", str(tmp_path)],
+        deployer=lambda _d: {},
+        paladin_deployer=paladin,
+    )
+    assert code == 1
+    assert "noto_factory: reverted" in capsys.readouterr().err
