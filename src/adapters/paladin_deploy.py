@@ -124,12 +124,13 @@ def deploy_paladin(
     code_at: Callable[[str], str],
     save: Callable[[dict[str, str]], None],
     restart: Callable[[str], None],
+    register: Callable[[str], None],
     log: Callable[[str], None],
     sleep: Callable[[float], None] = time.sleep,
     clock: Callable[[], float] = time.monotonic,
     ready_timeout: float = 180.0,
 ) -> dict[str, str]:
-    """Bring Paladin from "nodes running" to "Noto domain loaded on all three nodes".
+    """Bring Paladin from "nodes running" to "Noto loaded and the nodes registered".
 
     Safe to repeat: contracts that exist are kept, a config that is already final is not
     rewritten, and a node is restarted only if its config changed or its domain is not loaded.
@@ -147,4 +148,5 @@ def deploy_paladin(
                         node, f"the {DOMAIN} domain did not load within {ready_timeout:g}s"
                     )
                 sleep(2.0)
+    register(addresses["registry"])  # once every node has its domain and is answering
     return addresses

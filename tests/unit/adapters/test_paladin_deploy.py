@@ -182,10 +182,14 @@ def test_new_addresses_rewrite_the_configs(tmp_path: Path) -> None:
     assert changed == list(NODES)
 
 
+REGISTERED: list[str] = []
+
+
 def orchestrate(
     tmp_path: Path, client: FakeClient, existing: dict[str, str] | None = None
 ) -> tuple[list[str], dict[str, str]]:
     restarted: list[str] = []
+    registered: list[str] = []
 
     def restart(container: str) -> None:
         restarted.append(container)
@@ -200,10 +204,12 @@ def orchestrate(
         code_at=code_everywhere,
         save=lambda _updates: None,
         restart=restart,
+        register=lambda registry: registered.append(registry),
         log=lambda _line: None,
         sleep=lambda _s: None,
         clock=iter(range(100_000)).__next__,
     )
+    REGISTERED[:] = registered
     return restarted, result
 
 
@@ -246,3 +252,20 @@ def test_a_domain_that_never_loads_is_an_error_naming_the_node(tmp_path: Path) -
 
 def test_the_vendored_artifacts_are_where_the_loader_expects_them() -> None:
     assert (CONTRACTS_DIR / "core_v1alpha1_smartcontractdeployment_registry.yaml").is_file()
+
+
+def test_the_nodes_are_registered_in_the_new_registry_once_the_domains_are_loaded(
+    tmp_path: Path,
+) -> None:
+    client = FakeClient()
+    _restarted, result = orchestrate(tmp_path, client)
+    assert [result["registry"]] == REGISTERED
+    assert all(client.has_domain.values())
+
+
+def test_a_domain_that_never_loads_means_no_registration(tmp_path: Path) -> None:
+    client = FakeClient(domains_after_restart=False)
+    REGISTERED.clear()
+    with pytest.raises(PaladinBootstrapError):
+        orchestrate(tmp_path, client)
+    assert REGISTERED == []

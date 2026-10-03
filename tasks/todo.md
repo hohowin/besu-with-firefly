@@ -162,13 +162,13 @@ Sizes: no task is L or larger. Tasks 1, 5 and 7 are the largest (M).
 **Description:** As part of the Paladin phase of `deploy`, mirror the operator's flow: node1's `registry.operator` key calls `registerIdentity(parentIdentityHash = 0x00..00, name = nodeN, owner = nodeN's registry.nodeN key address)` for each node; then each node calls `setIdentityProperty(identityHash, "transport.grpc", <transport_localTransportDetails("grpc")>)` with its own `registry.nodeN` key. Pure code decides what is missing from `reg_queryEntries` (an identity not yet registered, a property not yet set), so a second run sends nothing.
 
 **Acceptance criteria:**
-- [ ] `reg_queryEntries` on node1 lists `node1`, `node2` and `node3`, each with a `transport.grpc` property whose endpoint is `dns:///paladin-nodeN:9000`
-- [ ] A second run sends no registry transaction (the integration test counts the registry's logs on chain before and after)
-- [ ] The pure decision logic is unit-tested for nothing registered, some registered, everything registered, and a property already set
+- [x] `reg_queryEntries` on node1 lists `node1`, `node2` and `node3`, each with a `transport.grpc` property whose endpoint is `dns:///paladin-nodeN:9000`
+- [x] A second run sends no registry transaction (the integration test counts the registry's logs on chain before and after)
+- [x] The pure decision logic is unit-tested for nothing registered, some registered, everything registered, and a property already set
 
 **Verification:**
-- [ ] Tests pass: `pytest tests/unit` and `pytest -m integration -k paladin_registry`
-- [ ] Checks clean: `ruff check .` and `mypy .`
+- [x] Tests pass: `pytest tests/unit` and `pytest -m integration -k paladin_registry`
+- [x] Checks clean: `ruff check .` and `mypy .`
 
 **Dependencies:** Task 5
 
@@ -177,6 +177,8 @@ Sizes: no task is L or larger. Tasks 1, 5 and 7 are the largest (M).
 - `tests/unit/core/test_paladin_registry.py`, `tests/integration/test_paladin_registry.py`
 
 **Size:** S
+
+**Status:** Done 2026-10-03. Test-first (7 pure tests for the decisions, 6 for the runner with a stateful fake of the registry, 2 for the wiring; 11 integration tests). Pure `src/core/paladin/registry.py` decides from `reg_queryEntriesWithProps` (which, unlike `reg_queryEntries`, shows each entry's `properties`) what is missing: every absent identity first, then every absent or outdated `transport.grpc`. `src/adapters/paladin_registry.py` sends `registerIdentity` from node1's `registry.operator` key with each node's own `registry.<node>` address as owner, then each node sets its own `transport.grpc` (the output of `transport_localTransportDetails`: `dns:///paladin-<node>:9000` plus its certificate) with its own key on its own node. It runs as the last step of the Paladin phase, after every domain is loaded. On the real stack it worked first time: node1 lists `node1`, `node2`, `node3` (and the `root` entry owned by `registry.operator`), all with their endpoints; a second `deploy` sent no registry transaction (the registry's logs on chain did not grow).
 
 ## Checkpoint: After Tasks 3–6
 

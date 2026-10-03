@@ -8,6 +8,7 @@ from src.adapters.docker_stack import DockerStack
 from src.adapters.paladin import PALADIN_NODES, PaladinClient, http_transport
 from src.adapters.paladin_artifacts import load_paladin_artifact
 from src.adapters.paladin_deploy import deploy_paladin
+from src.adapters.paladin_registry import register_nodes
 from src.adapters.rpc import get_code
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -30,8 +31,13 @@ def deploy_paladin_phase(
     def save(updates: dict[str, str]) -> None:
         update_addresses(out, updates)
 
+    client = PaladinClient(PALADIN_NODES, http_transport())
+
+    def register(registry: str) -> None:
+        register_nodes(client, load_paladin_artifact, registry, log)
+
     return deploy_paladin(
-        PaladinClient(PALADIN_NODES, http_transport()),
+        client,
         load=load_paladin_artifact,
         source=source,
         runtime=runtime,
@@ -39,5 +45,6 @@ def deploy_paladin_phase(
         code_at=get_code,
         save=save,
         restart=DockerStack().restart,
+        register=register,
         log=log,
     )
