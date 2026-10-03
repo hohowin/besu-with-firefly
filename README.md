@@ -58,13 +58,16 @@ pip install -e ".[dev]"
 (cd contracts && npm ci)              # the pinned T-REX and OnchainID contract artifacts
 python scripts/stack.py up            # 4 validators, 2 RPC nodes, FireFly; waits until all is healthy and the chain moves
 python scripts/stack.py deploy        # T-REX through FireFly, the COIN APIs, onboarding of Anson and Beatrice, 1000 COIN minted
-pytest -m integration                 # proves it all (about 10 minutes; it stops and restarts validators)
+pytest -m "integration and not fault_injection"   # the integration gate (about 5 minutes)
+pytest -m fault_injection             # stops and restarts validators (about 5 minutes; see below)
 python scripts/stack.py reset         # removes containers, volumes and deployed-addresses.json; the next `up` starts at block 0
 ```
 
 The genesis, validator keys, `static-nodes.json`, demo wallets and the FireFly config and signer keystores are already committed in `network-config/`, so `up` needs no generation step. `python scripts/stack.py init --force` regenerates them (it needs Docker for Besu's own generator and refuses to overwrite without `--force`).
 
 `deploy` and `onboard` only do what is missing, so running them again sends nothing, and running `deploy` again finishes an interrupted run. `python scripts/stack.py onboard` repeats just the investor onboarding.
+
+The two fault-injection tests are kept apart because with 4 validators and one stopped, the other three are exactly the quorum: if one of them is slow, QBFT's round timer doubles and blocks can pause for minutes, so they can fail on a loaded machine (details in `docs/spike-results.md`). `pytest -m integration` runs everything.
 
 A cold `up` takes 2 to 3 minutes (it waits up to 5) and can take longer on a busy machine. Planned, not built yet: Paladin joining `up`, `deploy` and `reset` (Phase 3).
 

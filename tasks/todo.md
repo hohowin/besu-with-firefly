@@ -1,7 +1,7 @@
 # Tasks — Phase 2: FireFly + ERC-3643
 
 > Source: `docs/plan.md` Phase 2 (steps 1 to 7), `docs/prd.md` US-004 to US-008, FR-3 to FR-7 and FR-11, `docs/deliverables.md` DL-2.1 to DL-2.6, `docs/use-cases.md` UC-04 to UC-07, `docs/spike-results.md` (Risks 1, 3, 4, 7 and "Versions to pin"). Decisions: D-02 (FireFly gateway mode), D-03 (hand-written Compose), D-04 (official T-REX, deployed through FireFly), D-07 (register, claim, mint, transfer), D-08 (Shanghai, `zeroBaseFee`), D-10 (demo keys committed), D-16 (`python scripts/stack.py`). Phase 1 is complete and reviewed; its task list is `tasks/phase-1-network.md`.
-> **Status: approved by Howin on 2026-10-02 (all Open Questions answered as recommended). Tasks 1 to 14 are built; the exit gate's "three consecutive clean full runs" is not met (see Task 13) and waits for Howin's decision.**
+> **Status: approved by Howin on 2026-10-02 (all Open Questions answered as recommended). Tasks 1 to 14 are built and the exit gate is met with the fault-injection tests kept separate (Howin's decision); the final human review is pending.**
 
 ## Overview
 
@@ -351,11 +351,11 @@ Sizes: no task is L or larger. Tasks 7 and 9 are the largest (M).
 
 **Acceptance criteria:**
 - [x] After `reset`, no FireFly container or volume remains and no stale `deployed-addresses.json` or FireFly contract API exists
-- [ ] `reset && up && deploy` followed by `pytest -m integration` passes in three consecutive runs **(NOT MET, see Status)**
+- [x] `reset && up && deploy` followed by the integration gate `pytest -m "integration and not fault_injection"` passes in three consecutive runs (the two fault-injection tests are reported separately, see Status)
 - [x] A partial failure message of `deploy` names the step; running `deploy` again after fixing it completes (re-entrant): a `deploy` killed in the middle of the plan was finished by running it again, with one token and no duplicate
 
 **Verification:**
-- [ ] Tests pass: `pytest -m integration` three times after `python scripts/stack.py reset && python scripts/stack.py up && python scripts/stack.py deploy` **(NOT MET, see Status)**
+- [x] Tests pass: the integration gate three times after `python scripts/stack.py reset && python scripts/stack.py up && python scripts/stack.py deploy`
 - [x] Checks clean: `ruff check .` and `mypy .`
 
 **Dependencies:** Tasks 3, 11, 12
@@ -366,7 +366,9 @@ Sizes: no task is L or larger. Tasks 7 and 9 are the largest (M).
 
 **Size:** M
 
-**Status:** Built 2026-10-02, **the three-clean-runs criterion is not met.** What works: `reset` removes everything including `deployed-addresses.json`; after `reset` and `up` FireFly has no contract interface or API; `deploy` killed part-way is finished by running it again (one token, no duplicate). **Full-suite runs from a reset and deployed stack, in order:** 63 of 64 (a FireFly read timed out; fixed by retrying reads), 63 of 64 plus 2 errors (QBFT pause), 64 of 64 (the only fully clean run), a fresh clone following the README 64 of 65 (a 90 s wait for an RPC node to re-peer; measured at 61 s on a 60 s reconnect cycle, wait raised to 150 s), then three runs on the final code: 64 of 66 plus 2 errors, 65 of 65 plus 1 teardown error, 64 of 65. **Every failure since the read-timeout fix is in the fault-injection tests** (they stop validators): after one validator is stopped the other three are exactly the quorum, a lagging one makes QBFT's round timer double (4, 8, 16, 32, 64 s) and blocks pause for minutes, so the 30 s assertion, the 90 s wait for the chain to resume after the validators are restored, and the 90 s wait for the restarted validator to catch up each failed at least once. All other tests passed in every one of these runs. The developer accepted occasional failures of the 30 s assertion (2026-10-02), but the measured rate is about one failure per full run on this machine, which is more than occasional. Options not yet taken: put the fault-injection tests under their own marker so `pytest -m "integration and not fault_injection"` can gate the rest, make the cleanup wait after a restore patient (it is cleanup, not an assertion), or lower `requesttimeoutseconds`.
+**Status:** Built 2026-10-02, **the three-clean-runs criterion was not met until the fault-injection tests were separated (see the decision below).** What works: `reset` removes everything including `deployed-addresses.json`; after `reset` and `up` FireFly has no contract interface or API; `deploy` killed part-way is finished by running it again (one token, no duplicate). **Full-suite runs from a reset and deployed stack, in order:** 63 of 64 (a FireFly read timed out; fixed by retrying reads), 63 of 64 plus 2 errors (QBFT pause), 64 of 64 (the only fully clean run), a fresh clone following the README 64 of 65 (a 90 s wait for an RPC node to re-peer; measured at 61 s on a 60 s reconnect cycle, wait raised to 150 s), then three runs on the final code: 64 of 66 plus 2 errors, 65 of 65 plus 1 teardown error, 64 of 65. **Every failure since the read-timeout fix is in the fault-injection tests** (they stop validators): after one validator is stopped the other three are exactly the quorum, a lagging one makes QBFT's round timer double (4, 8, 16, 32, 64 s) and blocks pause for minutes, so the 30 s assertion, the 90 s wait for the chain to resume after the validators are restored, and the 90 s wait for the restarted validator to catch up each failed at least once. All other tests passed in every one of these runs. The developer accepted occasional failures of the 30 s assertion (2026-10-02), but the measured rate is about one failure per full run on this machine, which is more than occasional. Options not yet taken: put the fault-injection tests under their own marker so `pytest -m "integration and not fault_injection"` can gate the rest, make the cleanup wait after a restore patient (it is cleanup, not an assertion), or lower `requesttimeoutseconds`.
+
+**Decision (Howin, 2026-10-02):** put the fault-injection tests under their own marker and make the cleanup after a restore patient. Done: marker `fault_injection` on `test_two_failed_validators_halt_the_chain_as_expected` and `test_one_failed_validator_does_not_halt_the_chain_and_it_rejoins`; the `restore_validators` cleanup now waits up to 300 s for blocks (it is cleanup, not an assertion). The assertions themselves are unchanged (30 s for blocks with one validator stopped, 90 s for the restarted validator to catch up). **Result with the gate `pytest -m "integration and not fault_injection"` (63 tests):** three consecutive runs from `reset`, `up` and `deploy`, 63 of 63 each time (5 to 6 minutes). `pytest -m fault_injection` after each of them passed 2 of 2 each time (4 to 5 minutes), but that is three runs against about one failure per full run seen before, so it is not evidence that the QBFT pause is gone.
 
 ### Task 14: Phase 2 documentation and sign-off
 
@@ -394,10 +396,10 @@ Sizes: no task is L or larger. Tasks 7 and 9 are the largest (M).
 
 - [x] Integration tests (onboarding, transfer, rejection) pass (in every run; the failures were in the fault-injection tests)
 - [x] Re-running register or claim sends no redundant transaction
-- [ ] `reset && up && deploy` then `pytest -m integration` passes three times in a row **(NOT MET: see Task 13 status)**
+- [x] `reset && up && deploy` then the integration gate `pytest -m "integration and not fault_injection"` passes three times in a row (63 of 63 each time; fault-injection tests reported separately, see Task 13)
 - [x] `ruff check .`, `mypy .` and `pytest` clean (285 unit tests)
 - [x] Anti-gate from `docs/plan.md`: the rejection reverts, so Phase 3 is not blocked
-- [ ] Human review before proceeding (**waiting for Howin**, including the decision on the unmet gate)
+- [ ] Human review before proceeding (**waiting for Howin**)
 
 ---
 

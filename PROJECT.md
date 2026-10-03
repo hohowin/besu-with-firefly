@@ -26,7 +26,8 @@ Python 3.11+ (developed on 3.13). Run these from the repo root inside the virtua
 | Lint | `ruff check .` |
 | Type-check | `mypy .` |
 | Unit tests | `pytest` (integration tests are skipped) |
-| Integration tests | `pytest -m integration` (needs Docker and a running stack; about 10 minutes, it stops and restarts validators) |
+| Integration tests, the gate | `pytest -m "integration and not fault_injection"` (needs Docker and a running stack; about 5 minutes) |
+| Integration tests, fault injection | `pytest -m fault_injection` (stops validators; about 5 minutes; can fail on a loaded machine, see `docs/spike-results.md`). `pytest -m integration` runs both |
 | Contract packages | `cd contracts && npm ci` (the pinned T-REX and OnchainID artifacts; needed by `deploy` and by some unit tests, which skip without them) |
 | Stack | `python scripts/stack.py init\|up\|deploy\|onboard\|reset` (plan D-16). `deploy` and `onboard` only do what is missing |
 
