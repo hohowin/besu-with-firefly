@@ -330,3 +330,36 @@ def test_a_failed_paladin_phase_exits_one_and_names_the_step(
     )
     assert code == 1
     assert "noto_factory: reverted" in capsys.readouterr().err
+
+
+def test_noto_demo_runs_the_demo_and_exits_zero() -> None:
+    calls: list[str] = []
+
+    def demo() -> str:
+        calls.append("ran")
+        return "0xtoken"
+
+    assert main(["noto-demo"], demo_runner=demo) == 0
+    assert calls == ["ran"]
+
+
+def test_noto_demo_on_an_undeployed_stack_exits_one_and_says_to_deploy(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from src.adapters.paladin_demo import NotDeployed
+
+    def demo() -> str:
+        raise NotDeployed("the Paladin contracts are not deployed, run `stack.py deploy` first")
+
+    assert main(["noto-demo"], demo_runner=demo) == 1
+    assert "run `stack.py deploy` first" in capsys.readouterr().err
+
+
+def test_noto_demo_that_saw_a_leak_exits_one(capsys: pytest.CaptureFixture[str]) -> None:
+    from src.adapters.paladin_demo import DemoFailed
+
+    def demo() -> str:
+        raise DemoFailed("node3: leak, sees [100]")
+
+    assert main(["noto-demo"], demo_runner=demo) == 1
+    assert "leak" in capsys.readouterr().err

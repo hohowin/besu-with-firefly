@@ -270,13 +270,13 @@ Sizes: no task is L or larger. Tasks 1, 5 and 7 are the largest (M).
 **Description:** A command that runs the whole story against the live stack and prints it: deploy a new Noto token with node1 as notary, mint 100 to Anson on node2, transfer 40 to Beatrice, print each party's balance and the coin amounts each node can see (the DL-3.2 and DL-3.3 demo, replacing the spike's `noto-3node.mjs` and `coins-by-node.mjs`). It creates a new token on every run. It stops with a clear message if the stack is not deployed.
 
 **Acceptance criteria:**
-- [ ] On a deployed stack, `python scripts/stack.py noto-demo` exits 0 and prints Anson 60, Beatrice 40 and the per-node view
-- [ ] On a stack where `deploy` has not run, it exits 1 and says to run `deploy` first
-- [ ] The output is produced by `src/adapters`, not by `src/core`
+- [x] On a deployed stack, `python scripts/stack.py noto-demo` exits 0 and prints Anson 60, Beatrice 40 and the per-node view
+- [x] On a stack where `deploy` has not run, it exits 1 and says to run `deploy` first
+- [x] The output is produced by `src/adapters`, not by `src/core`
 
 **Verification:**
-- [ ] Tests pass: `pytest tests/unit` and `pytest -m integration -k noto_demo`
-- [ ] Checks clean: `ruff check .` and `mypy .`
+- [x] Tests pass: `pytest tests/unit` and `pytest -m integration -k noto_demo`
+- [x] Checks clean: `ruff check .` and `mypy .`
 
 **Dependencies:** Task 9
 
@@ -286,13 +286,19 @@ Sizes: no task is L or larger. Tasks 1, 5 and 7 are the largest (M).
 
 **Size:** S
 
+**Status:** done. Real run exits 0 and prints Anson 60, Beatrice 40 and each node's view; with `deployed-addresses.json` moved away it exits 1 with "run `stack.py deploy` first" (checked by hand, plus unit tests).
+
 ## Checkpoint: After Tasks 7–10
 
-- [ ] `ruff check .`, `mypy .` and `pytest` clean
-- [ ] Mint 100, transfer 40: Anson 60 on node2, Beatrice 40 on node3; node3 never sees the mint or Anson's change
-- [ ] The public chain data for the token shows no amounts and no party addresses
-- [ ] M3 gate steps 3 to 5 from `docs/plan.md` hold
-- [ ] Human review before proceeding
+- [x] `ruff check .`, `mypy .` and `pytest` clean (439 unit tests; `pytest -m integration`: 102 passed in 14 min 27 s)
+- [x] Mint 100, transfer 40: Anson 60 on node2, Beatrice 40 on node3; node3 never sees the mint or Anson's change
+- [x] The public chain data for the token shows no amounts and no party addresses
+- [x] M3 gate steps 3 to 5 from `docs/plan.md` hold
+- [ ] Human review before proceeding (**waiting for Howin**)
+
+---
+
+Note: a first full integration run was stopped by the tool's 30-minute background limit at about 70% (no failure shown); the rerun with a 2-hour limit passed 102/102. Cause of the slow first run is not known.
 
 ---
 

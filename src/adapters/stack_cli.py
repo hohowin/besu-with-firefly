@@ -1,6 +1,6 @@
 """Command line for the stack: `python scripts/stack.py <command>`.
 
-`init`, `up`, `deploy`, `onboard` and `reset`.
+`init`, `up`, `deploy`, `onboard`, `noto-demo` and `reset`.
 """
 
 import argparse
@@ -22,6 +22,7 @@ from src.adapters.besu_config import (
 from src.adapters.docker_stack import DockerStack, StackError
 from src.adapters.firefly import FireflyError
 from src.adapters.paladin_command import deploy_paladin_phase
+from src.adapters.paladin_demo import DemoFailed, NotDeployed, noto_demo
 from src.adapters.paladin_deploy import PaladinBootstrapError
 from src.adapters.paladin_files import CertMaker, docker_cert_maker, seed_runtime
 from src.adapters.rpc import chain_heights_reader
@@ -80,6 +81,9 @@ def build_parser() -> argparse.ArgumentParser:
         help="where wallets.json is (default: network-config/)",
     )
     commands.add_parser(
+        "noto-demo", help="mint and transfer a private Noto token and show what each node sees"
+    )
+    commands.add_parser(
         "reset", help="remove the containers and volumes, so the chain restarts at genesis"
     )
     return parser
@@ -99,6 +103,7 @@ def main(
     deployer: Callable[[Path], dict[str, str]] | None = None,
     onboarder: Callable[[Path], None] | None = None,
     paladin_deployer: Callable[[], None] | None = None,
+    demo_runner: Callable[[], str] | None = None,
     addresses_file: Path = DEPLOYED_ADDRESSES,
     paladin_source: Path | None = None,
     paladin_runtime: Path | None = None,
@@ -106,7 +111,7 @@ def main(
     """Run a command and return the process exit code.
 
     Tests inject `generator`, `cert_maker`, `stack`, `deployer`, `onboarder`, `paladin_deployer`,
-    `addresses_file`, `paladin_source` and `paladin_runtime`.
+    `demo_runner`, `addresses_file`, `paladin_source` and `paladin_runtime`.
     """
     args = build_parser().parse_args(argv)
     if args.command == "init":
@@ -153,6 +158,12 @@ def main(
         try:
             (onboarder or onboard_trex)(args.network_dir)
         except (DeployStepError, FireflyError, OSError) as error:
+            print(f"error: {error}", file=sys.stderr)
+            return 1
+    if args.command == "noto-demo":
+        try:
+            (demo_runner or noto_demo)()
+        except (NotDeployed, DemoFailed, PaladinRpcError, OSError) as error:
             print(f"error: {error}", file=sys.stderr)
             return 1
     if args.command == "reset":
