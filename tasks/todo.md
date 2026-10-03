@@ -184,11 +184,11 @@ Sizes: no task is L or larger. Tasks 1, 5 and 7 are the largest (M).
 
 ## Checkpoint: After Tasks 3–6
 
-- [ ] `ruff check .`, `mypy .` and `pytest` clean
-- [ ] `python scripts/stack.py reset && up && deploy` leaves the Noto domain loaded on all three nodes and all three registered; a second `deploy` sends nothing
-- [ ] M3.1 gate from `docs/plan.md` (steps 1 and 2) holds
-- [ ] Anti-gate from `docs/plan.md` not triggered: Paladin runs from hand-written config on Compose
-- [ ] Human review before proceeding
+- [x] `ruff check .`, `mypy .` and `pytest` clean (403 unit tests)
+- [x] `python scripts/stack.py reset && up && deploy` leaves the Noto domain loaded on all three nodes and all three registered; a second `deploy` sends nothing (three cold cycles all exited 0; `pytest -m integration`: 91 passed in 10 min 40 s)
+- [x] M3.1 gate from `docs/plan.md` (steps 1 and 2) holds
+- [x] Anti-gate from `docs/plan.md` not triggered: Paladin runs from hand-written config on Compose
+- [ ] Human review before proceeding (**waiting for Howin**)
 
 ---
 
