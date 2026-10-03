@@ -199,14 +199,14 @@ Sizes: no task is L or larger. Tasks 1, 5 and 7 are the largest (M).
 **Description:** Pure request builders in `src/core/paladin/noto.py` for the three private calls (token deploy with `notary = notary@node1` and `notaryMode = "basic"`, `mint`, `balanceOf`), and an adapter function that deploys a token through node1 and mints 100 to `anson@node2` (submitted on node1). Without the constructor ABI Paladin fails with `PD200007: Parameter 'notary' is required`, so the deploy carries it (spike). The first call between nodes starts the gRPC connections, so this is where mutual TLS is exercised.
 
 **Acceptance criteria:**
-- [ ] The token address is returned and is known to node1 (notary), node2 (Anson) and node3
-- [ ] `balanceOf` for `anson@node2`, asked of node2, returns 100 (`totalBalance`)
-- [ ] node1's log shows `TLS handshake completed` with node2 (and the client side on node2), proving mTLS between nodes
-- [ ] A second token can be deployed independently (each test deploys its own)
+- [x] The token address is returned and is known to node1 (notary), node2 (Anson) and node3
+- [x] `balanceOf` for `anson@node2`, asked of node2, returns 100 (`totalBalance`)
+- [x] node1's log shows `TLS handshake completed` with node2 (and the client side on node2), proving mTLS between nodes
+- [x] A second token can be deployed independently (each test deploys its own)
 
 **Verification:**
-- [ ] Tests pass: `pytest tests/unit` and `pytest -m integration -k noto_mint`
-- [ ] Checks clean: `ruff check .` and `mypy .`
+- [x] Tests pass: `pytest tests/unit` and `pytest -m integration -k noto_mint`
+- [x] Checks clean: `ruff check .` and `mypy .`
 
 **Dependencies:** Task 6
 
@@ -216,18 +216,20 @@ Sizes: no task is L or larger. Tasks 1, 5 and 7 are the largest (M).
 
 **Size:** M
 
+**Status:** done. 4 integration tests pass (71 s); node1 and node2 logs show `TLS handshake completed`.
+
 ### Task 8: Transfer from Anson to Beatrice
 
 **Description:** `transfer` of 40 from `anson@node2` to `beatrice@node3`, submitted on node2 (Anson's own node), then balances read from each owner's node. This crosses all three nodes: Anson's coin is spent, the notary (node1) endorses, Beatrice's node receives her coin.
 
 **Acceptance criteria:**
-- [ ] After minting 100 and transferring 40: `balanceOf` for `anson@node2` on node2 is 60 and for `beatrice@node3` on node3 is 40
-- [ ] The transfer is submitted on node2 and its receipt is a success
-- [ ] A transfer larger than the balance fails with Paladin's error and changes no balance
+- [x] After minting 100 and transferring 40: `balanceOf` for `anson@node2` on node2 is 60 and for `beatrice@node3` on node3 is 40
+- [x] The transfer is submitted on node2 and its receipt is a success
+- [x] A transfer larger than the balance fails with Paladin's error and changes no balance
 
 **Verification:**
-- [ ] Tests pass: `pytest -m integration -k noto_transfer`
-- [ ] Checks clean: `ruff check .` and `mypy .`
+- [x] Tests pass: `pytest -m integration -k noto_transfer`
+- [x] Checks clean: `ruff check .` and `mypy .`
 
 **Dependencies:** Task 7
 
@@ -236,6 +238,8 @@ Sizes: no task is L or larger. Tasks 1, 5 and 7 are the largest (M).
 - `tests/integration/test_noto_transfer.py`
 
 **Size:** S
+
+**Status:** done. 2 integration tests pass (16 s). An oversize transfer fails with `PD012616: Domain reverted transaction on assemble: PD200005: Insufficient funds`; right after a mint Paladin once reported `available=200` for a 100 balance (message quirk only: a 150 transfer was still refused with `available=100` and the balance stayed 100).
 
 ### Task 9: Privacy: what each node can see, and what is on the public chain
 
