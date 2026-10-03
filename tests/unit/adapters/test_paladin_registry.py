@@ -18,16 +18,22 @@ def details_of(node: str) -> str:
 class FakeRegistry:
     """A stateful stand-in for the three Paladin nodes and the EVM registry."""
 
-    def __init__(self, fail_on: str | None = None) -> None:
+    def __init__(self, fail_on: str | None = None, visible_after: int = 0) -> None:
+        self.visible_after = visible_after  # queries before a new entry is indexed
+        self.queries_since_change = 10_000
         self.entries: dict[str, dict[str, Any]] = {
             "root": {"name": "root", "id": "0x" + "00" * 32, "properties": {"$owner": "0xaa"}}
         }
         self.sent: list[tuple[str, dict[str, Any]]] = []
         self.fail_on = fail_on
+        self.indexed: set[str] = {"root"}
 
     def call(self, node: str, method: str, params: list[Any] | None = None) -> Any:
         if method == "reg_queryEntriesWithProps":
             assert node == "node1" and params is not None and params[0] == "evm-registry"
+            self.queries_since_change += 1
+            if self.queries_since_change <= self.visible_after:
+                return [dict(e) for e in self.entries.values() if e["name"] in self.indexed]
             return [dict(e) for e in self.entries.values()]
         if method == "transport_localTransportDetails":
             return details_of(node)
@@ -50,6 +56,7 @@ class FakeRegistry:
                 "id": "0x" + data["name"][-1] * 64,
                 "properties": {"$owner": data["owner"]},
             }
+            self.queries_since_change = 0
         elif function == "setIdentityProperty":
             entry = next(e for e in self.entries.values() if e["id"] == data["identityHash"])
             assert transaction["from"] == f"registry.{entry['name']}" and node == entry["name"]
@@ -60,7 +67,14 @@ class FakeRegistry:
 
 
 def run(fake: FakeRegistry) -> None:
-    register_nodes(fake, load_paladin_artifact, REGISTRY, lambda _line: None)  # type: ignore[arg-type]
+    register_nodes(
+        fake,  # type: ignore[arg-type]
+        load_paladin_artifact,
+        REGISTRY,
+        lambda _line: None,
+        sleep=lambda _s: None,
+        clock=iter(range(100_000)).__next__,
+    )
 
 
 def test_every_node_is_registered_by_node1_with_its_own_key_as_owner() -> None:
@@ -110,3 +124,27 @@ def test_a_failed_registration_stops_the_run_and_names_the_node() -> None:
     with pytest.raises(PaladinBootstrapError, match=r"node1.*registerIdentity reverted"):
         run(fake)
     assert len(fake.sent) == 1
+
+
+def test_a_new_entry_that_the_node_has_not_indexed_yet_is_waited_for() -> None:
+    """node1 indexes registry events as blocks arrive, so a fresh entry shows up a moment later."""
+    fake = FakeRegistry(visible_after=3)
+    fake.indexed = {"root"}
+
+    original = fake.call
+
+    def call(node: str, method: str, params: list[Any] | None = None) -> Any:
+        result = original(node, method, params)
+        if method == "reg_queryEntriesWithProps" and fake.queries_since_change > fake.visible_after:
+            fake.indexed = set(fake.entries)
+        return result
+
+    fake.call = call  # type: ignore[method-assign]
+    run(fake)
+    assert all("transport.grpc" in fake.entries[n]["properties"] for n in NODES)
+
+
+def test_an_entry_that_never_shows_up_is_an_error_naming_it() -> None:
+    fake = FakeRegistry(visible_after=10**9)
+    with pytest.raises(PaladinBootstrapError, match=r"node1.*not in the registry index"):
+        run(fake)

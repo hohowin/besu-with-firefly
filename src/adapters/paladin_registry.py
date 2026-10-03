@@ -1,5 +1,6 @@
 """Register the Paladin nodes in the EVM registry, as the Paladin operator does (adapter)."""
 
+import time
 from collections.abc import Callable, Mapping
 from typing import Any
 
@@ -27,11 +28,39 @@ def _entries(client: PaladinNode) -> list[dict[str, Any]]:
     return [dict(entry) for entry in entries]
 
 
+def _wait_for_entries(
+    client: PaladinNode,
+    names: tuple[str, ...],
+    sleep: Callable[[float], None],
+    clock: Callable[[], float],
+    timeout: float,
+) -> dict[str, str]:
+    """The registry ids of `names`, once node1 has indexed them.
+
+    A registration is mined before node1's block indexer shows it, so asking straight away can
+    miss the entry that was just created.
+    """
+    deadline = clock() + timeout
+    while True:
+        ids = {str(entry["name"]): str(entry["id"]) for entry in _entries(client)}
+        missing = [name for name in names if name not in ids]
+        if not missing:
+            return ids
+        if clock() >= deadline:
+            raise PaladinBootstrapError(
+                missing[0], f"not in the registry index {timeout:g}s after it was registered"
+            )
+        sleep(1.0)
+
+
 def register_nodes(
     client: PaladinNode,
     load: Callable[[str], PaladinArtifact],
     registry: str,
     log: Callable[[str], None],
+    sleep: Callable[[float], None] = time.sleep,
+    clock: Callable[[], float] = time.monotonic,
+    index_timeout: float = 60.0,
 ) -> None:
     """Register node1 to node3 in the registry and publish each node's gRPC transport details.
 
@@ -77,7 +106,7 @@ def register_nodes(
 
     transports = [s for s in steps if isinstance(s, SetTransport)]
     if transports:
-        ids = {str(entry["name"]): str(entry["id"]) for entry in _entries(client)}
+        ids = _wait_for_entries(client, NODES, sleep, clock, index_timeout)
         for transport in transports:
             send(
                 transport.name,
