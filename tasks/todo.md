@@ -79,7 +79,7 @@ Sizes: no task is L or larger. Tasks 1, 5 and 7 are the largest (M).
 - [x] `ruff check .`, `mypy .` and `pytest` clean (309 unit tests)
 - [x] `python scripts/stack.py reset && python scripts/stack.py up` leaves 10 healthy containers (6 before plus 4 Paladin), the three Paladin nodes answering and connected to Besu
 - [x] The Phase 1 and 2 tests still pass (`pytest -m integration`: 66 passed from a fresh `reset`, `up`, `deploy`); effect of four more containers on start time: cold `up` 108 s (59 to 107 s before)
-- [ ] Human review before proceeding (**waiting for Howin**)
+- [x] Human review before proceeding (Howin, 2026-10-03: ok)
 
 ---
 
@@ -90,13 +90,13 @@ Sizes: no task is L or larger. Tasks 1, 5 and 7 are the largest (M).
 **Description:** Vendor the four smart-contract artifacts the Paladin operator deploys (`registry`, `noto`, `noto_factory`, `noto_factory_proxy`, from the v1.0.0 `artifacts.tar.gz` release asset) and the private Noto ABI `INotoPrivate.json` (from `abis.tar.gz`) under `contracts/paladin/`, unchanged, with a short note giving the source URLs, the release, the licence (Apache-2.0) and their SHA-256 sums. Add a loader in `src/adapters/paladin_artifacts.py` that reads each artifact's ABI and bytecode (a small parser, tested on the real files) and the private ABI, plus a test that fails if a vendored file no longer matches its recorded SHA-256. Check every deployed size against the 24,576-byte limit, as for T-REX.
 
 **Acceptance criteria:**
-- [ ] The loader returns a non-empty ABI and bytecode for all four contracts, and the registry's constructor takes one argument (`[false]`) while the other three take none, matching the spike
-- [ ] Each vendored file matches its recorded SHA-256, and every deployed size is under the limit
-- [ ] The private Noto ABI contains `mint`, `transfer` and `balanceOf`
+- [x] The loader returns a non-empty ABI and bytecode for all four contracts; constructors match what the operator deploys: the registry takes one argument (`[false]`), the proxy two (the factory and the `initialize(noto)` call data), Noto and the factory none
+- [x] Each vendored file matches its recorded SHA-256, and every init code is under the Shanghai limit (the artifacts hold init code only; the runtime size is checked on chain in Task 5)
+- [x] The private Noto ABI contains `mint`, `transfer` and `balanceOf`
 
 **Verification:**
-- [ ] Tests pass: `pytest tests/unit`
-- [ ] Checks clean: `ruff check .` and `mypy .`
+- [x] Tests pass: `pytest tests/unit`
+- [x] Checks clean: `ruff check .` and `mypy .`
 
 **Dependencies:** None (can run in parallel with Tasks 1 and 2)
 
@@ -106,6 +106,8 @@ Sizes: no task is L or larger. Tasks 1, 5 and 7 are the largest (M).
 - `tests/unit/adapters/test_paladin_artifacts.py`
 
 **Size:** S
+
+**Status:** Done 2026-10-03. Test-first (17 tests). Downloaded `artifacts.tar.gz` and `abis.tar.gz` from the Paladin v1.0.0 release; the four contract files are byte for byte the ones the spike used, and `INotoPrivate.json` is new. They are vendored unchanged under `contracts/paladin/` with `SHA256SUMS` and a README (source URLs, tarball hashes checked against the real files, Apache-2.0, how to refresh). Pure `src/core/paladin/artifacts.py` parses the Kubernetes-style YAML without a YAML library and also reads from each file the key label that sends it (`registry.operator`, `noto.operator`, ...), its `paramsJSON` and `requiredContractDeployments`, which the tests compare with the operator's order. Init code sizes: registry 5,343, Noto 11,515, factory 4,267, proxy 691 bytes.
 
 ### Task 4: Paladin JSON-RPC client
 
