@@ -57,6 +57,28 @@ def new_mnemonic() -> str:
     return str(phrase)
 
 
+def seed_runtime(paladin_dir: Path, runtime_dir: Path) -> list[Path]:
+    """Copy each node's base config into the runtime folder that Compose mounts.
+
+    A config that is already there is kept: once `deploy` has written the final one (with the
+    domain and registry addresses) it must not be put back to the base. Returns what was copied.
+    """
+    copied: list[Path] = []
+    for node in NODES:
+        source = paladin_dir / node / "pldconf.paladin.yaml"
+        if not source.is_file():
+            raise FileNotFoundError(
+                f"{source} not found. Run `python scripts/stack.py init` to generate it."
+            )
+        target = runtime_dir / node / "pldconf.paladin.yaml"
+        if target.exists():
+            continue
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(source, target)
+        copied.append(target)
+    return copied
+
+
 def write_paladin_files(paladin_dir: Path, cert_maker: CertMaker) -> list[Path]:
     """Write the config and certificates of every node and the Postgres init script.
 

@@ -55,13 +55,13 @@ Sizes: no task is L or larger. Tasks 1, 5 and 7 are the largest (M).
 **Description:** Add `paladin-postgres` (`postgres:17-alpine`, one server, a database per node, data on a volume so a plain restart keeps it) and `paladin-node1` to `paladin-node3` to `docker-compose.yml`, image pinned to `lfdecentralizedtrust/paladin:v1.0.0`, mounting each node's config from a runtime folder and its certificates, with the `/app/jna` tmpfs, starting after Postgres is healthy. The nodes read their config from `paladin-runtime/nodeN/` (gitignored); `stack.py up` copies the committed base config there when it is missing, so a fresh clone needs no extra step (Open Question 4). All three nodes talk to `besu-rpc-anson`, the only RPC node (Open Question 1). Publish only each node's HTTP RPC port (`8548`, `8648`, `8748`; Open Question 6). Healthcheck: `curl` of `transport_nodeName` inside the container. Log level `info` (Open Question 7).
 
 **Acceptance criteria:**
-- [ ] `docker compose config -q` exits 0, and `python scripts/stack.py up` brings the 3 nodes and Postgres to `healthy` along with the existing 10 services, with no restart loop
-- [ ] `transport_nodeName` on ports `8548`, `8648` and `8748` returns `node1`, `node2` and `node3`
-- [ ] Each node is connected to its Besu RPC node and has indexed blocks (confirmed with a Paladin RPC call, to be identified in this task; the spike saw it through the node's block indexer)
+- [x] `docker compose config -q` exits 0, and `python scripts/stack.py up` brings the 3 nodes and Postgres to `healthy` along with the existing 10 services, with no restart loop
+- [x] `transport_nodeName` on ports `8548`, `8648` and `8748` returns `node1`, `node2` and `node3`
+- [x] Each node is connected to its Besu RPC node and has indexed blocks (confirmed with Paladin's `bidx_queryIndexedBlocks`, and that its newest indexed block keeps rising)
 
 **Verification:**
-- [ ] Tests pass: `pytest -m integration -k paladin_nodes` (new test, red before the Compose change)
-- [ ] Checks clean: `docker compose config -q`, `ruff check .`, `mypy .`
+- [x] Tests pass: `pytest -m integration -k paladin_nodes` (new test, red before the Compose change)
+- [x] Checks clean: `docker compose config -q`, `ruff check .`, `mypy .`
 
 **Dependencies:** Task 1
 
@@ -71,6 +71,8 @@ Sizes: no task is L or larger. Tasks 1, 5 and 7 are the largest (M).
 - `tests/integration/test_paladin_nodes.py`, `tests/support/paladin.py` (a tiny JSON-RPC helper for tests)
 
 **Size:** M
+
+**Status:** Done 2026-10-03. Test-first (7 new unit tests, 11 new integration tests). `docker-compose.yml` has `paladin-postgres` (`postgres:17-alpine`, init script mounted, data on the named volume `paladin-postgres-data`) and `paladin-node1` to `paladin-node3` (shared `x-paladin` anchor: pinned image, `/app/jna` tmpfs with exec, `curl` healthcheck of `transport_nodeName`, started after Postgres and the RPC node are healthy), ports `8548`, `8648` and `8748`. `stack.py up` seeds `paladin-runtime/<node>/` from the committed base config first (never overwriting a config `deploy` has written, and saying to run `init` if the material is missing); `stack.py reset` now also removes `paladin-runtime/` (moved here from Task 11 because a stale final config would otherwise outlive the chain). On the real stack all four containers were healthy on the first try, with no change to Besu's RPC API list. A cold `reset` and `up` of all 10 containers took 108 s (59 to 107 s before Paladin). The Paladin logs show start-up noise (`Plugin loader stream error`, `Unknown channel option SO_KEEPALIVE`, and `eth_getBlockReceipts` returning null while the block indexer catches up); nodes still index every block. The whole suite from a fresh `reset`, `up`, `deploy`: 66 passed in 6 min 21 s.
 
 ## Checkpoint: After Tasks 1–2
 
@@ -282,7 +284,7 @@ Sizes: no task is L or larger. Tasks 1, 5 and 7 are the largest (M).
 
 ### Task 11: Reset clears Paladin; a plain restart keeps it
 
-**Description:** `python scripts/stack.py reset` already removes every container and volume of the Compose project; extend it to remove the generated runtime config (`paladin-runtime/`) and the Paladin entries of `deployed-addresses.json`, and print what it removed. Prove two properties: after `reset` and `up`, Paladin starts clean against the fresh chain (no domain until `deploy`, no earlier token); and after a **plain restart** of the Paladin containers (no `down -v`), the nodes keep their keys and state: the same `registry.operator` and `registry.nodeN` addresses, the registered identities, and the balances of an earlier token (the key-derivation hazard from the spike).
+**Description:** `python scripts/stack.py reset` already removes every container and volume of the Compose project and (since Task 2) the generated runtime config `paladin-runtime/`; extend it for the Paladin entries of `deployed-addresses.json`, and print what it removed. Prove two properties: after `reset` and `up`, Paladin starts clean against the fresh chain (no domain until `deploy`, no earlier token); and after a **plain restart** of the Paladin containers (no `down -v`), the nodes keep their keys and state: the same `registry.operator` and `registry.nodeN` addresses, the registered identities, and the balances of an earlier token (the key-derivation hazard from the spike).
 
 **Acceptance criteria:**
 - [ ] After `reset` and `up`, no Paladin container, volume or `paladin-runtime/` folder from before remains, and the nodes report no domain

@@ -8,6 +8,18 @@ from src.core.network.health import ContainerState
 from tests.support.besu_fake import fake_cert_maker, fake_generator
 
 
+@pytest.fixture(autouse=True)
+def isolated_paladin_folders(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """`up` seeds and `reset` removes the Paladin runtime folder: never touch the real ones."""
+    from src.adapters import stack_cli
+    from src.adapters.paladin_files import write_paladin_files
+
+    source = tmp_path / "_paladin"
+    write_paladin_files(source, fake_cert_maker())
+    monkeypatch.setattr(stack_cli, "PALADIN_SOURCE", source)
+    monkeypatch.setattr(stack_cli, "PALADIN_RUNTIME", tmp_path / "_paladin-runtime")
+
+
 def run(args: list[str], seed: int = 1) -> int:
     return main(args, generator=fake_generator(seed=seed), cert_maker=fake_cert_maker())
 
@@ -197,3 +209,71 @@ def test_a_failed_reset_leaves_the_deployed_addresses_file_alone(tmp_path: Path)
     stack = FakeStack(error="docker is not reachable")
     assert main(["reset"], stack=stack, addresses_file=addresses) == 1
     assert addresses.exists()
+
+
+class RecordingStack(FakeStack):
+    """Remembers whether the Paladin runtime folder existed when `up` was called."""
+
+    def __init__(self, runtime: Path) -> None:
+        super().__init__()
+        self.runtime = runtime
+        self.runtime_existed_at_up: bool | None = None
+
+    def up(self, wait_timeout: float) -> list[ContainerState]:
+        self.runtime_existed_at_up = (self.runtime / "node1" / "pldconf.paladin.yaml").is_file()
+        return super().up(wait_timeout)
+
+
+def test_up_seeds_the_paladin_runtime_config_before_starting_the_containers(
+    tmp_path: Path,
+) -> None:
+    from src.adapters.paladin_files import write_paladin_files
+
+    source, runtime = tmp_path / "paladin", tmp_path / "paladin-runtime"
+    write_paladin_files(source, fake_cert_maker())
+    stack = RecordingStack(runtime)
+    assert main(["up"], stack=stack, paladin_source=source, paladin_runtime=runtime) == 0
+    assert stack.runtime_existed_at_up is True
+
+
+def test_up_without_the_generated_paladin_material_exits_one_and_says_to_run_init(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    code = main(
+        ["up"],
+        stack=FakeStack(),
+        paladin_source=tmp_path / "missing",
+        paladin_runtime=tmp_path / "paladin-runtime",
+    )
+    assert code == 1
+    assert "stack.py init" in capsys.readouterr().err
+
+
+def test_reset_removes_the_paladin_runtime_folder(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    runtime = tmp_path / "paladin-runtime"
+    (runtime / "node1").mkdir(parents=True)
+    (runtime / "node1" / "pldconf.paladin.yaml").write_text("x", encoding="utf-8")
+    code = main(
+        ["reset"],
+        stack=FakeStack(),
+        addresses_file=tmp_path / "a.json",
+        paladin_runtime=runtime,
+    )
+    assert code == 0
+    assert not runtime.exists()
+    assert "paladin-runtime" in capsys.readouterr().out
+
+
+def test_a_failed_reset_keeps_the_paladin_runtime_folder(tmp_path: Path) -> None:
+    runtime = tmp_path / "paladin-runtime"
+    runtime.mkdir()
+    code = main(
+        ["reset"],
+        stack=FakeStack(error="docker is not reachable"),
+        addresses_file=tmp_path / "a.json",
+        paladin_runtime=runtime,
+    )
+    assert code == 1
+    assert runtime.exists()

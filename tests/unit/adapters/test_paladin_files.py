@@ -57,3 +57,36 @@ def test_writing_again_replaces_everything_including_the_mnemonics(tmp_path: Pat
     write_paladin_files(tmp_path, fake_cert_maker())
     assert phrases(tmp_path) != before
     assert not stale.exists()
+
+
+def test_the_runtime_folder_is_seeded_from_the_committed_base_config(tmp_path: Path) -> None:
+    from src.adapters.paladin_files import seed_runtime
+
+    source, runtime = tmp_path / "source", tmp_path / "runtime"
+    write_paladin_files(source, fake_cert_maker())
+    copied = seed_runtime(source, runtime)
+    assert len(copied) == 3
+    for node in NODES:
+        base = (source / node / "pldconf.paladin.yaml").read_bytes()
+        assert (runtime / node / "pldconf.paladin.yaml").read_bytes() == base
+
+
+def test_seeding_never_overwrites_a_config_that_deploy_has_written(tmp_path: Path) -> None:
+    from src.adapters.paladin_files import seed_runtime
+
+    source, runtime = tmp_path / "source", tmp_path / "runtime"
+    write_paladin_files(source, fake_cert_maker())
+    seed_runtime(source, runtime)
+    final = runtime / "node1" / "pldconf.paladin.yaml"
+    final.write_text("final config with the domain\n", encoding="utf-8")
+    assert seed_runtime(source, runtime) == []
+    assert final.read_text(encoding="utf-8") == "final config with the domain\n"
+
+
+def test_seeding_without_the_generated_material_says_to_run_init(tmp_path: Path) -> None:
+    import pytest
+
+    from src.adapters.paladin_files import seed_runtime
+
+    with pytest.raises(FileNotFoundError, match="stack.py init"):
+        seed_runtime(tmp_path / "missing", tmp_path / "runtime")

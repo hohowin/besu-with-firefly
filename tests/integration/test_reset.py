@@ -59,6 +59,8 @@ def test_reset_removes_everything_and_the_next_up_starts_from_block_zero(
     assert result.returncode == 0, result.stderr
     assert "besu-validator-1" in result.stdout, result.stdout
     assert "firefly-core" in result.stdout, result.stdout
+    assert "paladin-node1" in result.stdout, result.stdout
+    assert not (REPO_ROOT / "paladin-runtime").exists(), "the Paladin runtime config remains"
     assert docker_ids("ps", "-a") == [], "containers remain after reset"
     assert docker_ids("volume", "ls") == [], "volumes remain after reset"
     assert not ADDRESSES_FILE.exists(), "a stale deployed-addresses.json remains after reset"

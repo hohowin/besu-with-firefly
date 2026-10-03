@@ -4,6 +4,7 @@
 """
 
 import argparse
+import shutil
 import sys
 from collections.abc import Callable, Sequence
 from pathlib import Path
@@ -19,7 +20,7 @@ from src.adapters.besu_config import (
 )
 from src.adapters.docker_stack import DockerStack, StackError
 from src.adapters.firefly import FireflyError
-from src.adapters.paladin_files import CertMaker, docker_cert_maker
+from src.adapters.paladin_files import CertMaker, docker_cert_maker, seed_runtime
 from src.adapters.rpc import chain_heights_reader
 from src.adapters.trex_artifacts import ArtifactsMissingError
 from src.adapters.trex_command import DEPLOYED_ADDRESSES, deploy_trex, onboard_trex
@@ -27,6 +28,8 @@ from src.adapters.trex_deploy import DeployStepError
 from src.core.network.health import ContainerState
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+PALADIN_SOURCE = REPO_ROOT / "network-config" / "paladin"  # committed base configs and certificates
+PALADIN_RUNTIME = REPO_ROOT / "paladin-runtime"  # what Compose mounts; `deploy` adds the domain
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -92,10 +95,13 @@ def main(
     deployer: Callable[[Path], dict[str, str]] | None = None,
     onboarder: Callable[[Path], None] | None = None,
     addresses_file: Path = DEPLOYED_ADDRESSES,
+    paladin_source: Path | None = None,
+    paladin_runtime: Path | None = None,
 ) -> int:
     """Run a command and return the process exit code.
 
-    Tests inject `generator`, `cert_maker`, `stack`, `deployer`, `onboarder` and `addresses_file`.
+    Tests inject `generator`, `cert_maker`, `stack`, `deployer`, `onboarder`, `addresses_file`,
+    `paladin_source` and `paladin_runtime`.
     """
     args = build_parser().parse_args(argv)
     if args.command == "init":
@@ -113,6 +119,11 @@ def main(
             print(f"validator-{number}  {address}")
         print(f"wrote {len(result.files)} files to {args.network_dir}")
     if args.command == "up":
+        try:
+            seed_runtime(paladin_source or PALADIN_SOURCE, paladin_runtime or PALADIN_RUNTIME)
+        except FileNotFoundError as error:
+            print(f"error: {error}", file=sys.stderr)
+            return 1
         try:
             states = (stack or DockerStack(chain_heights=chain_heights_reader())).up(
                 wait_timeout=args.timeout
@@ -147,4 +158,8 @@ def main(
         if addresses_file.exists():  # the addresses it holds belong to the chain that is gone
             addresses_file.unlink()
             print(f"removed {addresses_file.name}")
+        runtime = paladin_runtime or PALADIN_RUNTIME
+        if runtime.exists():  # its config may name contracts that were on the chain that is gone
+            shutil.rmtree(runtime)
+            print(f"removed {runtime.name}")
     return 0
