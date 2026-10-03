@@ -114,13 +114,13 @@ Sizes: no task is L or larger. Tasks 1, 5 and 7 are the largest (M).
 **Description:** A small adapter in `src/adapters/paladin.py` (standard library only) for the calls this phase needs: a generic `call(node, method, params)` with a clear error carrying Paladin's own message, `ptx_sendTransaction` followed by bounded polling of `ptx_getTransactionReceipt`, and `ptx_call`. The transport is injected so unit tests need no Docker. Pure parts (building the request, reading a receipt as success or failure, classifying transient errors such as a timeout so they are retried) are in `src/core/paladin/`.
 
 **Acceptance criteria:**
-- [ ] With a fake transport: a JSON-RPC error raises with Paladin's message, a successful receipt returns, a failed receipt raises with its text, a receipt that never arrives times out naming the transaction id, and a transient error is retried while an error from the contract is not
-- [ ] Against the live nodes, `transport_nodeName` round-trips on all three
-- [ ] The module has no hidden global state and no `print`
+- [x] With a fake transport: a JSON-RPC error raises with Paladin's message, a successful receipt returns, a failed receipt raises with its text, a receipt that never arrives times out naming the transaction id, and a transient error is retried while an error from the contract is not
+- [x] Against the live nodes, `transport_nodeName` round-trips on all three
+- [x] The module has no hidden global state and no `print`
 
 **Verification:**
-- [ ] Tests pass: `pytest tests/unit` and `pytest -m integration -k paladin_client`
-- [ ] Checks clean: `ruff check .` and `mypy .`
+- [x] Tests pass: `pytest tests/unit` and `pytest -m integration -k paladin_client`
+- [x] Checks clean: `ruff check .` and `mypy .`
 
 **Dependencies:** Task 2
 
@@ -129,6 +129,8 @@ Sizes: no task is L or larger. Tasks 1, 5 and 7 are the largest (M).
 - `tests/unit/core/test_paladin_rpc.py`, `tests/unit/adapters/test_paladin.py`, `tests/integration/test_paladin_client.py`
 
 **Size:** S
+
+**Status:** Done 2026-10-03. Test-first (24 unit tests with a fake transport, 6 integration tests). Pure `src/core/paladin/rpc.py` (request body, `unwrap` of a JSON-RPC reply, receipt classification, transient-error test) and `src/adapters/paladin.py` (`PaladinClient`: `call` retried up to 3 times on a timeout, `send_transaction` never retried, `send_and_wait` polling `ptx_getTransactionReceipt` with a bound, `private_call` over `ptx_call`; `TransactionFailed` and `ReceiptTimeout` carry the transaction id). Real behaviour seen: an unsupported method is `-32600` `PD020702: method not supported`, and the receipt of an unknown transaction is `null` (not an error). 350 unit tests in all.
 
 ### Task 5: Deploy the registry and Noto contracts, then restart the nodes with their domain
 
