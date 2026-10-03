@@ -246,14 +246,14 @@ Sizes: no task is L or larger. Tasks 1, 5 and 7 are the largest (M).
 **Description:** Prove the point of Noto. Pure code in `src/core/paladin/privacy.py` reads the coin states each node lists for a token (`pstate_queryContractStates`) and compares them with what each party should see. Two checks: **(a)** after the mint, node3 (not a party to it) sees no coin of this token; after the transfer node3 sees only its own coin (40), while node1 (notary) and node2 see 40, 60 and 100 as the spike measured. **(b)** The public chain: `eth_getLogs` for the token's address contain no plain 100, 40 or 60 in any 32-byte word of data or topics, and no wallet address of Anson or Beatrice.
 
 **Acceptance criteria:**
-- [ ] node3 lists no coin right after the mint and exactly one (40) after the transfer
-- [ ] node1 and node2 list 40, 60 and 100 after the transfer
-- [ ] No log of the token on Besu contains the amounts or the party addresses
-- [ ] The comparison logic is unit-tested with canned coin lists, including a failing case that proves it can detect a leak
+- [x] node3 lists no coin right after the mint and exactly one (40) after the transfer
+- [x] node1 and node2 list 40, 60 and 100 after the transfer
+- [x] No log of the token on Besu contains the amounts or the party addresses
+- [x] The comparison logic is unit-tested with canned coin lists, including a failing case that proves it can detect a leak
 
 **Verification:**
-- [ ] Tests pass: `pytest tests/unit` and `pytest -m integration -k noto_privacy`
-- [ ] Checks clean: `ruff check .` and `mypy .`
+- [x] Tests pass: `pytest tests/unit` and `pytest -m integration -k noto_privacy`
+- [x] Checks clean: `ruff check .` and `mypy .`
 
 **Dependencies:** Task 8
 
@@ -262,6 +262,8 @@ Sizes: no task is L or larger. Tasks 1, 5 and 7 are the largest (M).
 - `tests/unit/core/test_privacy.py`, `tests/integration/test_noto_privacy.py`
 
 **Size:** S
+
+**Status:** done. 3 integration tests pass (72 s). Amounts are read from each state's `data.amount`; spent coins stay listed, which is why node1/node2 see 40, 60 and 100 and node3 only 40.
 
 ### Task 10: `stack.py noto-demo`
 

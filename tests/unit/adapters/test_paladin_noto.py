@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 
-from src.adapters.paladin_noto import balance_of, deploy_token, mint, transfer
+from src.adapters.paladin_noto import balance_of, coin_states, deploy_token, mint, transfer
 
 TOKEN = "0x" + "cd" * 20
 ABI: list[dict[str, Any]] = [{"type": "function", "name": "x"}]
@@ -60,3 +60,23 @@ def test_balance_is_asked_of_the_accounts_node() -> None:
     client = FakeClient()
     assert balance_of(client, TOKEN, ABI, "beatrice@node3") == 60
     assert client.calls[0][0] == "node3"
+
+
+class FakeReader:
+    def __init__(self) -> None:
+        self.asked: list[tuple[str, str, list[Any]]] = []
+
+    def call(self, node: str, method: str, params: list[Any] | None = None) -> Any:
+        assert params is not None
+        self.asked.append((node, method, params))
+        if method == "pstate_listSchemas":
+            return [{"id": "s1"}, {"id": "s2"}]
+        return [{"id": f"state-of-{params[2]}"}]
+
+
+def test_coin_states_gathers_every_schema_of_the_token_on_that_node() -> None:
+    reader = FakeReader()
+    states = coin_states(reader, "node3", TOKEN)
+    assert [s["id"] for s in states] == ["state-of-s1", "state-of-s2"]
+    assert {node for node, _, _ in reader.asked} == {"node3"}
+    assert reader.asked[1][2][:3] == ["noto", TOKEN, "s1"]
