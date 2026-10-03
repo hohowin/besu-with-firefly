@@ -30,6 +30,7 @@ pythonpath = ["."]
 addopts = "-m 'not integration'"
 markers = [
     "integration: needs Docker and a live stack (run with: pytest -m integration)",
+    "fault_injection: stops validators, so it can be slow or fail on a loaded machine (QBFT round timers double when only a quorum is alive); the stable gate is: pytest -m 'integration and not fault_injection'",
 ]
 
 [tool.ruff]

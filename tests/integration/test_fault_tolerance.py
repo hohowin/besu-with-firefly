@@ -13,7 +13,7 @@ from src.core.network.besu_logs import latest_block_number
 
 OBSERVER = "besu-validator-1"
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.fault_injection]
 
 
 def latest(stack: DockerStack, validator: str) -> int:

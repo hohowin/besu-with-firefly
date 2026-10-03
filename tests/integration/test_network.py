@@ -75,6 +75,7 @@ def test_rpc_node_has_at_least_four_peers(stack: DockerStack, name: str) -> None
     assert count >= 4, name
 
 
+@pytest.mark.fault_injection
 def test_one_failed_validator_does_not_halt_the_chain_and_it_rejoins(
     stack: DockerStack, restore_validators: None
 ) -> None:

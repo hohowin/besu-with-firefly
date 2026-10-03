@@ -25,7 +25,11 @@ def stack() -> DockerStack:
 @pytest.fixture
 def restore_validators(stack: DockerStack) -> Iterator[None]:
     """Whatever a test stops, start it again, even if an assertion failed, so later tests
-    see a healthy network. Waits until both RPC nodes see new blocks again."""
+    see a healthy network. Waits until both RPC nodes see new blocks again.
+
+    This is cleanup, not an assertion, so it is patient: if QBFT's round timer has doubled while
+    only a quorum was alive (4, 8, 16, 32, 64, 128 s), blocks can take minutes to resume.
+    """
     yield
     for name in VALIDATORS:
         with contextlib.suppress(StackError):  # already running
@@ -36,7 +40,7 @@ def restore_validators(stack: DockerStack) -> Iterator[None]:
         wait_for(
             partial(_advanced_past, url, resumed_from),
             describe=f"{node} to see new blocks after restoring the validators",
-            timeout=90,
+            timeout=300,
         )
 
 
