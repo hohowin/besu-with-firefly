@@ -76,10 +76,10 @@ Sizes: no task is L or larger. Tasks 1, 5 and 7 are the largest (M).
 
 ## Checkpoint: After Tasks 1–2
 
-- [ ] `ruff check .`, `mypy .` and `pytest` clean
-- [ ] `python scripts/stack.py reset && python scripts/stack.py up` leaves 10 healthy containers (6 now plus 4 Paladin), the three Paladin nodes answering and connected to Besu
-- [ ] The Phase 1 and 2 tests still pass (`pytest -m integration`); note the effect of four more containers on start time
-- [ ] Human review before proceeding
+- [x] `ruff check .`, `mypy .` and `pytest` clean (309 unit tests)
+- [x] `python scripts/stack.py reset && python scripts/stack.py up` leaves 10 healthy containers (6 before plus 4 Paladin), the three Paladin nodes answering and connected to Besu
+- [x] The Phase 1 and 2 tests still pass (`pytest -m integration`: 66 passed from a fresh `reset`, `up`, `deploy`); effect of four more containers on start time: cold `up` 108 s (59 to 107 s before)
+- [ ] Human review before proceeding (**waiting for Howin**)
 
 ---
 
