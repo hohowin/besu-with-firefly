@@ -1,0 +1,51 @@
+nodeName: node2
+log:
+  level: info
+blockchain:
+  http:
+    url: http://besu-rpc-anson:8545
+  ws:
+    url: ws://besu-rpc-anson:8546
+db:
+  type: postgres
+  postgres:
+    dsn: "postgres://postgres:paladin-demo-pw@paladin-postgres:5432/node2?sslmode=disable"
+    autoMigrate: true
+    migrationsDir: /app/db/migrations/postgres
+rpcServer:
+  http:
+    address: 0.0.0.0
+    port: 8548
+  ws:
+    address: 0.0.0.0
+    port: 8549
+wallets:
+- name: wallet1
+  keySelector: ".*"
+  signer:
+    keyDerivation:
+      type: bip32
+      seedKey:
+        name: seed
+    keyStore:
+      type: static
+      static:
+        keys:
+          seed:
+            encoding: none
+            inline: "wire monitor pyramid demise achieve scout quarter under march truly antenna clever"
+transports:
+  grpc:
+    plugin:
+      type: c-shared
+      library: /app/transports/libgrpc.so
+    config:
+      port: 9000
+      address: 0.0.0.0
+      externalHostname: paladin-node2
+      tls:
+        enabled: true
+        clientAuth: true
+        certFile: /certs/tls.crt
+        keyFile: /certs/tls.key
+        caFile: /certs/ca.crt

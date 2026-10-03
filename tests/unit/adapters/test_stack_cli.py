@@ -5,11 +5,11 @@ import pytest
 from src.adapters.docker_stack import StackError
 from src.adapters.stack_cli import main
 from src.core.network.health import ContainerState
-from tests.support.besu_fake import fake_generator
+from tests.support.besu_fake import fake_cert_maker, fake_generator
 
 
 def run(args: list[str], seed: int = 1) -> int:
-    return main(args, generator=fake_generator(seed=seed))
+    return main(args, generator=fake_generator(seed=seed), cert_maker=fake_cert_maker())
 
 
 def test_init_creates_the_network_files_and_exits_zero(

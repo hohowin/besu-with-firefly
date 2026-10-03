@@ -19,6 +19,7 @@ from src.adapters.besu_config import (
 )
 from src.adapters.docker_stack import DockerStack, StackError
 from src.adapters.firefly import FireflyError
+from src.adapters.paladin_files import CertMaker, docker_cert_maker
 from src.adapters.rpc import chain_heights_reader
 from src.adapters.trex_artifacts import ArtifactsMissingError
 from src.adapters.trex_command import DEPLOYED_ADDRESSES, deploy_trex, onboard_trex
@@ -86,6 +87,7 @@ class Stack(Protocol):
 def main(
     argv: Sequence[str] | None = None,
     generator: Generator | None = None,
+    cert_maker: CertMaker | None = None,
     stack: Stack | None = None,
     deployer: Callable[[Path], dict[str, str]] | None = None,
     onboarder: Callable[[Path], None] | None = None,
@@ -93,7 +95,7 @@ def main(
 ) -> int:
     """Run a command and return the process exit code.
 
-    Tests inject `generator`, `stack`, `deployer`, `onboarder` and `addresses_file`.
+    Tests inject `generator`, `cert_maker`, `stack`, `deployer`, `onboarder` and `addresses_file`.
     """
     args = build_parser().parse_args(argv)
     if args.command == "init":
@@ -101,6 +103,7 @@ def main(
             result = init_network(
                 args.network_dir,
                 generator=generator or docker_generator(args.besu_image),
+                cert_maker=cert_maker or docker_cert_maker(),
                 force=args.force,
             )
         except (AlreadyInitialisedError, GenerationError) as error:

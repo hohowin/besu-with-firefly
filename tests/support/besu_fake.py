@@ -36,3 +36,15 @@ def fake_generator(
             (folder / "key.pub").write_text("0x" + f"{seed}{number}".zfill(128), encoding="utf-8")
 
     return run
+
+
+def fake_cert_maker() -> Callable[[str, Path], None]:
+    """A stand-in for the certificate step (openssl in the Paladin image), no Docker needed."""
+
+    def make(node: str, out_dir: Path) -> None:
+        out_dir.mkdir(parents=True, exist_ok=True)
+        for name, label in (("tls.crt", "CERT"), ("tls.key", "KEY"), ("ca.crt", "CERT")):
+            text = f"{label} for {node}\n"
+            (out_dir / name).write_text(text, encoding="utf-8", newline="\n")
+
+    return make

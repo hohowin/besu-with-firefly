@@ -12,11 +12,11 @@ from src.adapters.besu_config import (
 )
 from src.core.network.enode import NetworkAddressing
 from src.core.network.wallets import derive_address
-from tests.support.besu_fake import fake_generator
+from tests.support.besu_fake import fake_cert_maker, fake_generator
 
 
 def test_init_writes_the_expected_layout(tmp_path: Path) -> None:
-    result = init_network(tmp_path, generator=fake_generator())
+    result = init_network(tmp_path, cert_maker=fake_cert_maker(), generator=fake_generator())
     assert (tmp_path / "genesis.json").is_file()
     assert (tmp_path / "static-nodes.json").is_file()
     assert (tmp_path / "README.md").is_file()
@@ -29,6 +29,7 @@ def test_validators_are_numbered_by_sorted_address(tmp_path: Path) -> None:
     """The network has one validator, but the numbering rule matters for any number of them."""
     result = init_network(
         tmp_path,
+        cert_maker=fake_cert_maker(),
         generator=fake_generator(count=4),
         validator_count=4,
         addressing=NetworkAddressing(validator_offsets=(11, 12, 13, 14)),
@@ -43,7 +44,7 @@ def test_validators_are_numbered_by_sorted_address(tmp_path: Path) -> None:
 
 
 def test_static_nodes_match_the_key_files_and_the_fixed_ips(tmp_path: Path) -> None:
-    init_network(tmp_path, generator=fake_generator())
+    init_network(tmp_path, cert_maker=fake_cert_maker(), generator=fake_generator())
     nodes = json.loads((tmp_path / "static-nodes.json").read_text(encoding="utf-8"))
     addressing = NetworkAddressing()
     assert len(nodes) == 1
@@ -51,51 +52,62 @@ def test_static_nodes_match_the_key_files_and_the_fixed_ips(tmp_path: Path) -> N
         pub = (tmp_path / "validator-keys" / f"validator-{number}" / "key.pub").read_text(
             encoding="utf-8"
         )
-        assert enode == f"enode://{pub.strip().removeprefix('0x')}@{addressing.validator_ip(number)}:30303"
+        assert (
+            enode
+            == f"enode://{pub.strip().removeprefix('0x')}@{addressing.validator_ip(number)}:30303"
+        )
 
 
 def test_files_use_lf_line_endings(tmp_path: Path) -> None:
-    init_network(tmp_path, generator=fake_generator())
+    init_network(tmp_path, cert_maker=fake_cert_maker(), generator=fake_generator())
     for name in ("static-nodes.json", "README.md"):
         assert b"\r" not in (tmp_path / name).read_bytes()
 
 
 def test_readme_marks_the_keys_as_demo_only(tmp_path: Path) -> None:
-    init_network(tmp_path, generator=fake_generator())
+    init_network(tmp_path, cert_maker=fake_cert_maker(), generator=fake_generator())
     text = (tmp_path / "README.md").read_text(encoding="utf-8").lower()
     assert "demo" in text and "never reuse" in text
 
 
 def test_second_run_without_force_fails_and_changes_nothing(tmp_path: Path) -> None:
-    init_network(tmp_path, generator=fake_generator(seed=1))
+    init_network(tmp_path, cert_maker=fake_cert_maker(), generator=fake_generator(seed=1))
     before = (tmp_path / "static-nodes.json").read_bytes()
     with pytest.raises(AlreadyInitialisedError, match="--force"):
-        init_network(tmp_path, generator=fake_generator(seed=2))
+        init_network(tmp_path, cert_maker=fake_cert_maker(), generator=fake_generator(seed=2))
     assert (tmp_path / "static-nodes.json").read_bytes() == before
 
 
 def test_force_regenerates_and_removes_old_validator_keys(tmp_path: Path) -> None:
-    init_network(tmp_path, generator=fake_generator(seed=1))
+    init_network(tmp_path, cert_maker=fake_cert_maker(), generator=fake_generator(seed=1))
     before = (tmp_path / "static-nodes.json").read_bytes()
-    init_network(tmp_path, generator=fake_generator(seed=2), force=True)
+    init_network(
+        tmp_path, cert_maker=fake_cert_maker(), generator=fake_generator(seed=2), force=True
+    )
     assert (tmp_path / "static-nodes.json").read_bytes() != before
     assert len(list((tmp_path / "validator-keys").iterdir())) == 1
 
 
 def test_generator_output_missing_an_address_in_extra_data_is_rejected(tmp_path: Path) -> None:
     with pytest.raises(GenerationError, match="extraData"):
-        init_network(tmp_path, generator=fake_generator(omit_from_extra_data=True))
+        init_network(
+            tmp_path,
+            cert_maker=fake_cert_maker(),
+            generator=fake_generator(omit_from_extra_data=True),
+        )
     assert not (tmp_path / "genesis.json").exists()
 
 
 def test_generator_producing_the_wrong_number_of_validators_is_rejected(tmp_path: Path) -> None:
     with pytest.raises(GenerationError, match="expected 1"):
-        init_network(tmp_path, generator=fake_generator(count=3, asked_for=1))
+        init_network(
+            tmp_path, cert_maker=fake_cert_maker(), generator=fake_generator(count=3, asked_for=1)
+        )
     assert not (tmp_path / "genesis.json").exists()
 
 
 def test_init_writes_three_demo_wallets_whose_addresses_match_their_keys(tmp_path: Path) -> None:
-    init_network(tmp_path, generator=fake_generator())
+    init_network(tmp_path, cert_maker=fake_cert_maker(), generator=fake_generator())
     document = json.loads((tmp_path / "wallets.json").read_text(encoding="utf-8"))
     assert "demo" in document["notice"].lower()
     assert [w["name"] for w in document["wallets"]] == ["admin", "anson", "beatrice"]
@@ -104,34 +116,38 @@ def test_init_writes_three_demo_wallets_whose_addresses_match_their_keys(tmp_pat
 
 
 def test_second_run_without_force_leaves_the_wallets_unchanged(tmp_path: Path) -> None:
-    init_network(tmp_path, generator=fake_generator(seed=1))
+    init_network(tmp_path, cert_maker=fake_cert_maker(), generator=fake_generator(seed=1))
     before = (tmp_path / "wallets.json").read_bytes()
     with pytest.raises(AlreadyInitialisedError):
-        init_network(tmp_path, generator=fake_generator(seed=2))
+        init_network(tmp_path, cert_maker=fake_cert_maker(), generator=fake_generator(seed=2))
     assert (tmp_path / "wallets.json").read_bytes() == before
 
 
 def test_force_creates_new_wallets(tmp_path: Path) -> None:
-    init_network(tmp_path, generator=fake_generator(seed=1))
+    init_network(tmp_path, cert_maker=fake_cert_maker(), generator=fake_generator(seed=1))
     before = (tmp_path / "wallets.json").read_bytes()
-    init_network(tmp_path, generator=fake_generator(seed=2), force=True)
+    init_network(
+        tmp_path, cert_maker=fake_cert_maker(), generator=fake_generator(seed=2), force=True
+    )
     assert (tmp_path / "wallets.json").read_bytes() != before
 
 
 def test_readme_mentions_the_wallets(tmp_path: Path) -> None:
-    init_network(tmp_path, generator=fake_generator())
+    init_network(tmp_path, cert_maker=fake_cert_maker(), generator=fake_generator())
     assert "wallets.json" in (tmp_path / "README.md").read_text(encoding="utf-8")
 
 
 def test_force_rewrites_a_stale_readme(tmp_path: Path) -> None:
-    init_network(tmp_path, generator=fake_generator(seed=1))
+    init_network(tmp_path, cert_maker=fake_cert_maker(), generator=fake_generator(seed=1))
     (tmp_path / "README.md").write_text("old text", encoding="utf-8")
-    init_network(tmp_path, generator=fake_generator(seed=2), force=True)
+    init_network(
+        tmp_path, cert_maker=fake_cert_maker(), generator=fake_generator(seed=2), force=True
+    )
     assert "wallets.json" in (tmp_path / "README.md").read_text(encoding="utf-8")
 
 
 def test_init_writes_the_firefly_config_and_signer_keystores(tmp_path: Path) -> None:
-    init_network(tmp_path, generator=fake_generator())
+    init_network(tmp_path, cert_maker=fake_cert_maker(), generator=fake_generator())
     firefly = tmp_path / "firefly"
     for name in ("core.yml", "evmconnect.yml", "signer.yml"):
         assert (firefly / name).is_file(), name
@@ -146,24 +162,26 @@ def test_init_writes_the_firefly_config_and_signer_keystores(tmp_path: Path) -> 
 
 
 def test_firefly_files_use_lf_line_endings(tmp_path: Path) -> None:
-    init_network(tmp_path, generator=fake_generator())
+    init_network(tmp_path, cert_maker=fake_cert_maker(), generator=fake_generator())
     for path in (tmp_path / "firefly").rglob("*"):
         if path.is_file():
             assert b"\r" not in path.read_bytes(), path
 
 
 def test_second_run_without_force_leaves_the_firefly_files_unchanged(tmp_path: Path) -> None:
-    init_network(tmp_path, generator=fake_generator(seed=1))
+    init_network(tmp_path, cert_maker=fake_cert_maker(), generator=fake_generator(seed=1))
     before = (tmp_path / "firefly" / "core.yml").read_bytes()
     with pytest.raises(AlreadyInitialisedError):
-        init_network(tmp_path, generator=fake_generator(seed=2))
+        init_network(tmp_path, cert_maker=fake_cert_maker(), generator=fake_generator(seed=2))
     assert (tmp_path / "firefly" / "core.yml").read_bytes() == before
 
 
 def test_force_regenerates_the_firefly_files_for_the_new_wallets(tmp_path: Path) -> None:
-    init_network(tmp_path, generator=fake_generator(seed=1))
+    init_network(tmp_path, cert_maker=fake_cert_maker(), generator=fake_generator(seed=1))
     old = {p.name for p in (tmp_path / "firefly" / "signer-data" / "keystore").iterdir()}
-    init_network(tmp_path, generator=fake_generator(seed=2), force=True)
+    init_network(
+        tmp_path, cert_maker=fake_cert_maker(), generator=fake_generator(seed=2), force=True
+    )
     new = {p.name for p in (tmp_path / "firefly" / "signer-data" / "keystore").iterdir()}
     assert old.isdisjoint(new), "stale keystores of the old wallets were left behind"
     assert len(new) == 6  # 3 wallets, a key file and a .toml each
@@ -173,5 +191,34 @@ def test_force_regenerates_the_firefly_files_for_the_new_wallets(tmp_path: Path)
 
 
 def test_readme_mentions_the_firefly_files(tmp_path: Path) -> None:
-    init_network(tmp_path, generator=fake_generator())
+    init_network(tmp_path, cert_maker=fake_cert_maker(), generator=fake_generator())
     assert "firefly/" in (tmp_path / "README.md").read_text(encoding="utf-8")
+
+
+def test_init_writes_the_paladin_material(tmp_path: Path) -> None:
+    init_network(tmp_path, cert_maker=fake_cert_maker(), generator=fake_generator())
+    paladin = tmp_path / "paladin"
+    assert (paladin / "postgres-init" / "init.sql").is_file()
+    for node in ("node1", "node2", "node3"):
+        assert (paladin / node / "pldconf.paladin.yaml").is_file()
+        assert (paladin / node / "certs" / "tls.crt").is_file()
+    assert "paladin/" in (tmp_path / "README.md").read_text(encoding="utf-8")
+
+
+def test_second_run_without_force_leaves_the_paladin_material_unchanged(tmp_path: Path) -> None:
+    init_network(tmp_path, cert_maker=fake_cert_maker(), generator=fake_generator(seed=1))
+    config = tmp_path / "paladin" / "node1" / "pldconf.paladin.yaml"
+    before = config.read_bytes()
+    with pytest.raises(AlreadyInitialisedError):
+        init_network(tmp_path, cert_maker=fake_cert_maker(), generator=fake_generator(seed=2))
+    assert config.read_bytes() == before
+
+
+def test_force_makes_new_paladin_mnemonics(tmp_path: Path) -> None:
+    init_network(tmp_path, cert_maker=fake_cert_maker(), generator=fake_generator(seed=1))
+    config = tmp_path / "paladin" / "node1" / "pldconf.paladin.yaml"
+    before = config.read_bytes()
+    init_network(
+        tmp_path, cert_maker=fake_cert_maker(), generator=fake_generator(seed=2), force=True
+    )
+    assert config.read_bytes() != before

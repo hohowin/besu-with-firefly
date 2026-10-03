@@ -1,7 +1,7 @@
 # Tasks — Phase 3: Paladin + Noto
 
 > Source: `docs/plan.md` Phase 3 (steps 1 to 6), `docs/prd.md` US-009 and FR-8, `docs/deliverables.md` DL-3.1 to DL-3.3, `docs/use-cases.md` UC-08, `docs/spike-results.md` (Risk 2 and "Versions to pin"), and the working spike in `spike/paladin/`. Decisions: D-05 (Noto only, three nodes), D-09 (Compose, `lfdecentralizedtrust/paladin:v1.0.0`, hand-written config, Postgres, self-signed TLS, DB volume), D-10 (demo keys committed), D-16 (`python scripts/stack.py`). Phases 1 and 2 are complete and reviewed; their lists are `tasks/phase-1-network.md` and `tasks/phase-2-firefly.md`.
-> **Status: draft, waiting for Howin's approval. No Phase 3 code has been written.** Updated 2026-10-03: the network is now 1 validator and 1 RPC node (plan D-17), so the stack is 6 containers today and 10 with Paladin.
+> **Status: approved by Howin on 2026-10-03 (all Open Questions answered as recommended).** Updated 2026-10-03: the network is now 1 validator and 1 RPC node (plan D-17), so the stack is 6 containers today and 10 with Paladin.
 
 ## Overview
 
@@ -30,13 +30,13 @@ Sizes: no task is L or larger. Tasks 1, 5 and 7 are the largest (M).
 **Description:** Extend `stack.py init` so it also writes, under `network-config/paladin/`: per node (`node1` to `node3`) a BIP39 mnemonic (demo; made with `eth-account`'s HD wallet support), a self-signed TLS certificate and key whose subject CN is the node name (`basicConstraints CA:TRUE`, `keyUsage digitalSignature,keyCertSign`, `extendedKeyUsage serverAuth,clientAuth`, and `ca.crt` the same certificate, as the spike found the gRPC transport requires), the **base** node config (no domain and no registry, so it starts before the contracts exist), and the Postgres init script that creates `node1`, `node2` and `node3`. Config text is built by pure functions in `src/core/paladin/`. The certificates are made with `openssl` inside the pinned Paladin image through Docker, injected like the Besu generator, so there is no new Python dependency. Same refuse-without-`--force` rule as before.
 
 **Acceptance criteria:**
-- [ ] Each certificate has CN equal to its node name, is a CA, and can both sign and authenticate as server and client, checked with `openssl x509 -text` in an integration test
-- [ ] Each mnemonic is a valid 12-word BIP39 phrase and the three are different; the base config has the right node name, the Besu endpoints, the Postgres DSN for its own database, TLS paths and gRPC port, and contains no `domains` or `registries` block (unit-tested on the pure builder)
-- [ ] `init` without `--force` still refuses and changes nothing; with `--force` everything is regenerated consistently
+- [x] Each certificate has CN equal to its node name, is a CA with SAN `paladin-nodeN`, and can both sign and authenticate as server and client, checked with `openssl x509` in an integration test
+- [x] Each mnemonic is a valid 12-word BIP39 phrase and the three are different; the base config has the right node name, the Besu endpoints, the Postgres DSN for its own database, TLS paths and gRPC port, and contains no `domains` or `registries` block (unit-tested on the pure builder)
+- [x] `init` without `--force` still refuses and changes nothing; with `--force` everything is regenerated consistently
 
 **Verification:**
-- [ ] Tests pass: `pytest tests/unit` and `pytest -m integration -k init`
-- [ ] Checks clean: `ruff check .` and `mypy .`
+- [x] Tests pass: `pytest tests/unit` and `pytest -m integration -k init`
+- [x] Checks clean: `ruff check .` and `mypy .`
 
 **Dependencies:** None (Phases 1 and 2 done)
 
@@ -47,6 +47,8 @@ Sizes: no task is L or larger. Tasks 1, 5 and 7 are the largest (M).
 - `tests/unit/core/test_paladin_config.py`, `tests/unit/adapters/test_paladin_files.py`, `tests/integration/test_init.py`
 
 **Size:** M
+
+**Status:** Done 2026-10-03. Test-first (23 new unit tests, 1 new integration test; 302 unit tests in all). Pure `src/core/paladin/config.py` builds the base config (matching the spike, log level `info`, no `domains` or `registries`, all three nodes using `besu-rpc-anson`) and the Postgres init script; `src/adapters/paladin_files.py` writes `network-config/paladin/<node>/pldconf.paladin.yaml`, `certs/` and `postgres-init/init.sql`, with a fresh 12-word BIP39 mnemonic per node from `eth-account`. Certificates are made with `openssl` inside the pinned Paladin image (P-256, self-signed, own CA, 10 years), the profile read from the spike's working certificates. `init_network` now requires a `cert_maker` (tests pass a fake). The committed `network-config/` got only the new `paladin/` folder (made with the same function) instead of a full `init --force`, so the existing demo keys and the deployed addresses stay as they are.
 
 ### Task 2: Paladin and Postgres containers start and answer
 
@@ -332,7 +334,7 @@ Sizes: no task is L or larger. Tasks 1, 5 and 7 are the largest (M).
 
 ## Open Questions
 
-| # | Question | Owner | Needed by | Recommendation |
+| # | Question | Owner | Needed by | Decision (all as recommended, Howin 2026-10-03) |
 |---|----------|-------|-----------|----------------|
 | 1 | Which Besu RPC node does each Paladin node use? | Howin | Task 2 | **Answered by the move to one RPC node (plan D-17, 2026-10-03): all three use `besu-rpc-anson`** |
 | 2 | The registry and Noto contract artifacts and the private Noto ABI are not in the image; they are Apache-2.0 release assets (~95 KB). Vendor them, or download them at `deploy` time? | Howin | Task 3 | **Vendor them unchanged under `contracts/paladin/`** with source URLs and SHA-256, so a fresh clone works offline and the exact bytes are pinned. (T-REX is different: it is installed with `npm ci` because it is GPL and large) |
