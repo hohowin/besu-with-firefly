@@ -51,3 +51,10 @@ def test_another_seed_gives_other_wallets() -> None:
 def test_a_count_outside_1_to_999_is_refused(count: int) -> None:
     with pytest.raises(ValueError, match="between 1 and 999"):
         derive_wallets(count)
+
+
+def test_the_javascript_side_uses_the_same_seed() -> None:
+    from pathlib import Path
+
+    params = Path(__file__).resolve().parents[3] / "perf" / "lib" / "params.js"
+    assert f"DEFAULT_SEED = '{PERF_SEED}'" in params.read_text(encoding="utf-8")

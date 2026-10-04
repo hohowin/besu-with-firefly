@@ -8,7 +8,9 @@
   },
   "scripts": {
     "prepare-run": "node lib/prepare.js",
-    "smoke": "npm run prepare-run && caliper launch manager --caliper-workspace . --caliper-benchconfig benchmarks/smoke.yaml --caliper-networkconfig generated/ethereum.json --caliper-flow-skip-start --caliper-flow-skip-install --caliper-flow-skip-end"
+    "test": "node --test test/*.test.js",
+    "smoke": "npm run prepare-run && caliper launch manager --caliper-workspace . --caliper-benchconfig benchmarks/smoke.yaml --caliper-networkconfig generated/ethereum-smoke.json --caliper-flow-skip-start --caliper-flow-skip-install --caliper-flow-skip-end",
+    "round:chain": "node run.js chain"
   },
   "dependencies": {
     "@hyperledger/caliper-cli": "0.6.0",

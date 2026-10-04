@@ -117,13 +117,13 @@ Sizes: no task is L or larger. Tasks 1 to 6 are M, Task 7 is S.
 **Description:** A Caliper workload (`perf/workload/transfer.js`) where worker `i` sends `COIN.transfer(wallet[(i+1) mod N], amount)` from its own derived wallet, through the stock Ethereum connector against `besu-rpc-anson`, with `transactionConfirmationBlocks: 1` as in the spike. The benchmark file takes N workers, the offered rate and the transaction count from one place (the same values Task 5 uses). `npm run round:chain` writes the report and a config snapshot (block period and gas limit read from `network-config/genesis.json`, N, rate, count, Besu image).
 
 **Acceptance criteria:**
-- [ ] The round runs with N=10 on a deployed and set-up stack, every transaction succeeds, and the report shows throughput and average, minimum and maximum latency
-- [ ] The snapshot file is written with the round and holds the genesis block period (2) and gas limit, N, the offered rate, the transaction count and the validator and RPC node count
-- [ ] After the round, the sum of the N balances is unchanged (transfers only move `COIN`), checked by a small script
+- [x] The round runs with N=10 on a deployed and set-up stack, every transaction succeeds, and the report shows throughput and average, minimum and maximum latency
+- [x] The snapshot file is written with the round and holds the genesis block period (2) and gas limit, N, the offered rate, the transaction count and the validator and RPC node count
+- [x] After the round, the sum of the N balances is unchanged (transfers only move `COIN`), checked by a small script
 
 **Verification:**
-- [ ] Tests pass: `npm run round:chain` exits 0 (name per Task 1); unit tests for any Python helper
-- [ ] Checks clean: `ruff check .` and `mypy .`
+- [x] Tests pass: `npm run round:chain` exits 0 (name per Task 1); unit tests for any Python helper
+- [x] Checks clean: `ruff check .` and `mypy .`
 
 **Dependencies:** Task 3
 
@@ -132,6 +132,8 @@ Sizes: no task is L or larger. Tasks 1 to 6 are M, Task 7 is S.
 - `perf/lib/snapshot.js` (new, writes the config snapshot), a balance-sum check script
 
 **Size:** M
+
+**Status:** Done 2026-10-04. `npm run round:chain` (`perf/run.js`) prepares `generated/`, checks that every wallet is verified and funded, runs Caliper, parses its summary table (`lib/report.js`, refuses anything that is not exactly one round), checks the balance sum is unchanged, and writes `results/chain.json` with the snapshot (`lib/snapshot.js`: layer, load, genesis block period and gas limit, validators and RPC nodes, versions). 9 `node --test` tests. First run with N=10, 20 TPS, 600 transfers: 600 of 600 succeeded, 19 TPS, average latency 1.86 s (one run, not a result). Finding: Caliper takes `txNumber` and `tps` as totals split across workers, so the generated benchmark file carries totals. The load comes from one place (`lib/params.js`, env `PERF_*`), and a Python test checks that the seed matches `src/core/perf/wallets.py`. The funded wallets leave COIN supply at 2000 until the next `reset`.
 
 ### Task 5: FireFly-layer round: the same transfer through FireFly's contract API
 

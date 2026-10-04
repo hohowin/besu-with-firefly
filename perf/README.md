@@ -20,8 +20,25 @@ deprecated; that is accepted for a local demo.
 | Command | What it does |
 |---|---|
 | `npm run smoke` | A read-only `COIN.name()` round against the deployed token. Writes `report.html` (not committed). |
-| `npm run prepare-run` | Writes `generated/` (token address and ABI, Caliper network config) from `deployed-addresses.json`. Run by every round. |
+| `npm run prepare-run` | Writes `generated/` (token address and ABI, the Caliper network configs and the benchmark file) from `deployed-addresses.json`. Run by every round. |
+| `npm run round:chain` | The chain-layer round: `COIN.transfer` sent from N wallets straight to Besu over JSON-RPC. Writes `results/chain.json` (numbers and configuration) and `results/chain-report.html`. Needs `python scripts/stack.py perf-setup` first. |
+| `npm test` | Unit tests of the report parser and the snapshot (no stack needed). |
 | `node lib/derive.js "<seed>" [count]` | Prints the wallets Caliper derives from a seed, one per worker. |
+
+## The load
+
+One place sets the load of both layers, as environment variables (defaults in `lib/params.js`):
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `PERF_WALLETS` | 10 | Wallets, and Caliper workers: worker `i` owns wallet `i` |
+| `PERF_TPS` | 20 | Transactions per second offered in all (a multiple of `PERF_WALLETS`) |
+| `PERF_TXS` | 600 | Transactions in all (a multiple of `PERF_WALLETS`) |
+| `PERF_AMOUNT` | `1000000000000000` | Base units per transfer (0.001 COIN) |
+
+Worker `i` sends to wallet `i+1` (the last one to the first), so every recipient is a verified investor. Caliper takes
+`txNumber` and `tps` as totals and splits them across the workers. A round fails if a transaction fails, or if the
+sum of the wallets' balances changed.
 
 ## Notes
 
