@@ -784,9 +784,9 @@ Exit codes: `0` done, `1` failed or refused by the contract, `2` bad usage (argp
 **Known limitations at this phase**: no tuning for maximum throughput, two runs of one configuration (not a distribution).
 
 **Phase exit gate summary** (from plan.md):
-- [ ] All DL-5.x deliverables verified
-- [ ] Both rounds reproducible from a fresh `python scripts/stack.py reset && python scripts/stack.py up && python scripts/stack.py deploy`
-- [ ] Results note committed
+- [x] All DL-5.x deliverables verified
+- [x] Both rounds reproducible from a fresh `python scripts/stack.py reset && python scripts/stack.py up && python scripts/stack.py deploy`
+- [x] Results note committed
 
 ---
 

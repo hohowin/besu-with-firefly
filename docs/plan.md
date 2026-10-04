@@ -285,6 +285,8 @@ Phase 1 is sliced horizontally by layer, not by vertical slice (see rationale be
 
 **Goal**: Measured chain-layer and FireFly-layer performance, and the difference.
 
+**Status**: Built 2026-10-04, developer review of the exit gate pending. Evidence: `tasks/todo.md`, `docs/perf-results.md` and `docs/spike-results.md` (Phase 5 findings). `python scripts/stack.py perf-setup` makes `2N` verified wallets holding COIN (N per layer, about 13 s per wallet); `npm run round:chain` and `npm run round:firefly` in `perf/` run the same `COIN.transfer` straight to Besu and through FireFly. Two runs from a fresh stack, 10 workers, 5 TPS offered, 300 transfers: every transaction succeeded; chain 5.1 TPS at 0.74 to 0.99 s average latency, FireFly 4.8 to 4.9 TPS at 4.63 to 4.92 s, on a one-validator chain with 2 s blocks. Two findings changed the design: the layers cannot share wallets (FireFly's evmconnect falls behind a key that was also sent from directly), and FireFly saturates near 8 TPS here (one run at 20 TPS failed 455 of 600), so the default load is 5 TPS. After `reset`, `up` and `deploy`, `pytest -m integration` passed 116 of 116; unit tests (561), `npm test` (18), `ruff` and `mypy` are clean.
+
 **Scope**:
 - `perf/` sub-project, wallet setup, two rounds, results note
 - Out of scope: Paladin benchmarks, tuning Besu for throughput
@@ -307,8 +309,8 @@ Phase 1 is sliced horizontally by layer, not by vertical slice (see rationale be
    > **Gate ✓** — both result sets, the difference, the genesis settings (block period, gas limit) and the caveat that results describe this demo configuration
 
 **Exit gate**:
-- [ ] Both rounds reproducible from a fresh `python scripts/stack.py reset && python scripts/stack.py up && python scripts/stack.py deploy`
-- [ ] Results note committed
+- [x] Both rounds reproducible from a fresh `python scripts/stack.py reset && python scripts/stack.py up && python scripts/stack.py deploy`
+- [x] Results note committed
 
 **Anti-gate**: do not publish numbers without the configuration they were measured under.
 

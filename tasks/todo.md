@@ -197,13 +197,13 @@ Sizes: no task is L or larger. Tasks 1 to 6 are M, Task 7 is S.
 **Description:** Update `README.md` (running the benchmark, the supply side effect and the `reset` afterwards), `PROJECT.md` (the `perf-setup` and Caliper commands in the table, the `perf/` layout, the node and npm versions), `docs/deliverables.md` (DL-5.1 to DL-5.3 `Done`, with commands that were actually run), `docs/plan.md` (Phase 5 status with the date and exact result, exit gate boxes) and `docs/spike-results.md` (the probes). Verify the README steps from a fresh clone as in Phases 3 and 4.
 
 **Acceptance criteria:**
-- [ ] DL-5.1 to DL-5.3 are `Done` with commands that were run, and `docs/plan.md` marks Phase 5 with the date and result
-- [ ] `PROJECT.md` lists every command used in this phase, and `perf/README.md` and the README agree with it
-- [ ] `ruff check .`, `mypy .`, `pytest` and `pytest -m integration` pass after a `reset`, `up` and `deploy`
+- [x] DL-5.1 to DL-5.3 are `Done` with commands that were run, and `docs/plan.md` marks Phase 5 with the date and result
+- [x] `PROJECT.md` lists every command used in this phase, and `perf/README.md` and the README agree with it
+- [x] `ruff check .`, `mypy .`, `pytest` and `pytest -m integration` pass after a `reset`, `up` and `deploy`
 
 **Verification:**
-- [ ] Tests pass: `pytest` and `pytest -m integration` once more on a fresh stack, after the benchmarks have been `reset` away
-- [ ] Checks clean: `ruff check .` and `mypy .`; README steps checked from a fresh clone
+- [x] Tests pass: `pytest` and `pytest -m integration` once more on a fresh stack, after the benchmarks have been `reset` away
+- [x] Checks clean: `ruff check .` and `mypy .`; README steps checked from a fresh clone
 
 **Dependencies:** Task 6
 
@@ -212,13 +212,15 @@ Sizes: no task is L or larger. Tasks 1 to 6 are M, Task 7 is S.
 
 **Size:** S
 
+**Status:** Done 2026-10-04. README (status line, prerequisites, a Benchmark section with the `reset` warning), `PROJECT.md` (the benchmark commands, layout, versions), `docs/deliverables.md` (DL-5.1 to DL-5.3 `Done` with what was run), `docs/plan.md` (Phase 5 status and exit gate) updated. After the benchmarks, `reset`, `up`, `deploy` and `pytest -m integration`: 116 passed (878 s). Fresh clone: `pip install -e ".[dev]"`, `npm ci` and the manual `web3@1.3.0` install in `perf/`, `npm test` 18 pass, `ruff` and `mypy` clean, `pytest` 530 passed and 2 skipped (they need `npm ci` in `contracts/`), `stack.py perf-setup --help` works. The README's old status line ("Phases 4-5 are not started") had also been left stale by Phase 4; it is fixed here.
+
 ---
 
 ## Checkpoint: After Task 7 (Phase 5 exit gate)
 
-- [ ] All DL-5.x deliverables verified
-- [ ] Both rounds reproducible from a fresh `python scripts/stack.py reset && python scripts/stack.py up && python scripts/stack.py deploy` (plus `perf-setup`)
-- [ ] Results note committed, with the configuration beside every number
+- [x] All DL-5.x deliverables verified
+- [x] Both rounds reproducible from a fresh `python scripts/stack.py reset && python scripts/stack.py up && python scripts/stack.py deploy` (plus `perf-setup`)
+- [x] Results note committed, with the configuration beside every number
 - [ ] Human review of the Phase 5 exit gate (**waiting for Howin**)
 
 ---
