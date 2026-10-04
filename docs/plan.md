@@ -215,6 +215,8 @@ Phase 1 is sliced horizontally by layer, not by vertical slice (see rationale be
 
 **Goal**: A Noto private token on the same Besu network.
 
+**Status**: Built 2026-10-04, developer review of the exit gate pending. Evidence: `tasks/todo.md` and `docs/spike-results.md` (Phase 3 findings). From a reset stack `up` takes about 1 to 2 minutes and `deploy` (T-REX plus Paladin) about 2 minutes. Mint 100 and transfer 40 give Anson 60 and Beatrice 40; node3 sees only its own coin and the token's public logs carry no amounts or party addresses. A plain restart keeps keys, registry and balances. The gate `pytest -m integration` (103 tests) passed three times in a row from `reset`, `up` and `deploy`; unit tests (439), `ruff` and `mypy` are clean. All three Paladin nodes use the one Besu RPC node (D-17).
+
 **Scope**:
 - Three Paladin nodes (notary and registry admin, Anson, Beatrice), one Postgres, demo TLS certificates, registry registration; Noto deploy, mint and transfer
 - Out of scope: Zeto, Pente, CLI support
@@ -240,8 +242,8 @@ Phase 1 is sliced horizontally by layer, not by vertical slice (see rationale be
    > **Gate ✓** — after reset, Paladin starts clean against a fresh chain; after a plain restart, node keys and state are unchanged
 
 **Exit gate**:
-- [ ] Noto integration tests pass
-- [ ] `python scripts/stack.py reset` clears all three stores
+- [x] Noto integration tests pass
+- [x] `python scripts/stack.py reset` clears all three stores
 
 **Anti-gate**: if Paladin cannot run from hand-written config on Compose, fall back to Paladin on `kind` (not Paladin's own devnet Besu) before continuing; record the change in D-09.
 

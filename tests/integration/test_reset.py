@@ -12,6 +12,7 @@ import pytest
 from src.adapters.docker_stack import REPO_ROOT, DockerStack
 from tests.support.deploy import run_deploy
 from tests.support.firefly import ff_get
+from tests.support.paladin import paladin_call
 from tests.support.polling import wait_for
 from tests.support.rpc import RPC_ANSON, block_number
 
@@ -74,6 +75,8 @@ def test_reset_removes_everything_and_the_next_up_starts_from_block_zero(
     assert ff_get("/api/v1/status")["namespace"]["name"] == "default"
     assert ff_get("/api/v1/namespaces/default/apis") == [], "a contract API survived the reset"
     assert ff_get("/api/v1/namespaces/default/contracts/interfaces") == []
+    for node in ("node1", "node2", "node3"):  # Paladin starts without a domain until `deploy`
+        assert paladin_call(node, "domain_listDomains") == [], f"{node} kept its Noto domain"
     # A chain restarted at genesis makes one block per 2 s, so its height cannot exceed that.
     limit = (time.monotonic() - started) / 2 + 5
     for url in (RPC_ANSON,):

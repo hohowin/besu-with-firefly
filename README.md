@@ -2,7 +2,7 @@
 
 A local learning project: a single-validator QBFT Hyperledger Besu network with one RPC node, provisioned with **Hyperledger FireFly** (gateway mode) and **Paladin**, an ERC-3643 (T-REX) compliance token deployed through FireFly, a private **Noto** token on Paladin, a small Python CLI client for FireFly, and **Caliper** performance tests.
 
-> **Status: Phases 0 (spike), 1 (the Besu network) and 2 (FireFly and the ERC-3643 `COIN` token) are built (2026-10-02), see [docs/plan.md](docs/plan.md) and [docs/spike-results.md](docs/spike-results.md).** Phases 3-5 are not started: Paladin, the Python CLI and Caliper are planned, and so are the items marked *TBD*.
+> **Status: Phases 0 (spike), 1 (the Besu network), 2 (FireFly and the ERC-3643 `COIN` token) and 3 (Paladin and the private Noto token) are built (2026-10-04), see [docs/plan.md](docs/plan.md) and [docs/spike-results.md](docs/spike-results.md).** Phases 4-5 are not started: the Python CLI and Caliper are planned, and so are the items marked *TBD*.
 
 ## Who it serves and how they interact
 
@@ -48,16 +48,18 @@ Caliper 0.6.0 (`perf/`, Node.js) and the Python CLI run on the host. Caliper 0.7
 
 ## Getting started
 
-The commands run from the repo root. Phases 1 and 2 are built: a one-validator Besu network, FireFly in gateway mode, and the ERC-3643 token `COIN`.
+The commands run from the repo root. Phases 1 to 3 are built: a one-validator Besu network, FireFly in gateway mode, the ERC-3643 token `COIN`, and three Paladin nodes with a private Noto token.
 
 ```bash
 git clone <repo> && cd besu-with-firefly
 python -m venv .venv                  # then activate: .venv\Scripts\activate (Windows) or source .venv/bin/activate
 pip install -e ".[dev]"
 (cd contracts && npm ci)              # the pinned T-REX and OnchainID contract artifacts
-python scripts/stack.py up            # 1 validator, 1 RPC node, FireFly; waits until all is healthy and the chain moves
-python scripts/stack.py deploy        # T-REX through FireFly, the COIN APIs, onboarding of Anson and Beatrice, 1000 COIN minted
-pytest -m integration                 # proves it all (about 5 minutes)
+python scripts/stack.py up            # 1 validator, 1 RPC node, FireFly, 3 Paladin nodes; waits until all is healthy and the chain moves
+python scripts/stack.py deploy        # T-REX through FireFly, the COIN APIs, onboarding of Anson and Beatrice, 1000 COIN minted;
+                                      # then the Paladin contracts, the Noto domain and the node registry (about 2 minutes)
+python scripts/stack.py noto-demo     # a new Noto token: mint 100 to Anson, he sends 40 to Beatrice, what each node sees
+pytest -m integration                 # proves it all (about 13 minutes)
 python scripts/stack.py reset         # removes containers, volumes and deployed-addresses.json; the next `up` starts at block 0
 ```
 
@@ -65,13 +67,16 @@ The genesis, validator keys, `static-nodes.json`, demo wallets and the FireFly c
 
 `deploy` and `onboard` only do what is missing, so running them again sends nothing, and running `deploy` again finishes an interrupted run. `python scripts/stack.py onboard` repeats just the investor onboarding.
 
-A cold `up` takes 2 to 3 minutes (it waits up to 5) and can take longer on a busy machine. Planned, not built yet: Paladin joining `up`, `deploy` and `reset` (Phase 3).
+A cold `up` takes 2 to 3 minutes (it waits up to 5) and can take longer on a busy machine. `deploy` takes about 2 minutes with Paladin. `noto-demo` needs `deploy` first and deploys a new token on every run.
+
+The Paladin base configs, certificates and database init script are committed in `network-config/paladin/`. `up` copies the configs to `paladin-runtime/` (gitignored), and `deploy` adds the Noto domain and registry to that copy. `reset` removes the Paladin database volume, `paladin-runtime/` and the Paladin entries of `deployed-addresses.json` together with the chain. A plain `docker restart` of a Paladin container keeps its keys and state, because the database is a volume.
 
 ## Accessing the application
 
 - FireFly API and Swagger UI: `http://localhost:5000/api`. The FireFly Explorer: `http://localhost:5000/ui`.
 - Generated contract APIs (Swagger UI): `http://localhost:5000/api/v1/namespaces/default/apis/coin/api` for the token and `.../apis/identity-registry/api` for the identity registry. For example, the token name: `curl -s -X POST -H "Content-Type: application/json" --data '{}' http://localhost:5000/api/v1/namespaces/default/apis/coin/query/name`
 - Besu RPC: `http://localhost:8545` (WS `8546`). The validator publishes no ports.
+- Paladin JSON-RPC: `http://localhost:8548` (node1, notary), `:8648` (node2, Anson), `:8748` (node3, Beatrice). For example: `curl -s -X POST -H "Content-Type: application/json" --data '{"jsonrpc":"2.0","id":1,"method":"transport_nodeName","params":[]}' http://localhost:8548`
 - Contract addresses: `deployed-addresses.json` (created by `deploy`, not committed). Wallet addresses and keys: `network-config/wallets.json` (demo only).
 - *TBD:* the CLI as `besu-ff <command>` (Phase 4). Step-by-step examples with `curl` are in [docs/deliverables.md](docs/deliverables.md) §4.
 
@@ -89,7 +94,7 @@ A cold `up` takes 2 to 3 minutes (it waits up to 5) and can take longer on a bus
 
 - Python: `ruff check .`, `mypy .`, `pytest` (unit tests); `pytest -m integration` needs the running stack
 - `src/core/` is pure logic with no I/O; the FireFly HTTP client is an adapter
-- The chain, FireFly DB and Paladin DB are not persistent across a reset (but Paladin's DB must survive a plain restart). `python scripts/stack.py reset` resets all three (today it resets the chain and FireFly).
+- The chain, FireFly DB and Paladin DB are not persistent across a reset (but Paladin's DB must survive a plain restart). `python scripts/stack.py reset` resets all three.
 
 ## Compliance notes
 

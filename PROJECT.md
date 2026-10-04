@@ -26,24 +26,26 @@ Python 3.11+ (developed on 3.13). Run these from the repo root inside the virtua
 | Lint | `ruff check .` |
 | Type-check | `mypy .` |
 | Unit tests | `pytest` (integration tests are skipped) |
-| Integration tests | `pytest -m integration` (needs Docker and a running stack; about 5 minutes) |
+| Integration tests | `pytest -m integration` (needs Docker and a running stack; about 13 minutes) |
 | Contract packages | `cd contracts && npm ci` (the pinned T-REX and OnchainID artifacts; needed by `deploy` and by some unit tests, which skip without them) |
-| Stack | `python scripts/stack.py init\|up\|deploy\|onboard\|reset` (plan D-16). `deploy` and `onboard` only do what is missing |
+| Stack | `python scripts/stack.py init\|up\|deploy\|onboard\|noto-demo\|reset` (plan D-16). `deploy` and `onboard` only do what is missing; `noto-demo` needs `deploy` and deploys a new Noto token each run |
 
 Lint and type checks skip `spike/`, `.agents/` and `.claude/` (Phase 0 evidence and installed third-party skills). They cover all our own code.
 
 ## Directory Layout
 
 ```
-src/core/          pure logic, no I/O (network/: genesis, enode, health; firefly/: config, keystore, request bodies; trex/: deploy plan, claims, onboarding, amounts)
-src/adapters/      I/O: Docker, files, JSON-RPC, the FireFly HTTP client, deploy and onboarding runners, the stack CLI
+src/core/          pure logic, no I/O (network/: genesis, enode, health; firefly/: config, keystore, request bodies; trex/: deploy plan, claims, onboarding, amounts; paladin/: node config, artifacts, JSON-RPC, bootstrap, registry, Noto requests, privacy checks)
+src/adapters/      I/O: Docker, files, JSON-RPC, the FireFly and Paladin clients, deploy, onboarding and Noto runners, the stack CLI
 scripts/           thin entry points (stack.py) that call into src/adapters
 tests/unit/        unit tests, mirror src/
 tests/integration/ tests that need Docker and a live stack (marker: integration)
-tests/support/     helpers for tests (JSON-RPC, FireFly HTTP, polling, deploy)
-network-config/    generated genesis, validator keys, static-nodes.json, demo wallets, firefly/ (config and signer keystores) (committed, demo only)
+tests/support/     helpers for tests (JSON-RPC, FireFly and Paladin HTTP, polling, deploy)
+network-config/    generated genesis, validator keys, static-nodes.json, demo wallets, firefly/ (config and signer keystores), paladin/ (base configs, certificates, Postgres init) (committed, demo only)
+paladin-runtime/   the Paladin configs Compose mounts; `up` copies them from network-config/paladin, `deploy` adds the Noto domain, `reset` removes it (not committed)
+contracts/paladin/ the vendored Paladin v1.0.0 contract artifacts and the private Noto ABI, with SHA256SUMS (committed)
 contracts/         package.json pinning the T-REX and OnchainID artifacts (node_modules is not committed)
-docker-compose.yml the Besu network and FireFly (Paladin is added in Phase 3)
+docker-compose.yml the Besu network, FireFly, and three Paladin nodes with one Postgres
 deployed-addresses.json  addresses written by `deploy` (not committed)
 docs/              PRD, architecture, plan, use cases, deliverables, spike results
 tasks/             task lists per phase

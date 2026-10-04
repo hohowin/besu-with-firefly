@@ -309,13 +309,13 @@ Note: a first full integration run was stopped by the tool's 30-minute backgroun
 **Description:** `python scripts/stack.py reset` already removes every container and volume of the Compose project and (since Task 2) the generated runtime config `paladin-runtime/`; extend it for the Paladin entries of `deployed-addresses.json`, and print what it removed. Prove two properties: after `reset` and `up`, Paladin starts clean against the fresh chain (no domain until `deploy`, no earlier token); and after a **plain restart** of the Paladin containers (no `down -v`), the nodes keep their keys and state: the same `registry.operator` and `registry.nodeN` addresses, the registered identities, and the balances of an earlier token (the key-derivation hazard from the spike).
 
 **Acceptance criteria:**
-- [ ] After `reset` and `up`, no Paladin container, volume or `paladin-runtime/` folder from before remains, and the nodes report no domain
-- [ ] After `docker restart` of the three Paladin containers, `keymgr_resolveKey` for `registry.operator` and `registry.node1` returns the same address as before, `reg_queryEntries` still lists the three nodes, and the balance of an earlier token is unchanged
-- [ ] `reset` exits non-zero when Docker is not reachable, as before
+- [x] After `reset` and `up`, no Paladin container, volume or `paladin-runtime/` folder from before remains, and the nodes report no domain
+- [x] After `docker restart` of the three Paladin containers, `keymgr_resolveKey` for `registry.operator` and `registry.node1` returns the same address as before, `reg_queryEntries` still lists the three nodes, and the balance of an earlier token is unchanged
+- [x] `reset` exits non-zero when Docker is not reachable, as before
 
 **Verification:**
-- [ ] Tests pass: `pytest tests/unit` and `pytest -m integration -k paladin_reset`
-- [ ] Checks clean: `ruff check .` and `mypy .`
+- [x] Tests pass: `pytest tests/unit` and `pytest -m integration -k paladin_reset`
+- [x] Checks clean: `ruff check .` and `mypy .`
 
 **Dependencies:** Task 9
 
@@ -324,6 +324,8 @@ Note: a first full integration run was stopped by the tool's 30-minute backgroun
 - `tests/unit/adapters/test_stack_cli.py`, `tests/integration/test_paladin_reset.py`
 
 **Size:** S
+
+**Status:** done. `reset` already removed the whole `deployed-addresses.json` (all entries, Paladin included), so no code change was needed there; `test_reset` now also checks that every node has no domain after `reset` and `up`, and `test_paladin_reset` proves keys, registry and balances survive `docker restart` (47 s).
 
 ### Task 12: Repeatability and Phase 3 documentation
 

@@ -6,7 +6,7 @@ Companion docs: [docs/plan.md](plan.md) · [docs/prd.md](prd.md) · [docs/archit
 
 This document is the single reference for what is deliverable and verifiable at the end of each project phase, and how to try each deliverable from a cold start.
 
-> **Read this first.** Phases 0, 1 and 2 are built, and their commands were run for real: `python scripts/stack.py init|up|deploy|onboard|reset`, `docker compose`, `curl`, `pytest`, `ruff` and `mypy`. Everything for Phases 3 to 5 (`besu-ff`, `perf/`, the Paladin ports) is still a **planned name** from the PRD, to be checked against the repo when each phase is built. There is no web frontend of our own, so there is no Playwright anywhere in this document; FireFly's own Explorer is at `http://localhost:5000/ui`.
+> **Read this first.** Phases 0, 1, 2 and 3 are built, and their commands were run for real: `python scripts/stack.py init|up|deploy|onboard|reset`, `docker compose`, `curl`, `pytest`, `ruff` and `mypy`. Everything for Phases 3 to 5 (`besu-ff`, `perf/`, the Paladin ports) is still a **planned name** from the PRD, to be checked against the repo when each phase is built. There is no web frontend of our own, so there is no Playwright anywhere in this document; FireFly's own Explorer is at `http://localhost:5000/ui`.
 
 ---
 
@@ -26,9 +26,9 @@ This document is the single reference for what is deliverable and verifiable at 
 | DL-2.4 | Phase 2 — FireFly + ERC-3643 | N/A | feature | Onboarding and compliant transfer | Done |
 | DL-2.5 | Phase 2 — FireFly + ERC-3643 | N/A | feature | On-chain compliance rejection | Done |
 | DL-2.6 | Phase 2 — FireFly + ERC-3643 | N/A | test | `python scripts/stack.py reset` repeatability | Done |
-| DL-3.1 | Phase 3 — Paladin + Noto | N/A | infra | 3 Paladin nodes (notary, Anson, Beatrice) and Postgres in Compose | Planned |
-| DL-3.2 | Phase 3 — Paladin + Noto | N/A | feature | Noto deploy, mint, private transfer | Planned |
-| DL-3.3 | Phase 3 — Paladin + Noto | N/A | test | Privacy check and three-store reset | Planned |
+| DL-3.1 | Phase 3 — Paladin + Noto | N/A | infra | 3 Paladin nodes (notary, Anson, Beatrice) and Postgres in Compose | Done |
+| DL-3.2 | Phase 3 — Paladin + Noto | N/A | feature | Noto deploy, mint, private transfer | Done |
+| DL-3.3 | Phase 3 — Paladin + Noto | N/A | test | Privacy check and three-store reset | Done |
 | DL-4.1 | Phase 4 — Python CLI | N/A | ui | `src/core/` and CLI with 4 commands | Planned |
 | DL-4.2 | Phase 4 — Python CLI | N/A | test | Unit and integration suites, lint and types clean | Planned |
 | DL-5.1 | Phase 5 — Caliper | N/A | infra | `perf/` Caliper sub-project and wallet setup | Planned |
@@ -483,9 +483,9 @@ FF=http://localhost:5000/api/v1/namespaces/default
 
 **Prerequisites**:
 ```
-- [ ] Phase 2 exit gate passed
-- [ ] Paladin image `lfdecentralizedtrust/paladin:v1.0.0` (or the tag from spike-results.md) pulled
-- [ ] Hand-written Paladin config from the spike committed
+- [x] Phase 2 exit gate passed
+- [x] Paladin image `lfdecentralizedtrust/paladin:v1.0.0` (or the tag from spike-results.md) pulled
+- [x] Hand-written Paladin config committed (`network-config/paladin/`)
 ```
 
 ### DL-3.1 — Paladin nodes and Postgres
@@ -503,20 +503,26 @@ FF=http://localhost:5000/api/v1/namespaces/default
 **How to try it**:
 ```
 1. Start: `python scripts/stack.py up`
-2. `docker compose ps` -- three Paladin containers and Postgres `running`
-3. Ask each node its name (ports are the spike values): `curl -s -X POST -H "Content-Type: application/json" --data '{"jsonrpc":"2.0","id":1,"method":"transport_nodeName","params":[]}' http://localhost:8548` then `:8648` and `:8748`
+2. `docker compose ps` -- three Paladin containers and `paladin-postgres` `running` and `healthy`
+3. Deploy the Paladin contracts and register the nodes: `python scripts/stack.py deploy`
+   Expect log lines `paladin registry  registered node1` to `node3` and `transport.grpc set`, and exit code 0. Running it again sends nothing.
+4. Ask each node its name: `curl -s -X POST -H "Content-Type: application/json" --data '{"jsonrpc":"2.0","id":1,"method":"transport_nodeName","params":[]}' http://localhost:8548` then `:8648` and `:8748`
    Expect `node1`, `node2`, `node3`.
-4. List the registered nodes on node1: same call with `"method":"reg_queryEntries","params":["evm-registry",{"limit":20},"any"]`
-   Expect entries for `node1`, `node2` and `node3`.
-5. `docker logs paladin-node1 | grep "TLS handshake completed"`
-   Expect handshakes with node2 and node3 after the first Noto call.
+5. List the registered nodes on node1: same call with `"method":"reg_queryEntries","params":["evm-registry",{"limit":20},"any"]`
+   Expect entries `root`, `node1`, `node2` and `node3`, all `"active":true`.
+6. `curl` `domain_listDomains` on node1
+   Expect `["noto"]`.
+7. After the first Noto call (DL-3.2): `docker logs paladin-node1 | grep "TLS handshake completed"`
+   Expect `Client TLS handshake completed` and `Server TLS handshake completed` lines (the nodes only connect when they first talk).
 ```
 
 **Verification checklist**:
-- [ ] All Paladin containers and Postgres healthy
-- [ ] Each node reaches its Besu RPC node
-- [ ] All three nodes appear in the EVM registry
-- [ ] `domain_listDomains` returns `noto` on every node
+- [x] All Paladin containers and Postgres healthy
+- [x] Each node reaches its Besu RPC node
+- [x] All three nodes appear in the EVM registry
+- [x] `domain_listDomains` returns `noto` on every node
+
+**Verified 2026-10-04**: steps 1 to 7 run against the live stack; `deploy` exits 0 from a reset stack three times in a row (113 to 129 s).
 
 **Known limitations at this phase**: the Paladin config is hand-written and may differ from the operator's output. Paladin must use Postgres and its DB must be a volume, because key addresses depend on the path index mapping stored there.
 
@@ -534,18 +540,26 @@ FF=http://localhost:5000/api/v1/namespaces/default
 
 **How to try it**:
 ```
-1. Run the Noto script (`scripts/noto_demo.py`, planned name; the spike equivalent is `spike/paladin/noto-3node.mjs`): deploy the token, mint 100 to `anson@node2`, transfer 40 to `beatrice@node3`
-2. Query Beatrice's node: `ptx_call` `balanceOf` for `beatrice@node3`
-   Expect `totalBalance` 40.
-3. Query Anson's node for `anson@node2`
-   Expect `totalBalance` 60.
+1. Run: `python scripts/stack.py noto-demo` (needs `deploy`; deploys a new token each run)
+   Expect exit 0 and these lines (the token address differs):
+   ```
+   minted 100 to anson@node2 (submitted on node1)
+   transferred 40 from anson@node2 to beatrice@node3 (submitted on node2)
+   balance anson@node2     60
+   balance beatrice@node3  40
+   ```
+2. Without `deploy` first (for example right after `reset` and `up`) it exits 1 with `the Paladin contracts are not deployed, run `stack.py deploy` first`.
+3. To read a balance yourself, send `ptx_call` to the owner's node (node3 for Beatrice) with `type private`, `domain noto`, `from beatrice@node3`, `to` the token address, the `INotoPrivate` ABI (`contracts/paladin/INotoPrivate.json`), function `balanceOf` and data `{"account":"beatrice@node3"}`.
+   Expect `totalBalance` 40. The same call on node2 for `anson@node2` gives 60.
 ```
 
 **Verification checklist**:
-- [ ] Mint and transfer complete
-- [ ] Beatrice's balance equals the amount sent
+- [x] Mint and transfer complete
+- [x] Beatrice's balance equals the amount sent
 
-**Known limitations at this phase**: not driven by the CLI (FR-18, post-MVP).
+**Verified 2026-10-04**: `noto-demo` run against the live stack (exit 0, 60 and 40); `pytest -m integration -k noto` passes (mint, transfer, oversize transfer refused with `PD200005: Insufficient funds`).
+
+**Known limitations at this phase**: not driven by the CLI (FR-18, post-MVP). Right after a mint Paladin can report `available=200` in the insufficient-funds message for a 100 balance; the message is off but the transfer is still refused and the balance is correct.
 
 ### DL-3.3 — Privacy check and three-store reset
 
@@ -561,27 +575,30 @@ FF=http://localhost:5000/api/v1/namespaces/default
 
 **How to try it**:
 ```
-1. Run: `pytest -m integration -k noto`
-2. List the coin amounts each node can see (spike equivalent: `spike/paladin/coins-by-node.mjs TOKEN`)
-   Expect node1 and node2 to list 40, 60 and 100, and node3 to list 40 only.
-   Inspect the token's logs on Besu with `eth_getLogs`
-   Expect no plain 100, 40 or 60 in the log data.
-3. Run: `python scripts/stack.py reset && python scripts/stack.py up`
-4. Query Paladin
-   Expect a clean state with no Noto token from before the reset.
+1. Run: `pytest -m integration -k "noto or paladin_reset"`
+2. See each node's coins: the last lines of `python scripts/stack.py noto-demo`
+   Expect `node1 (notary) sees coins [40, 60, 100]`, the same for node2, and `node3 (Beatrice) sees coins [40]`. After the mint alone node3 sees no coin (`test_noto_privacy`).
+3. The public chain: `eth_getLogs` for the token address on `http://localhost:8545` (`test_the_public_chain_shows_no_amounts_and_no_party_addresses`)
+   Expect no 32-byte word equal to 100, 60 or 40 and no wallet address of Anson or Beatrice.
+4. Run: `python scripts/stack.py reset && python scripts/stack.py up`
+   Expect `paladin-node1` to `paladin-node3`, `paladin-postgres`, `paladin-runtime` and `deployed-addresses.json` removed, and then `domain_listDomains` on each node returns `[]` (no domain until `deploy`).
+5. A plain restart keeps state: `docker restart paladin-node1 paladin-node2 paladin-node3`
+   Expect the same `registry.operator` and `registry.nodeN` addresses (`keymgr_resolveKey`), the same registry entries and the same balances (`test_paladin_reset`).
 ```
 
 **Verification checklist**:
-- [ ] A Paladin node that is not a party does not see the transfer
-- [ ] The public chain data shows no amounts or parties
-- [ ] After reset, Paladin starts clean against the fresh chain
+- [x] A Paladin node that is not a party does not see the transfer
+- [x] The public chain data shows no amounts or parties
+- [x] After reset, Paladin starts clean against the fresh chain
+
+**Verified 2026-10-04**: the tests above pass, and the whole gate passed three times in a row from `reset`, `up` and `deploy` (103 integration tests each).
 
 **Known limitations at this phase**: all nodes share one host, so this shows the protocol, not real isolation (R11).
 
 **Phase exit gate summary** (from plan.md):
-- [ ] All DL-3.x deliverables verified
-- [ ] Noto integration tests pass
-- [ ] `python scripts/stack.py reset` clears all three stores
+- [x] All DL-3.x deliverables verified
+- [x] Noto integration tests pass
+- [x] `python scripts/stack.py reset` clears all three stores
 
 ---
 

@@ -255,3 +255,31 @@ From a reset stack, `python scripts/stack.py deploy` deploys the 12 contracts an
 - **A failed transaction keeps its idempotency key.** Sending the same key again returns 409 `FF10431` even though nothing was mined. The deploy runner therefore checks the original transaction's operations: if all failed it retries under `<key>-after-<first 8 characters of the transaction id>`, if it succeeded it counts as done (a call) or asks for `reset` (a deploy whose address was not recorded).
 - **`POST /contracts/interfaces/generate`** with `{"input": {"abi": [...]}}` returns a contract interface whose methods work as the `method` of an invoke, including struct parameters (the `addAndUseTREXVersion` call uses it). Nothing is registered by calling it.
 - Calls are passed to FireFly by parameter name, so the plan's positional arguments are paired with the ABI's parameter names.
+
+## Phase 3 findings
+
+What building Phase 3 (Paladin and Noto in the real stack) added to the spike. Dated 2026-10-04.
+
+### Bootstrap and registry (run)
+
+- **Two-phase bootstrap.** The nodes first start from a base config without domains. `deploy` then sends the registry, Noto, Noto factory and factory proxy contracts through node1, writes `domains.noto` (registry address = the factory proxy, `factoryVersion` 2) and `registries.evm-registry` into every node's config, and restarts the nodes. After that `domain_listDomains` returns `["noto"]` on all three. Paladin's `ptx_sendTransaction` accepts the deploy with the artifact ABI and bytecode and signs with its own derived key.
+- **Registering a node takes two transactions from two keys.** `registerIdentity` is sent by node1's `registry.operator` (the registry's root owner) with the node's own `registry.<node>` address as owner; the node then publishes `transport.grpc` with `setIdentityProperty` using its own key. `reg_queryEntriesWithProps` shows the entry and its properties.
+- **node1's index lags the chain.** A registration is mined before `reg_queryEntriesWithProps` shows it. Asking straight after the registration sometimes missed the entry (`KeyError: 'node3'` in the first cold `deploy`). `deploy` now polls (up to 60 s) before setting the transports. After that fix three cold `reset`, `up`, `deploy` cycles all exited 0.
+- **Timings** on this machine: cold `up` 49 to 111 s, `deploy` with Paladin 113 to 129 s.
+
+### Noto across three nodes (run)
+
+- Deploying a token needs a constructor ABI with `notary` and `notaryMode`; the notary is `notary@node1` and the mode is `basic`. The receipt of the private deploy has `contractAddress`.
+- `mint` is sent by the notary on node1, `transfer` by the coin's owner on the owner's own node. `balanceOf` answers `{totalStates, totalBalance, overflow}` with numbers as strings; it must be asked of the owner's node.
+- The first call between nodes opens the gRPC connections: node1's log then shows `Client TLS handshake completed` and `Server TLS handshake completed` with node2 and node3.
+- An oversize transfer fails at assembly: `PD012616: Domain reverted transaction on assemble: PD200005: Insufficient funds (available=...)`. Once, right after a mint, the message said `available=200` for a 100 balance; the transfer was still refused and `balanceOf` stayed 100, so it is the message only.
+- **What each node lists** (`pstate_queryContractStates`, state `data.amount`, spent coins included): after the mint node1 and node2 list 100 and node3 lists nothing; after a transfer of 40 node1 and node2 list 40, 60 and 100 and node3 lists 40 only. The public chain's logs for the token have no 32-byte word equal to 100, 60 or 40 and no wallet address of Anson or Beatrice.
+
+### Reset and restart (run)
+
+- A plain `docker restart` of the three Paladin containers keeps `registry.operator` and `registry.<node>` addresses, the registry entries and balances, because the Postgres database is a volume (the spike's key-derivation hazard).
+- `reset` removes the Paladin Postgres volume, `paladin-runtime/` and `deployed-addresses.json`; after the next `up` every node reports no domain until `deploy` runs again.
+
+### Result
+
+`pytest -m integration` (103 tests) passed three times in a row from `reset`, `up` and `deploy` (772 s, 750 s, 707 s). Unit tests (439), `ruff check` and `mypy` are clean.
