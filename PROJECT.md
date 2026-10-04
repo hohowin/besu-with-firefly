@@ -28,6 +28,7 @@ Python 3.11+ (developed on 3.13). Run these from the repo root inside the virtua
 | Unit tests | `pytest` (integration tests are skipped) |
 | Integration tests | `pytest -m integration` (needs Docker and a running stack; about 13 minutes) |
 | Contract packages | `cd contracts && npm ci` (the pinned T-REX and OnchainID artifacts; needed by `deploy` and by some unit tests, which skip without them) |
+| Benchmark | `python scripts/stack.py perf-setup --wallets N --coins K` (N per layer, needs `deploy`), then `cd perf && npm ci && npm install --no-save web3@1.3.0`, `npm run round:chain`, `npm run round:firefly`, `npm test` (unit tests of the report parser, snapshot and connector rules), `npm run smoke`. Load: `PERF_WALLETS`, `PERF_TPS`, `PERF_TXS`, `PERF_AMOUNT` (see `perf/README.md`). Setup mints COIN: `reset` before the integration tests |
 | CLI | `besu-ff query\|invoke\|tx\|register` (after `pip install -e ".[dev]"`; needs `up` and `deploy`; `besu-ff --help`) |
 | Stack | `python scripts/stack.py init\|up\|deploy\|onboard\|noto-demo\|reset` (plan D-16). `deploy` and `onboard` only do what is missing; `noto-demo` needs `deploy` and deploys a new Noto token each run |
 
@@ -36,8 +37,8 @@ Lint and type checks skip `spike/`, `.agents/` and `.claude/` (Phase 0 evidence 
 ## Directory Layout
 
 ```
-src/core/          pure logic, no I/O (network/: genesis, enode, health; firefly/: config, keystore, request bodies, port, errors, outcome, inputs, invoke, register; trex/: deploy plan, claims, onboarding, amounts; paladin/: node config, artifacts, JSON-RPC, bootstrap, registry, Noto requests, privacy checks)
-src/adapters/      I/O: Docker, files, JSON-RPC, the FireFly and Paladin clients, deploy, onboarding and Noto runners, the stack CLI, the FireFly CLI (ff_cli.py, `besu-ff`)
+src/core/          pure logic, no I/O (network/: genesis, enode, health; firefly/: config, keystore, request bodies, port, errors, outcome, inputs, invoke, register; trex/: deploy plan, claims, onboarding, amounts; paladin/: node config, artifacts, JSON-RPC, bootstrap, registry, Noto requests, privacy checks; perf/: benchmark wallets from a seed, what they still need)
+src/adapters/      I/O: Docker, files, JSON-RPC, the FireFly and Paladin clients, deploy, onboarding and Noto runners, the stack CLI, the FireFly CLI (ff_cli.py, `besu-ff`), the benchmark setup (perf_setup.py, perf_wallets.py)
 scripts/           thin entry points (stack.py) that call into src/adapters
 tests/unit/        unit tests, mirror src/
 tests/integration/ tests that need Docker and a live stack (marker: integration)
@@ -48,10 +49,9 @@ contracts/paladin/ the vendored Paladin v1.0.0 contract artifacts and the privat
 contracts/         package.json pinning the T-REX and OnchainID artifacts (node_modules is not committed)
 docker-compose.yml the Besu network, FireFly, and three Paladin nodes with one Postgres
 deployed-addresses.json  addresses written by `deploy` (not committed)
-docs/              PRD, architecture, plan, use cases, deliverables, spike results
+docs/              PRD, architecture, plan, use cases, deliverables, spike results, perf results (perf-results.md, perf-data/)
 tasks/             task lists per phase
 spike/             Phase 0 evidence (archive, not part of the stack)
-perf/              Caliper benchmarks (Phase 5)
+perf/              Caliper 0.6.0 sub-project (own package.json): workload, the FireFly connector, run.js, lib/; generated/ and results/ are not committed
 ```
 
-`perf/` is created by Phase 5.

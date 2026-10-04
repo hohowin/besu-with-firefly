@@ -31,9 +31,9 @@ This document is the single reference for what is deliverable and verifiable at 
 | DL-3.3 | Phase 3 — Paladin + Noto | N/A | test | Privacy check and three-store reset | Done |
 | DL-4.1 | Phase 4 — Python CLI | N/A | ui | `src/core/` and CLI with 4 commands | Done |
 | DL-4.2 | Phase 4 — Python CLI | N/A | test | Unit and integration suites, lint and types clean | Done |
-| DL-5.1 | Phase 5 — Caliper | N/A | infra | `perf/` Caliper sub-project and wallet setup | Planned |
-| DL-5.2 | Phase 5 — Caliper | N/A | feature | Chain-layer and FireFly-layer rounds | Planned |
-| DL-5.3 | Phase 5 — Caliper | N/A | doc | Results note | Planned |
+| DL-5.1 | Phase 5 — Caliper | N/A | infra | `perf/` Caliper sub-project and wallet setup | Done |
+| DL-5.2 | Phase 5 — Caliper | N/A | feature | Chain-layer and FireFly-layer rounds | Done |
+| DL-5.3 | Phase 5 — Caliper | N/A | doc | Results note | Done |
 
 ---
 
@@ -708,19 +708,25 @@ Exit codes: `0` done, `1` failed or refused by the contract, `2` bad usage (argp
 
 **What it is**: A separate Node sub-project with Caliper config for `besu-rpc-*` and a setup step that creates N verified wallets holding `COIN`.
 
-**How to try it**:
+**How to try it** (the stack must be up and deployed):
 ```
-1. `cd perf && npm install && npm install --no-save web3@1.3.0` (planned layout; Caliper 0.6.0, because `caliper bind` does not work on Windows)
-2. Run the wallet setup with N=20 (flag or env name per `perf/README`)
-3. Spot-check a wallet: `isVerified` and `balanceOf` through the contract API
-   Expect verified and a non-zero balance.
+1. `cd perf && npm ci && npm install --no-save web3@1.3.0` (Caliper 0.6.0 pinned in the lock file; `caliper bind` does not work on Windows, and `web3@1.3.0` is all it would install)
+2. `python scripts/stack.py perf-setup --wallets 10 --coins 100`
+   Expect 20 wallets (10 per layer) made verified investors holding 100 COIN, and `perf-setup  20 wallets ... in 169.1 s` (2 to 4 minutes). Run again: nothing is sent.
+3. Spot-check a wallet (`python -c "from src.core.perf.wallets import benchmark_wallets as b; print(b(10)[0].address)"` prints the first one, `perf-001`):
+   `besu-ff query isVerified --contract identity-registry --input _userAddress=ADDRESS` then `besu-ff query balanceOf --contract coin --input _userAddress=ADDRESS`
+   Expect `true` and `100000000000000000000`.
+4. `cd perf && npm run smoke`
+   Expect a read-only `COIN.name()` round, 10 of 10, and `report.html`.
 ```
 
 **Verification checklist**:
-- [ ] N wallets verified on-chain, N configurable
-- [ ] Setup duration recorded
+- [x] N wallets verified on-chain, N configurable (`--wallets`, N per layer)
+- [x] Setup duration recorded (169 s, 212 s and 162 s for 20 wallets; about 13 s per wallet)
 
-**Known limitations at this phase**: setup can take longer than the rounds (R7).
+**Verified 2026-10-04**: steps 1 to 4 run against the live stack (`isVerified` true and `balanceOf` 100 COIN for the wallets, a second `perf-setup` sending nothing, the smoke round 10 of 10); `tests/integration/test_perf_setup.py` and `test_perf_wallets.py` cover setup and the signer.
+
+**Known limitations at this phase**: setup takes longer than the two rounds together (R7). The signer does not notice new keystores, so `perf-setup` restarts `firefly-signer` when it adds wallets. The setup mints COIN, so `reset` before the integration tests.
 
 ### DL-5.2 — Chain-layer and FireFly-layer rounds
 
@@ -734,20 +740,22 @@ Exit codes: `0` done, `1` failed or refused by the contract, `2` bad usage (argp
 
 **What it is**: The same `Token.transfer` sent directly over JSON-RPC and through FireFly's contract API.
 
-**How to try it**:
+**How to try it** (after `perf-setup`):
 ```
-1. Run the chain-layer round (command per `perf/README`)
-   Expect a report with TPS and latency.
-2. Run the FireFly-layer round
-   Expect a second report.
-3. Repeat both from a fresh `python scripts/stack.py reset && python scripts/stack.py up && python scripts/stack.py deploy`
+1. `cd perf && npm run round:chain`
+   Expect 300 of 300 succeeded, about 5 TPS and the latency, and `perf/results/chain.json` (numbers and configuration).
+2. `npm run round:firefly`
+   Expect 300 of 300, about 4.8 TPS, an average latency of a few seconds, and `perf/results/firefly.json`.
+3. Repeat both from a fresh `python scripts/stack.py reset && python scripts/stack.py up && python scripts/stack.py deploy`, then `perf-setup`
 ```
 
 **Verification checklist**:
-- [ ] Both reports exist
-- [ ] The two runs are reproducible from a fresh stack
+- [x] Both reports exist (`results/<layer>.json` and `<layer>-report.html`)
+- [x] The two runs are reproducible from a fresh stack
 
-**Known limitations at this phase**: Caliper has no FireFly connector, so the FireFly round uses a small custom Caliper connector (proven in Phase 0). Caliper 0.7.1 has no Ethereum connector, so 0.6.0 is used.
+**Verified 2026-10-04**: two runs from `reset`, `up`, `deploy`, `perf-setup`: all four rounds 300 of 300, chain 5.1 TPS (average 0.99 s and 0.74 s), FireFly 4.8 and 4.9 TPS (average 4.92 s and 4.63 s). Numbers and configuration: [perf-results.md](perf-results.md).
+
+**Known limitations at this phase**: Caliper has no FireFly connector, so the FireFly round uses a small custom Caliper connector (`perf/connector/`). Caliper 0.7.1 has no Ethereum connector, so 0.6.0 is used. The default load is 5 TPS because FireFly takes about 8 TPS here (at 20 TPS one run failed 455 of 600). The two layers use separate wallets, because evmconnect works out a key's next nonce from its own records and fails with `Nonce too low` for a key that was also sent from directly.
 
 ### DL-5.3 — Results note
 
@@ -763,15 +771,17 @@ Exit codes: `0` done, `1` failed or refused by the contract, `2` bad usage (argp
 
 **How to try it**:
 ```
-1. Open the results note (`docs/perf-results.md`, planned name)
+1. Open the results note, `docs/perf-results.md`
 2. Confirm it lists chain-layer and FireFly-layer TPS and latency, the difference, and the genesis settings
 ```
 
 **Verification checklist**:
-- [ ] Numbers are never published without the configuration
-- [ ] The caveat about Besu limits is present
+- [x] Numbers are never published without the configuration (the configuration table, and the four result files with their snapshots in `docs/perf-data/`)
+- [x] The caveat about Besu limits is present (the first paragraph and "What these numbers do and do not say")
 
-**Known limitations at this phase**: no tuning for maximum throughput.
+**Verified 2026-10-04**: the note lists both layers' throughput and latency for two runs, the difference, the genesis block period (2 s) and gas limit, the 20 TPS ceiling observation labelled as one run, and the caveat.
+
+**Known limitations at this phase**: no tuning for maximum throughput, two runs of one configuration (not a distribution).
 
 **Phase exit gate summary** (from plan.md):
 - [ ] All DL-5.x deliverables verified

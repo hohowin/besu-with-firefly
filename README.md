@@ -2,7 +2,7 @@
 
 A local learning project: a single-validator QBFT Hyperledger Besu network with one RPC node, provisioned with **Hyperledger FireFly** (gateway mode) and **Paladin**, an ERC-3643 (T-REX) compliance token deployed through FireFly, a private **Noto** token on Paladin, a small Python CLI client for FireFly, and **Caliper** performance tests.
 
-> **Status: Phases 0 (spike), 1 (the Besu network), 2 (FireFly and the ERC-3643 `COIN` token) and 3 (Paladin and the private Noto token) are built (2026-10-04), see [docs/plan.md](docs/plan.md) and [docs/spike-results.md](docs/spike-results.md).** Phases 4-5 are not started: the Python CLI and Caliper are planned, and so are the items marked *TBD*.
+> **Status: Phases 0 (spike), 1 (the Besu network), 2 (FireFly and the ERC-3643 `COIN` token), 3 (Paladin and the private Noto token), 4 (the `besu-ff` CLI) and 5 (Caliper) are built (2026-10-04), see [docs/plan.md](docs/plan.md) and [docs/spike-results.md](docs/spike-results.md).** The Phase 5 numbers and the configuration they were measured under are in [docs/perf-results.md](docs/perf-results.md).
 
 ## Who it serves and how they interact
 
@@ -43,12 +43,12 @@ Caliper 0.6.0 (`perf/`, Node.js) and the Python CLI run on the host. Caliper 0.7
 
 - Docker Desktop with Docker Compose v2
 - Python 3.11+ (CLI, tests)
-- Node.js 24 (the pinned T-REX contract packages, installed with `npm ci` in `contracts/`; later Caliper 0.6.0). Caliper needs `npm install --no-save web3@1.3.0` by hand because `caliper bind` fails on Windows
+- Node.js 24 (the pinned T-REX contract packages, installed with `npm ci` in `contracts/`, and Caliper 0.6.0 in `perf/`). Caliper needs `npm install --no-save web3@1.3.0` by hand because `caliper bind` fails on Windows
 - *(optional)* FireFly CLI `ff`, only as a reference for generating config (no Windows release: `go install github.com/hyperledger-firefly/cli/ff@v1.5.0`). The stack uses its own Compose, not `ff start`.
 
 ## Getting started
 
-The commands run from the repo root. Phases 1 to 3 are built: a one-validator Besu network, FireFly in gateway mode, the ERC-3643 token `COIN`, and three Paladin nodes with a private Noto token.
+The commands run from the repo root. A one-validator Besu network, FireFly in gateway mode, the ERC-3643 token `COIN`, three Paladin nodes with a private Noto token, the `besu-ff` CLI and a Caliper benchmark are built.
 
 ```bash
 git clone <repo> && cd besu-with-firefly
@@ -66,6 +66,18 @@ python scripts/stack.py reset         # removes containers, volumes and deployed
 The genesis, validator keys, `static-nodes.json`, demo wallets and the FireFly config and signer keystores are already committed in `network-config/`, so `up` needs no generation step. `python scripts/stack.py init --force` regenerates them (it needs Docker for Besu's own generator and refuses to overwrite without `--force`).
 
 `deploy` and `onboard` only do what is missing, so running them again sends nothing, and running `deploy` again finishes an interrupted run. `python scripts/stack.py onboard` repeats just the investor onboarding.
+
+## Benchmark (Caliper)
+
+Chain layer (direct JSON-RPC) against FireFly layer, the same `COIN.transfer`. Needs the stack up and deployed.
+
+```bash
+cd perf && npm ci && npm install --no-save web3@1.3.0 && cd ..
+python scripts/stack.py perf-setup --wallets 10 --coins 100    # 20 verified wallets holding COIN, 10 per layer (2 to 4 minutes)
+(cd perf && npm run round:chain && npm run round:firefly)       # about 1 minute each; results in perf/results/
+```
+
+The results note, with the configuration beside every number, is [docs/perf-results.md](docs/perf-results.md). **The setup mints new COIN, so run `python scripts/stack.py reset` after benchmarking, before the integration tests** (`totalSupply` is 1000 in those tests). Details, the load options and why the layers use separate wallets: [perf/README.md](perf/README.md).
 
 A cold `up` takes 2 to 3 minutes (it waits up to 5) and can take longer on a busy machine. `deploy` takes about 2 minutes with Paladin. `noto-demo` needs `deploy` first and deploys a new token on every run.
 
