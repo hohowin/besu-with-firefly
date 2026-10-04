@@ -32,13 +32,13 @@ Sizes: no task is L or larger. Tasks 1, 2 and 3 are the largest (M).
 **Description:** Add `src/core/firefly/port.py` (a `FireflyPort` `Protocol`: `api_query`, `api_invoke`, `get_operation`, `operation_events`, `ensure_interface`, `ensure_api`), `src/core/firefly/errors.py` (move `FireflyError`, `Reverted`, `OperationFailed`, `OperationTimeout`, `AlreadySubmitted` out of the adapter, unchanged) and `src/core/firefly/outcome.py`: a pure function that turns "what the port returned or raised" into one of `Succeeded`, `Failed(error)`, `ComplianceRevert(reason)` or `Pending(operation_id, tx)` (a timeout, a still-pending or an unrecognised status, or a transport error on a write, all of which are unknown and must carry whatever ids are known). `src/adapters/firefly.py` imports the errors from core and re-exports them, so existing imports still work.
 
 **Acceptance criteria:**
-- [ ] A `Succeeded` operation is the only input that classifies as `Succeeded`; `Pending`, `Initialized`, an empty or unknown status string, and `OperationTimeout` all classify as `Pending` (unit-tested, parametrised over statuses)
-- [ ] A `Reverted` error classifies as `ComplianceRevert` with the contract's reason, and an `OperationFailed` as `Failed` with FireFly's error text
-- [ ] `src/core/` contains no `print`, `input` or network call (checked by a test that scans the package source), and `FireflyClient` satisfies `FireflyPort` under `mypy`
+- [x] A `Succeeded` operation is the only input that classifies as `Succeeded`; `Pending`, `Initialized`, an empty or unknown status string, and `OperationTimeout` all classify as `Pending` (unit-tested, parametrised over statuses)
+- [x] A `Reverted` error classifies as `ComplianceRevert` with the contract's reason, and an `OperationFailed` as `Failed` with FireFly's error text
+- [x] `src/core/` contains no `print`, `input` or network call (checked by a test that scans the package source), and `FireflyClient` satisfies `FireflyPort` under `mypy`
 
 **Verification:**
-- [ ] Tests pass: `pytest tests/unit/core/test_firefly_outcome.py tests/unit/adapters/test_firefly.py tests/unit/adapters`
-- [ ] Checks clean: `ruff check .` and `mypy .`
+- [x] Tests pass: `pytest tests/unit/core/test_firefly_outcome.py tests/unit/adapters/test_firefly.py tests/unit/adapters`
+- [x] Checks clean: `ruff check .` and `mypy .`
 
 **Dependencies:** None (Phases 1 to 3 done)
 
@@ -49,18 +49,20 @@ Sizes: no task is L or larger. Tasks 1, 2 and 3 are the largest (M).
 
 **Size:** M
 
+**Status:** Done 2026-10-04. Test-first (9 new unit tests). `src/core/firefly/{errors,outcome,port}.py`; the adapter re-exports the moved errors (`__all__`). `operation_events` is named `transaction_events` and arrives in Task 3. A transport error after a write was sent is left to Task 5, as listed there.
+
 ### Task 2: CLI skeleton and `query` end to end
 
 **Description:** Create the CLI adapter `src/adapters/ff_cli.py` with `main(argv)` (so tests can call it), a `query` subcommand (`query <method> --contract coin --input NAME=VALUE ...`), plain-text output by default and `--json`, and the console-script entry point in `pyproject.toml`. A pure core function parses `NAME=VALUE` inputs and resolves a wallet name given as a value to its address, and validates an address before anything is sent (architecture §8, input validation). FireFly unreachable exits non-zero with a transport error and no retry beyond the client's existing read retries (architecture §3). This is the riskiest task for the CLI shape (arguments, output, entry point), so it goes first.
 
 **Acceptance criteria:**
-- [ ] `query balanceOf --contract coin --input _userAddress=anson` against the live stack prints the balance as a number and exits 0; `--json` prints a JSON object with the same value
-- [ ] A malformed address or unknown wallet name exits non-zero with a clear message and sends nothing (unit test with a port that fails on any call)
-- [ ] FireFly down: non-zero exit, message names the transport error, no traceback
+- [x] `query balanceOf --contract coin --input _userAddress=anson` against the live stack prints the balance as a number and exits 0; `--json` prints a JSON object with the same value
+- [x] A malformed address or unknown wallet name exits non-zero with a clear message and sends nothing (unit test with a port that fails on any call)
+- [x] FireFly down: non-zero exit, message names the transport error, no traceback
 
 **Verification:**
-- [ ] Tests pass: `pytest tests/unit` and `pytest -m integration tests/integration/test_cli_query.py`
-- [ ] Checks clean: `ruff check .` and `mypy .`
+- [x] Tests pass: `pytest tests/unit` and `pytest -m integration tests/integration/test_cli_query.py`
+- [x] Checks clean: `ruff check .` and `mypy .`
 
 **Dependencies:** Task 1
 
@@ -71,18 +73,20 @@ Sizes: no task is L or larger. Tasks 1, 2 and 3 are the largest (M).
 
 **Size:** M
 
+**Status:** Done 2026-10-04. Wallet names are written `@anson` in `--input` (explicit, so a plain string argument is never mistaken for a name; a `0x` value must be whole-byte hex). `--json` and `--network-dir` go before the command. `pip install -e ".[dev]"` was re-run for the `besu-ff` entry point.
+
 ### Task 3: `tx` command (operation and events)
 
 **Description:** `tx <operation-id>` prints the operation's status, type, error text if any, its transaction id, and the events FireFly recorded for that transaction. First step: probe the live stack to find which FireFly endpoint returns useful events for a `blockchain_invoke` operation (candidates: `/transactions/{id}/blockchainevents`, `/transactions/{id}/status`, `/events?tx={id}`), because blockchain events only exist when a contract listener is registered, and Phase 2 registers none. Record the finding in `docs/spike-results.md` and pick the endpoint that needs no new listener; if only a listener gives events, stop and ask (Open Question 3). Add `operation_events` to the adapter, with tests against recorded response bodies (plan step 2 gate).
 
 **Acceptance criteria:**
-- [ ] `tx <operation-id>` for a succeeded transfer prints status `Succeeded`, the transaction id and at least one event line; for an unknown id it exits non-zero with FireFly's not-found text
-- [ ] The adapter's `operation_events` is tested against a recorded real FireFly response (stored under `tests/unit/adapters/`), not an invented one
-- [ ] The probe result and the chosen endpoint are written in `docs/spike-results.md` (a short Phase 4 section)
+- [x] `tx <operation-id>` for a succeeded transfer prints status `Succeeded`, the transaction id and at least one event line; for an unknown id it exits non-zero with FireFly's not-found text
+- [x] The adapter's `operation_events` is tested against a recorded real FireFly response (stored under `tests/unit/adapters/`), not an invented one
+- [x] The probe result and the chosen endpoint are written in `docs/spike-results.md` (a short Phase 4 section)
 
 **Verification:**
-- [ ] Tests pass: `pytest tests/unit/adapters/test_firefly.py` and `pytest -m integration tests/integration/test_cli_tx.py`
-- [ ] Checks clean: `ruff check .` and `mypy .`
+- [x] Tests pass: `pytest tests/unit/adapters/test_firefly.py` and `pytest -m integration tests/integration/test_cli_tx.py`
+- [x] Checks clean: `ruff check .` and `mypy .`
 
 **Dependencies:** Task 2
 
@@ -93,13 +97,15 @@ Sizes: no task is L or larger. Tasks 1, 2 and 3 are the largest (M).
 
 **Size:** M
 
+**Status:** Done 2026-10-04. Probe result in `docs/spike-results.md` (Phase 4 findings): `GET /events?tx={id}` gives `transaction_submitted` and `blockchain_invoke_op_succeeded` with no listener, so Open Question 3 needed no decision. Adapter tested against the real response in `tests/unit/adapters/recorded/events_by_tx.json`.
+
 ---
 
 ## Checkpoint: After Tasks 1–3
 
-- [ ] `ruff check .`, `mypy .`, `pytest` all pass; `src/core/` has no `print`, `input` or network call
-- [ ] `query` and `tx` run against the live stack and their output is asserted in integration tests
-- [ ] The events endpoint question (Task 3) is settled, or escalated
+- [x] `ruff check .`, `mypy .`, `pytest` all pass; `src/core/` has no `print`, `input` or network call
+- [x] `query` and `tx` run against the live stack and their output is asserted in integration tests
+- [x] The events endpoint question (Task 3) is settled, or escalated
 - [ ] Human review before proceeding (**waiting for Howin**)
 
 ---
