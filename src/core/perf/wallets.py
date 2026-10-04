@@ -41,6 +41,16 @@ def derive_wallets(count: int, seed: str = PERF_SEED) -> list[Wallet]:
     return wallets
 
 
+def benchmark_wallets(workers: int, seed: str = PERF_SEED) -> list[Wallet]:
+    """The wallets for a benchmark with `workers` workers: twice as many, one set per layer.
+
+    The first `workers` wallets are for the chain layer, the next `workers` for the FireFly layer.
+    FireFly's evmconnect works out a key's next nonce from its own records, so it falls behind a key
+    that was also sent from directly; the layers must never share a wallet.
+    """
+    return derive_wallets(2 * workers, seed)
+
+
 def _master_key(seed: bytes) -> tuple[int, bytes]:
     digest = hmac.new(b"Bitcoin seed", seed, hashlib.sha512).digest()
     return int.from_bytes(digest[:32], "big"), digest[32:]

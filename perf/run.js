@@ -1,6 +1,6 @@
 'use strict';
 // Runs one round and saves its numbers with the configuration they were measured under.
-//   node run.js chain      (npm run round:chain)
+//   node run.js chain|firefly      (npm run round:chain, npm run round:firefly)
 // Checks that the wallets are set up, runs Caliper, reads its summary table, checks that the transfers
 // only moved COIN (the sum of the wallets' balances is the same before and after), and writes
 // results/<layer>.json. Exits non-zero if a transaction failed or the sum changed.
@@ -17,8 +17,10 @@ const root = path.resolve(__dirname, '..');
 const FIREFLY = process.env.FIREFLY_URL || 'http://localhost:5000';
 const NS = `${FIREFLY}/api/v1/namespaces/default`;
 
+// Each layer has its own set of wallets: the chain layer uses wallets 0 to N-1, the FireFly layer N to 2N-1.
 const LAYERS = {
-    chain: 'generated/ethereum.json'
+    chain: { network: 'generated/ethereum.json', benchmark: 'generated/benchmark-chain.yaml', offset: (params) => 0 },
+    firefly: { network: 'generated/firefly.json', benchmark: 'generated/benchmark-firefly.yaml', offset: (params) => params.wallets }
 };
 
 async function post(pathname, body) {
@@ -50,11 +52,31 @@ async function checkWallets(params, addresses) {
         if (verified !== true || held[address] < needed) {
             throw new Error(
                 `wallet ${address} is not ready (verified: ${verified}, balance: ${held[address]}, needs ${needed}). ` +
-                `Run: python scripts/stack.py perf-setup --wallets ${params.wallets}`
+                `Run: python scripts/stack.py perf-setup --wallets ${params.wallets} (it prepares ${2 * params.wallets}: N per layer)`
             );
         }
     }
     return held;
+}
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// A round must start with nothing queued in FireFly: operations left over from an earlier round are still
+// being sent and would take capacity from the round being measured.
+async function waitForNoPendingOperations(seconds = 180) {
+    const deadline = Date.now() + seconds * 1000;
+    for (;;) {
+        const response = await fetch(`${NS}/operations?status=Pending&limit=1`);
+        const pending = await response.json();
+        if (pending.length === 0) {
+            return;
+        }
+        if (Date.now() >= deadline) {
+            throw new Error(`FireFly still has pending operations after ${seconds} s. Run \`python scripts/stack.py reset\` to start clean.`);
+        }
+        console.log('waiting for FireFly to finish pending operations...');
+        await sleep(5000);
+    }
 }
 
 function sum(map) {
@@ -82,13 +104,13 @@ function versions() {
     };
 }
 
-function runCaliper(networkConfig, reportPath) {
+function runCaliper(layerConfig, reportPath) {
     const caliper = path.join(__dirname, 'node_modules', '@hyperledger', 'caliper-cli', 'caliper.js');
     const args = [
         caliper, 'launch', 'manager',
         '--caliper-workspace', '.',
-        '--caliper-benchconfig', 'generated/benchmark.yaml',
-        '--caliper-networkconfig', networkConfig,
+        '--caliper-benchconfig', layerConfig.benchmark,
+        '--caliper-networkconfig', layerConfig.network,
         '--caliper-report-path', reportPath,
         '--caliper-flow-skip-start', '--caliper-flow-skip-install', '--caliper-flow-skip-end'
     ];
@@ -113,7 +135,9 @@ async function main() {
     }
     const params = readParams();
     prepare(params);
-    const addresses = deriveAddresses(params.seed, params.wallets);
+    await waitForNoPendingOperations();
+    const offset = LAYERS[layer].offset(params);
+    const addresses = deriveAddresses(params.seed, offset + params.wallets).slice(offset);
     const before = await checkWallets(params, addresses);
 
     const reportPath = `results/${layer}-report.html`;

@@ -140,13 +140,13 @@ Sizes: no task is L or larger. Tasks 1 to 6 are M, Task 7 is S.
 **Description:** A custom Caliper connector (`perf/connector/firefly-connector.js`, from the spike's shape) that sends the same transfer as `POST /apis/coin/invoke/transfer?confirm=true` with `key` set to the worker's wallet address, and marks a transaction successful only for a `Succeeded` operation (the Phase 4 rule: nothing else counts). It reuses `workload/transfer.js` unchanged, so only the path differs, and writes the same snapshot. `npm run round:firefly` runs it.
 
 **Acceptance criteria:**
-- [ ] The round runs with the same N, rate and count as Task 4, and the report shows throughput and latency
-- [ ] A failed or pending operation is counted as failed, never as success (shown with a unit test of the connector's status mapping, no stack needed)
-- [ ] The two snapshots are identical except for the layer, so the two reports are comparable
+- [x] The round runs with the same N, rate and count as the chain round (on its own set of wallets), and the report shows throughput and latency
+- [x] A failed or pending operation is counted as failed, never as success (shown with a unit test of the connector's status mapping, no stack needed)
+- [x] The two snapshots are identical except for the layer, so the two reports are comparable
 
 **Verification:**
-- [ ] Tests pass: `npm run round:firefly` exits 0; the connector's status mapping test (a small `node --test` file, no new dependency)
-- [ ] Checks clean: `ruff check .` and `mypy .`
+- [x] Tests pass: `npm run round:firefly` exits 0; the connector's status mapping test (a small `node --test` file, no new dependency)
+- [x] Checks clean: `ruff check .` and `mypy .`
 
 **Dependencies:** Task 4
 
@@ -154,6 +154,8 @@ Sizes: no task is L or larger. Tasks 1 to 6 are M, Task 7 is S.
 - `perf/connector/firefly-connector.js`, `perf/benchmarks/firefly.yaml`, `perf/network/firefly.json`, `perf/test/firefly-connector.test.js`, `perf/package.json`, `perf/README.md`
 
 **Size:** M
+
+**Status:** Done 2026-10-04. `connector/firefly-connector.js` (the spike's shape) sends `POST /apis/coin/invoke/transfer?confirm=true` with `key` set to the worker's wallet; `lib/firefly-status.js` holds the success rule and the request shape, with 5 `node --test` tests (9 more for params, 18 in all). The workload module is shared; only the benchmark file's `offset` differs. Four rounds in a row (chain, FireFly, chain, FireFly) all 300 of 300: chain 5.0 to 5.1 TPS at 0.4 to 1.7 s average latency, FireFly 4.9 TPS at about 3.2 s. **Two design changes came out of it** (details in `docs/spike-results.md`): (1) the layers cannot share wallets (FireFly's evmconnect falls behind a key that was also sent from directly: `Nonce too low`, and a restart does not help), so `perf-setup --wallets N` now prepares `2N` wallets, N per layer; (2) at 20 TPS FireFly gave 145 of 600 with 67 s latency (its ceiling here is about 8 TPS), so the default load is 5 TPS and 300 transactions (Open Question 4 changed), and the 20 TPS result is recorded as an observation with its configuration. `run.js` also waits for FireFly to have no pending operations before a round.
 
 ---
 
@@ -226,7 +228,7 @@ Sizes: no task is L or larger. Tasks 1 to 6 are M, Task 7 is S.
 | 1 | Where does wallet setup live? The Phase 2 onboarding logic is Python, `perf/` is Node. | Howin | Python: `python scripts/stack.py perf-setup`, reusing the onboarding functions; Node only runs Caliper |
 | 2 | FireFly's signer reads keystores at start. If Task 2's probe shows it does not pick up new files, restart the signer (a few seconds, FireFly reconnects) or preload a fixed set of perf wallets at `init` (committed, demo, no restart, but N has a ceiling and Phase 1 and 2 files change)? | Howin | Restart `firefly-signer` from the setup adapter; keep `init` and the committed keystores untouched |
 | 3 | Funding the wallets mints new `COIN`, which breaks `totalSupply == 1000` and `anson + beatrice == 1000` in the existing tests until a `reset`. | Howin | The setup integration test burns what it minted; the README says to `reset` after a benchmark. Do not change the existing tests |
-| 4 | Load parameters. The spike used one key at 20 TPS for 60 transactions. | Howin | N=10 workers, offered rate 20 TPS in total (2 per worker), 600 transactions, the same on both layers; N, rate and count are options, so a second, higher rate can be added later |
+| 4 | Load parameters. The spike used one key at 20 TPS for 60 transactions. | Howin | N=10 workers, the same load on both layers; N, rate and count are options. **Changed in Task 5:** 5 TPS offered and 300 transactions, because FireFly's ceiling here is about 8 TPS (at 20 TPS it failed 455 of 600); 20 TPS is kept as an observation in the spike notes |
 | 5 | There is no Caliper command in `PROJECT.md` (`TBD`). | Claude, in Task 1 | Define `npm run round:chain`, `round:firefly` and the smoke round in `perf/package.json` in Task 1, and add them to `PROJECT.md` in Task 7 |
 | 6 | Phase 4's and Phase 3's "human review" boxes (`tasks/phase-4-cli.md`, `tasks/phase-3-paladin.md`) are still open. | Howin | Tick them when convenient; nothing in Phase 5 depends on them |
 

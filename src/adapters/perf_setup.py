@@ -21,7 +21,7 @@ from src.adapters.trex_onboard import issue_claims, register_identities
 from src.core.firefly.operations import Operation
 from src.core.network.wallets import Wallet, account_addresses, wallet_private_key
 from src.core.perf.setup import coins_missing
-from src.core.perf.wallets import derive_wallets
+from src.core.perf.wallets import benchmark_wallets
 
 
 class SetupClient(Protocol):
@@ -86,7 +86,8 @@ def perf_setup(
     clock: Callable[[], float] = time.monotonic,
     sleep: Callable[[float], None] = time.sleep,
 ) -> float:
-    """Make `count` benchmark wallets verified investors with `coins` COIN each.
+    """Make the benchmark wallets for `count` workers (`2 * count`, see `benchmark_wallets`)
+    verified investors with `coins` COIN each.
 
     Needs `deploy`. Returns the seconds it took (setup can take longer than the rounds, R7).
     """
@@ -95,7 +96,7 @@ def perf_setup(
     if "id-factory" not in addresses:
         raise ValueError("nothing is deployed yet: run `python scripts/stack.py deploy` first")
     started = clock()
-    wallets = derive_wallets(count)
+    wallets = benchmark_wallets(count)
     accounts = {**account_addresses(document), **{w.name: w.address for w in wallets}}
     names = [w.name for w in wallets]
     firefly = client or FireflyClient(http_transport())
@@ -111,5 +112,5 @@ def perf_setup(
     )  # fmt: skip
     mint_to_wallets(firefly, accounts, names, coins, log, sleep, clock)
     seconds = clock() - started
-    log(f"perf-setup  {count} wallets with {coins} COIN each in {seconds:.1f} s")
+    log(f"perf-setup  {len(wallets)} wallets with {coins} COIN each in {seconds:.1f} s")
     return seconds

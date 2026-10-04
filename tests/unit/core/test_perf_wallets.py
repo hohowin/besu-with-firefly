@@ -1,7 +1,7 @@
 import pytest
 
 from src.core.network.wallets import verify_wallet
-from src.core.perf.wallets import PERF_SEED, derive_wallets
+from src.core.perf.wallets import PERF_SEED, benchmark_wallets, derive_wallets
 
 # Printed by `node perf/lib/derive.js "besu-with-firefly perf demo seed" 3`, which makes the same
 # call as Caliper's Ethereum connector (`fromAddressSeed`, path m/44'/60'/<worker>'/0/0).
@@ -58,3 +58,15 @@ def test_the_javascript_side_uses_the_same_seed() -> None:
 
     params = Path(__file__).resolve().parents[3] / "perf" / "lib" / "params.js"
     assert f"DEFAULT_SEED = '{PERF_SEED}'" in params.read_text(encoding="utf-8")
+
+
+def test_a_benchmark_gets_twice_as_many_wallets_the_first_half_for_the_chain_layer() -> None:
+    wallets = benchmark_wallets(3)
+    assert [w.name for w in wallets] == [f"perf-00{i}" for i in range(1, 7)]
+    assert wallets == derive_wallets(6)
+    assert len({w.address for w in wallets}) == 6
+
+
+def test_more_workers_than_half_the_wallet_limit_are_refused() -> None:
+    with pytest.raises(ValueError, match="between 1 and 999"):
+        benchmark_wallets(500)

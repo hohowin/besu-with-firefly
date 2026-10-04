@@ -7,14 +7,14 @@ import pytest
 
 from src.adapters.docker_stack import REPO_ROOT
 from src.adapters.perf_setup import perf_setup
-from src.core.perf.wallets import derive_wallets
+from src.core.perf.wallets import benchmark_wallets
 from src.core.trex.amounts import to_base_units
 from tests.support.firefly import ff_post
 
 pytestmark = pytest.mark.integration
 
 NS = "/api/v1/namespaces/default"
-WALLETS = derive_wallets(2)
+WALLETS = benchmark_wallets(2)  # 4 wallets: 2 per layer
 COINS = 10
 
 

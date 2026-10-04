@@ -46,8 +46,9 @@ test('two layers with the same load differ only in the layer and the time', () =
 
 test('the benchmark file offers the totals, which Caliper splits across the workers', () => {
     const { benchmarkYaml } = require('../lib/prepare');
-    const yaml = benchmarkYaml({ ...PARAMS, seed: 's' });
+    const yaml = benchmarkYaml({ ...PARAMS, seed: 's' }, 10);
     assert.match(yaml, /number: 10\n/);
     assert.match(yaml, /txNumber: 600\n/);
     assert.match(yaml, /tps: 20\n/);
+    assert.match(yaml, /offset: 10\n/);
 });

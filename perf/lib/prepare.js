@@ -5,7 +5,9 @@
 //   generated/COIN.json            the ABI file the connector expects
 //   generated/ethereum-smoke.json  network config for the smoke round (read-only, admin key)
 //   generated/ethereum.json        network config for the chain layer (one derived wallet per worker)
-//   generated/benchmark.yaml       the transfer round, shared by both layers
+//   generated/firefly.json         network config for the FireFly layer (the custom connector)
+//   generated/benchmark-chain.yaml and benchmark-firefly.yaml   the transfer round, the same load on a different
+//                                  set of wallets each (chain: 0 to N-1, FireFly: N to 2N-1)
 const fs = require('fs');
 const path = require('path');
 const { readParams } = require('./params');
@@ -35,7 +37,7 @@ function readDeployment() {
 
 // Caliper takes `txNumber` and `tps` as totals for the round and splits them across the workers
 // (measured: txNumber 60 and tps 2 with 10 workers gave 60 transactions in all at about 2 TPS in all).
-function benchmarkYaml(params) {
+function benchmarkYaml(params, offset) {
     return `test:
   name: coin-transfer
   description: COIN.transfer from ${params.wallets} wallets, ${params.tpsTotal} TPS offered in all
@@ -54,6 +56,7 @@ function benchmarkYaml(params) {
         arguments:
           seed: ${JSON.stringify(params.seed)}
           amount: ${JSON.stringify(params.amount)}
+          offset: ${offset}
 `;
 }
 
@@ -84,7 +87,12 @@ function prepare(params = readParams()) {
             contracts: { COIN: contract }
         }
     }, null, 2));
-    fs.writeFileSync(path.join(out, 'benchmark.yaml'), benchmarkYaml(params));
+    fs.writeFileSync(path.join(out, 'firefly.json'), JSON.stringify({
+        caliper: { blockchain: './connector/firefly-connector.js' },
+        firefly: { url: process.env.FIREFLY_URL || 'http://localhost:5000', api: 'coin' }
+    }, null, 2));
+    fs.writeFileSync(path.join(out, 'benchmark-chain.yaml'), benchmarkYaml(params, 0));
+    fs.writeFileSync(path.join(out, 'benchmark-firefly.yaml'), benchmarkYaml(params, params.wallets));
     return { token, params };
 }
 

@@ -8,7 +8,7 @@ import pytest
 from src.adapters.perf_setup import mint_to_wallets, perf_setup
 from src.core.firefly.operations import Operation
 from src.core.network.wallets import Wallet
-from src.core.perf.wallets import derive_wallets
+from src.core.perf.wallets import benchmark_wallets
 from src.core.trex.amounts import to_base_units
 
 ADMIN = "0x" + "aa" * 20
@@ -127,11 +127,12 @@ def test_perf_setup_loads_wallets_then_registers_then_claims_then_mints(tmp_path
         sleep=lambda _s: None,
     )
     assert order == ["load", "register", "claim"]
-    assert seen["wallets"] == seen["names"] == ["perf-001", "perf-002"]
-    derived = derive_wallets(2)
-    assert seen["accounts"]["perf-002"] == derived[1].address and seen["accounts"]["admin"] == ADMIN
+    names = ["perf-001", "perf-002", "perf-003", "perf-004"]  # 2 workers, so 2 wallets per layer
+    assert seen["wallets"] == seen["names"] == names
+    derived = benchmark_wallets(2)
+    assert seen["accounts"]["perf-004"] == derived[3].address and seen["accounts"]["admin"] == ADMIN
     assert seen["issuer_key"] == "0x" + "11" * 32
-    assert [m[0] for m in token.mints] == [derived[0].address, derived[1].address]
+    assert [m[0] for m in token.mints] == [w.address for w in derived]
     assert seconds == 12.5
 
 

@@ -85,7 +85,12 @@ def build_parser() -> argparse.ArgumentParser:
         "perf-setup",
         help="make N verified wallets holding COIN for the Caliper benchmark (needs deploy)",
     )
-    perf.add_argument("--wallets", type=int, default=10, help="how many wallets (default: 10)")
+    perf.add_argument(
+        "--wallets",
+        type=int,
+        default=10,
+        help="wallets per layer, the workers of a round; twice as many are made (default: 10)",
+    )
     perf.add_argument(
         "--coins", type=int, default=100, help="COIN each wallet should hold (default: 100)"
     )
