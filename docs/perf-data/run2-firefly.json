@@ -1,0 +1,42 @@
+{
+  "snapshot": {
+    "layer": "firefly",
+    "generatedAt": "2026-10-04T23:29:56.510Z",
+    "load": {
+      "workers": 10,
+      "offeredTpsTotal": 5,
+      "offeredTpsPerWorker": 0.5,
+      "transactions": 300,
+      "amount": "1000000000000000"
+    },
+    "chain": {
+      "blockPeriodSeconds": 2,
+      "gasLimit": "0x1fffffffffffff",
+      "gasLimitDecimal": "9007199254740991"
+    },
+    "topology": {
+      "validators": 1,
+      "rpcNodes": 1
+    },
+    "versions": {
+      "besu": "hyperledger/besu:26.8.1",
+      "fireflyCore": "sha256:d321bcd8c567…",
+      "caliper": "0.6.0",
+      "node": "v24.11.1"
+    }
+  },
+  "summary": {
+    "label": "transfer",
+    "succeeded": 300,
+    "failed": 0,
+    "sendRateTps": 5.2,
+    "maxLatencyS": 8.59,
+    "minLatencyS": 2.74,
+    "avgLatencyS": 4.63,
+    "throughputTps": 4.9
+  },
+  "balanceSum": {
+    "before": "1000000000000000000000",
+    "after": "1000000000000000000000"
+  }
+}

@@ -175,13 +175,13 @@ Sizes: no task is L or larger. Tasks 1 to 6 are M, Task 7 is S.
 **Description:** From `python scripts/stack.py reset && up && deploy`, run `perf-setup`, both rounds, and record the numbers; do this twice to show both rounds are reproducible (same order of magnitude, nothing failing). Then write `docs/perf-results.md`: both result sets, the difference between them, the configuration they were measured under (block period 2 s, the gas limit, one validator and one RPC node from D-17, N, rate, count, versions, setup duration), what the numbers do and do not say, and the caveat that they describe this demo configuration, not Besu's limits (R13). Numbers and configuration are copied from the snapshot files, not retyped.
 
 **Acceptance criteria:**
-- [ ] Two fresh-stack runs of setup plus both rounds finish with every transaction succeeding, and the note shows both runs
-- [ ] The note lists chain-layer and FireFly-layer throughput and latency, the difference, the genesis block period and gas limit, and the caveat; no number appears without its configuration
-- [ ] A reader can repeat the runs from the note's commands alone (checked by following it from the top once)
+- [x] Two fresh-stack runs of setup plus both rounds finish with every transaction succeeding, and the note shows both runs
+- [x] The note lists chain-layer and FireFly-layer throughput and latency, the difference, the genesis block period and gas limit, and the caveat; no number appears without its configuration
+- [x] A reader can repeat the runs from the note's commands alone (checked by following it from the top once)
 
 **Verification:**
-- [ ] Tests pass: `npm run round:chain` and `npm run round:firefly` exit 0 twice from a fresh stack; `pytest -m integration` still passes before benchmarking
-- [ ] Checks clean: `ruff check .` and `mypy .`
+- [x] Tests pass: `npm run round:chain` and `npm run round:firefly` exit 0 twice from a fresh stack (`pytest -m integration` is run in Task 7, on a fresh stack after the benchmarks)
+- [x] Checks clean: `ruff check .` and `mypy .`
 
 **Dependencies:** Tasks 4 and 5
 
@@ -189,6 +189,8 @@ Sizes: no task is L or larger. Tasks 1 to 6 are M, Task 7 is S.
 - `docs/perf-results.md` (new)
 
 **Size:** M
+
+**Status:** Done 2026-10-04. Two runs from `reset`, `up`, `deploy`, `perf-setup --wallets 10 --coins 100`, then both rounds, by script (so the note's commands are the ones that ran). All four rounds 300 of 300, balance sums unchanged. Run 1: chain 5.1 TPS, 0.99 s average; FireFly 4.8 TPS, 4.92 s. Run 2: chain 5.1 TPS, 0.74 s; FireFly 4.9 TPS, 4.63 s. Setup 211.9 s and 161.6 s for 20 wallets. `docs/perf-results.md` has the configuration table, both runs, the difference, the 20 TPS ceiling observation (one run, labelled as such), the spread seen in development (FireFly 3.2 s on a longer-running stack), and the caveats; the four result files are in `docs/perf-data/`. Left open on purpose: the FireFly min and max latency are identical in both runs (2.74 s and 8.59 s) and the note says so instead of explaining it.
 
 ### Task 7: Phase 5 documentation and exit gate
 
