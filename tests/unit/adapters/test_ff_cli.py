@@ -1,5 +1,5 @@
 import json
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -36,6 +36,9 @@ class FakePort:
 
     def api_invoke(self, *args: Any, **kwargs: Any) -> Operation:
         raise AssertionError("no write expected")
+
+    def api_registered(self, name: str) -> bool:
+        raise AssertionError("not expected")
 
     def get_operation(self, operation_id: str) -> Operation:
         self.calls.append(("operation", operation_id, {}))
@@ -357,3 +360,102 @@ def test_a_read_that_cannot_reach_firefly_still_exits_one(
     port.error = FireflyError("POST /x could not reach FireFly: timed out")
     code, _, err = run(capsys, port, network_dir, "query", "name", "--contract", "coin")
     assert code == 1 and err.startswith("error: ")
+
+
+TOKEN_ABI = [{"type": "function", "name": "name", "inputs": [], "outputs": []}]
+TOKEN = "0x" + "ab" * 20
+
+
+class RegisterPort(FakePort):
+    def __init__(self, existing: bool = False, error: Exception | None = None) -> None:
+        super().__init__()
+        self.existing = existing
+        self.api_error = error
+
+    def api_registered(self, name: str) -> bool:
+        self.calls.append(("api_registered", name, {}))
+        return self.existing
+
+    def ensure_interface(self, name: str, version: str, abi: Sequence[Any]) -> str:
+        self.calls.append(("ensure_interface", f"{name}@{version}", {"abi": list(abi)}))
+        return "ffi1"
+
+    def ensure_api(self, name: str, interface_id: str, address: str) -> str:
+        self.calls.append(("ensure_api", name, {"address": address}))
+        if self.api_error:
+            raise self.api_error
+        return "api1"
+
+
+def write_abi(directory: Path, document: Any) -> Path:
+    path = directory / "abi.json"
+    path.write_text(json.dumps(document), encoding="utf-8")
+    return path
+
+
+def test_register_prints_the_ids_and_registers_from_an_artifact_file(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    abi = write_abi(tmp_path, {"abi": TOKEN_ABI})
+    port = RegisterPort()
+    code, out, _ = run(
+        capsys, port, tmp_path, "register", "--name", "coin-copy", "--abi", str(abi),
+        "--address", TOKEN,
+    )  # fmt: skip
+    assert code == 0
+    assert out.splitlines() == [
+        "registered  coin-copy", "interface   ffi1", "api         api1", f"address     {TOKEN}"
+    ]  # fmt: skip
+    assert ("ensure_interface", "coin-copy@1.0.0", {"abi": TOKEN_ABI}) in port.calls
+
+
+def test_register_twice_says_already_registered(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    abi = write_abi(tmp_path, TOKEN_ABI)
+    code, out, _ = run(
+        capsys, RegisterPort(existing=True), tmp_path, "--json", "register", "--name", "c",
+        "--abi", str(abi), "--address", TOKEN,
+    )  # fmt: skip
+    assert code == 0
+    assert json.loads(out) == {
+        "status": "already registered", "name": "c", "interface": "ffi1", "api": "api1",
+        "address": TOKEN,
+    }  # fmt: skip
+
+
+def test_register_the_same_name_for_another_address_exits_one_with_the_clients_message(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    abi = write_abi(tmp_path, TOKEN_ABI)
+    port = RegisterPort(existing=True, error=FireflyError("API 'c' already exists elsewhere"))
+    code, out, err = run(
+        capsys, port, tmp_path, "register", "--name", "c", "--abi", str(abi), "--address", TOKEN
+    )
+    assert (code, out) == (1, "") and err == "error: API 'c' already exists elsewhere\n"
+
+
+@pytest.mark.parametrize("content", [None, "not json", '{"nothing": 1}'])
+def test_a_missing_or_malformed_abi_file_fails_before_any_firefly_call(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path, content: str | None
+) -> None:
+    path = tmp_path / "abi.json"
+    if content is not None:
+        path.write_text(content, encoding="utf-8")
+    port = RegisterPort()
+    code, _, err = run(
+        capsys, port, tmp_path, "register", "--name", "c", "--abi", str(path), "--address", TOKEN
+    )
+    assert code == 1 and err.startswith("error: ") and "ABI" in err
+    assert port.calls == []
+
+
+def test_a_malformed_address_fails_before_any_firefly_call(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    abi = write_abi(tmp_path, TOKEN_ABI)
+    port = RegisterPort()
+    code, _, err = run(
+        capsys, port, tmp_path, "register", "--name", "c", "--abi", str(abi), "--address", "0x12"
+    )
+    assert code == 1 and "address" in err and port.calls == []

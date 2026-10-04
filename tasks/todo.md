@@ -164,13 +164,13 @@ Sizes: no task is L or larger. Tasks 1, 2 and 3 are the largest (M).
 **Description:** `register --name NAME --abi PATH --address ADDRESS [--version V]` registers a contract interface from an ABI file (a raw ABI array or an artifact JSON with an `abi` key) and creates a contract API for the address, using the existing `ensure_interface` and `ensure_api`. Running it twice does nothing the second time and says so; an API of the same name pointing elsewhere is an error (the client already refuses). The new API is then usable by `query` and `invoke` through `--contract NAME`.
 
 **Acceptance criteria:**
-- [ ] `register --name coin-copy --abi <token abi> --address <deployed token>` exits 0, prints the interface and API ids, and `query name --contract coin-copy` returns `Coin` (integration)
-- [ ] The second run exits 0 and prints "already registered" with no new registration; a different address under the same name exits non-zero with the client's message (unit, mocked port)
-- [ ] A missing or malformed ABI file exits non-zero before any FireFly call
+- [x] `register --name coin-copy --abi <token abi> --address <deployed token>` exits 0, prints the interface and API ids, and `query name --contract coin-copy` returns `Coin` (integration)
+- [x] The second run exits 0 and prints "already registered" with no new registration; a different address under the same name exits non-zero with the client's message (unit, mocked port)
+- [x] A missing or malformed ABI file exits non-zero before any FireFly call
 
 **Verification:**
-- [ ] Tests pass: `pytest tests/unit` and `pytest -m integration tests/integration/test_cli_register.py`
-- [ ] Checks clean: `ruff check .` and `mypy .`
+- [x] Tests pass: `pytest tests/unit` and `pytest -m integration tests/integration/test_cli_register.py`
+- [x] Checks clean: `ruff check .` and `mypy .`
 
 **Dependencies:** Task 2
 
@@ -180,13 +180,15 @@ Sizes: no task is L or larger. Tasks 1, 2 and 3 are the largest (M).
 
 **Size:** S
 
+**Status:** Done 2026-10-04. Test-first (13 unit tests, 2 integration tests). `src/core/firefly/register.py` orchestrates; the client gained `api_registered` so the CLI can say "already registered". The ABI file may be a raw array or an artifact with an `abi` key; the interface name is the API name. The integration test registers `coin-copy` for the deployed token (it stays until `reset`).
+
 ---
 
 ## Checkpoint: After Tasks 4–6
 
-- [ ] `ruff check .`, `mypy .`, `pytest` all pass
-- [ ] The DL-4.1 "how to try it" steps 1 to 4 run as written against the live stack (command names as decided in Open Question 1)
-- [ ] The pending/unknown test exists, passes, and fails when the rule is deliberately broken (mutation check done once by hand)
+- [x] `ruff check .`, `mypy .`, `pytest` all pass
+- [x] The DL-4.1 "how to try it" steps 1 to 4 ran against the live stack with the real command syntax (`--input _to=@beatrice`, base-unit amounts, not the planned `--to`/`--amount`; DL-4.1 is rewritten in Task 7)
+- [x] The pending/unknown test exists, passes, and fails when the rule is deliberately broken (mutation check done once by hand)
 - [ ] Human review before proceeding (**waiting for Howin**)
 
 ---

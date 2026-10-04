@@ -175,6 +175,10 @@ class FireflyClient:
         self._raise_for(status, registered)
         return str(registered["id"])
 
+    def api_registered(self, name: str) -> bool:
+        """Whether a contract API called `name` exists."""
+        return bool(self._list(f"/apis?name={name}"))
+
     def ensure_api(self, name: str, interface_id: str, address: str) -> str:
         """The id of the contract API `name` for this interface and address, created if missing.
 

@@ -1,6 +1,7 @@
 """Command line over FireFly: `besu-ff <command>`.
 
-`query` reads through a registered contract API; `tx` shows an operation and its events.
+`register` adds a contract API, `query` reads and `invoke` writes through it, and `tx` shows an
+operation and its events.
 Argument parsing and output only; the rules are in `src/core/firefly/`.
 """
 
@@ -15,10 +16,11 @@ from typing import Any
 from src.adapters.addresses import REPO_ROOT
 from src.adapters.firefly import FireflyClient, http_transport
 from src.core.firefly.errors import FireflyError
-from src.core.firefly.inputs import InputError, parse_inputs, resolve_identity
+from src.core.firefly.inputs import InputError, check_address, parse_inputs, resolve_identity
 from src.core.firefly.invoke import run_invoke
 from src.core.firefly.outcome import ComplianceRevert, Pending, Succeeded
 from src.core.firefly.port import FireflyPort
+from src.core.firefly.register import DEFAULT_VERSION, abi_from_document, register_contract
 from src.core.network.wallets import account_addresses
 
 
@@ -50,6 +52,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_input(invoke)
 
+    register = commands.add_parser("register", help="register a contract interface and API")
+    register.add_argument("--name", required=True, help="the interface and API name")
+    register.add_argument("--abi", type=Path, required=True, help="ABI or artifact JSON file")
+    register.add_argument("--address", required=True, help="the deployed contract's address")
+    register.add_argument("--version", default=DEFAULT_VERSION, help="interface version")
+
     tx = commands.add_parser("tx", help="show an operation and the events of its transaction")
     tx.add_argument("operation_id")
     return parser
@@ -75,6 +83,8 @@ def main(
         firefly = port or FireflyClient(http_transport())
         if args.command == "tx":
             return _tx(firefly, args, out)
+        if args.command == "register":
+            return _register(firefly, args, out)
         if args.command == "invoke":
             return _invoke(firefly, args, out)
         return _query(firefly, args, out)
@@ -157,6 +167,27 @@ def _invoke_json(args: argparse.Namespace, status: str, **fields: Any) -> str:
         {"status": status, "as": args.identity, "contract": args.contract,
          "method": args.method, **fields}
     )  # fmt: skip
+
+
+def _register(firefly: FireflyPort, args: argparse.Namespace, out: Callable[[str], None]) -> int:
+    address = check_address(args.address)
+    try:
+        abi = abi_from_document(json.loads(args.abi.read_text(encoding="utf-8")))
+    except (OSError, ValueError) as error:
+        if isinstance(error, InputError):
+            raise
+        raise InputError(f"cannot read an ABI from {args.abi}: {error}") from error
+    result = register_contract(firefly, args.name, args.version, abi, address)
+    status = "registered" if result.created else "already registered"
+    if args.json:
+        out(json.dumps({"status": status, "name": args.name, "interface": result.interface_id,
+                        "api": result.api_id, "address": address}))  # fmt: skip
+        return 0
+    out(f"{status}  {args.name}")
+    out(f"interface   {result.interface_id}")
+    out(f"api         {result.api_id}")
+    out(f"address     {address}")
+    return 0
 
 
 def _tx(firefly: FireflyPort, args: argparse.Namespace, out: Callable[[str], None]) -> int:

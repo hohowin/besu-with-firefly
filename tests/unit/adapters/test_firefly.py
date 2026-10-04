@@ -379,3 +379,11 @@ def test_a_read_that_cannot_reach_firefly_stays_a_plain_failure() -> None:
     with pytest.raises(FireflyError) as raised:
         client(Raises(TimeoutError("timed out"))).api_query("coin", "name", {})
     assert not isinstance(raised.value, WriteUnconfirmed)
+
+
+def test_api_registered_looks_the_api_up_by_name() -> None:
+    transport = FakeTransport((200, [{"id": "a1"}]), (200, []))
+    firefly = client(transport)
+    assert firefly.api_registered("coin") is True
+    assert firefly.api_registered("nope") is False
+    assert transport.requests[0] == ("GET", "/api/v1/namespaces/default/apis?name=coin", None)

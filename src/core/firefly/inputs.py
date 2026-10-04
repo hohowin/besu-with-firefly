@@ -9,6 +9,7 @@ import re
 from collections.abc import Mapping, Sequence
 
 _HEX = re.compile(r"0x(?:[0-9a-fA-F]{2})+")
+_ADDRESS = re.compile(r"0x[0-9a-fA-F]{40}")
 
 
 class InputError(ValueError):
@@ -21,6 +22,13 @@ def resolve_identity(name: str, wallets: Mapping[str, str]) -> str:
         return wallets[name]
     except KeyError:
         raise InputError(f"no wallet called {name!r} (known: {', '.join(wallets)})") from None
+
+
+def check_address(value: str) -> str:
+    """`value` if it is a 0x-prefixed 20-byte hex address, else an error."""
+    if not _ADDRESS.fullmatch(value):
+        raise InputError(f"{value!r} is not an address (0x and 40 hex digits)")
+    return value
 
 
 def parse_inputs(pairs: Sequence[str], wallets: Mapping[str, str]) -> dict[str, str]:
