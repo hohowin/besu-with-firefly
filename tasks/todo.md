@@ -200,13 +200,13 @@ Sizes: no task is L or larger. Tasks 1, 2 and 3 are the largest (M).
 **Description:** Prove the full integration suite, including the new CLI tests, passes on 3 consecutive fresh stacks: `python scripts/stack.py reset && python scripts/stack.py up && python scripts/stack.py deploy && pytest -m integration`, three times (about 13 minutes each). Fix the cause of any flaky test rather than rerunning (plan anti-gate). Then update `README.md` (the CLI commands and the `pip install -e ".[dev]"` re-run for the entry point), `PROJECT.md` (commands table and directory layout: `src/core/firefly/`, `ff_cli.py`), `docs/deliverables.md` (DL-4.1 and DL-4.2 set to `Done`, with commands that were actually run and their real output), `docs/plan.md` (Phase 4 status with the date and exact result, exit gate boxes) and `docs/prd.md` (US-010 and US-011 boxes only where proved).
 
 **Acceptance criteria:**
-- [ ] 3 consecutive fresh-stack runs of `pytest -m integration` pass, with the three outputs recorded in the plan note; no test is marked flaky, and none is skipped without a reason
-- [ ] `ruff check .`, `mypy .` and `pytest` (offline) pass
-- [ ] DL-4.1 and DL-4.2 are `Done` with commands that were run; `docs/plan.md` marks Phase 4 with the date and result
+- [x] 3 consecutive fresh-stack runs of `pytest -m integration` pass, with the three outputs recorded in the plan note; no test is marked flaky, and none is skipped without a reason
+- [x] `ruff check .`, `mypy .` and `pytest` (offline) pass
+- [x] DL-4.1 and DL-4.2 are `Done` with commands that were run; `docs/plan.md` marks Phase 4 with the date and result
 
 **Verification:**
-- [ ] Tests pass: the 3-run loop above
-- [ ] Checks clean: `ruff check .` and `mypy .`; README steps verified from a fresh clone (as in Phase 3)
+- [x] Tests pass: the 3-run loop above
+- [x] Checks clean: `ruff check .` and `mypy .`; README steps verified from a fresh clone (as in Phase 3)
 
 **Dependencies:** Tasks 1 to 6
 
@@ -214,6 +214,8 @@ Sizes: no task is L or larger. Tasks 1, 2 and 3 are the largest (M).
 - `README.md`, `PROJECT.md`, `docs/deliverables.md`, `docs/plan.md`, `docs/prd.md`
 
 **Size:** S
+
+**Status:** Done 2026-10-04. Two attempts at the 3-run gate. Attempt 1: run 1 passed (875 s), run 2 failed in the Phase 3 test `test_an_interrupted_deploy_is_finished_by_running_deploy_again` because Docker took 3 min 44 s to start `paladin-node1` after a restart (container start 15:06:20, first log 15:10:04; node2 34 s, node3 2 s), past the 180 s readiness bound, so it did not count. Attempt 2: 3 passes in a row (1053 s, 825 s, 938 s; 113 tests each, none skipped). `docs/prd.md` was left unticked, like the other phases. A fresh-clone check of the README steps is recorded below.
 
 ---
 

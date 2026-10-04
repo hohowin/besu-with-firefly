@@ -29,8 +29,8 @@ This document is the single reference for what is deliverable and verifiable at 
 | DL-3.1 | Phase 3 — Paladin + Noto | N/A | infra | 3 Paladin nodes (notary, Anson, Beatrice) and Postgres in Compose | Done |
 | DL-3.2 | Phase 3 — Paladin + Noto | N/A | feature | Noto deploy, mint, private transfer | Done |
 | DL-3.3 | Phase 3 — Paladin + Noto | N/A | test | Privacy check and three-store reset | Done |
-| DL-4.1 | Phase 4 — Python CLI | N/A | ui | `src/core/` and CLI with 4 commands | Planned |
-| DL-4.2 | Phase 4 — Python CLI | N/A | test | Unit and integration suites, lint and types clean | Planned |
+| DL-4.1 | Phase 4 — Python CLI | N/A | ui | `src/core/` and CLI with 4 commands | Done |
+| DL-4.2 | Phase 4 — Python CLI | N/A | test | Unit and integration suites, lint and types clean | Done |
 | DL-5.1 | Phase 5 — Caliper | N/A | infra | `perf/` Caliper sub-project and wallet setup | Planned |
 | DL-5.2 | Phase 5 — Caliper | N/A | feature | Chain-layer and FireFly-layer rounds | Planned |
 | DL-5.3 | Phase 5 — Caliper | N/A | doc | Results note | Planned |
@@ -465,7 +465,7 @@ FF=http://localhost:5000/api/v1/namespaces/default
 **Verification checklist**:
 - [x] After reset, no container or volume remains, `deployed-addresses.json` is gone, and no contract interface or API is left in FireFly
 - [x] An interrupted `deploy` (killed in the middle of the plan) is finished by running `deploy` again, with one token and no duplicate
-- [x] Three consecutive runs all pass: see `tasks/todo.md` Task 13 for the runs on the original 4-validator network (gate `integration and not fault_injection`, 63 of 63 three times, the fault-injection tests kept apart) and the repeat on the current network below
+- [x] Three consecutive runs all pass: see `tasks/phase-2-firefly.md` Task 13 for the runs on the original 4-validator network (gate `integration and not fault_injection`, 63 of 63 three times, the fault-injection tests kept apart) and the repeat on the current network below
 
 **Known limitations at this phase**: Paladin's database is added to `reset` in DL-3.3. On the original 4-validator network the fault-injection tests (stopping a validator) failed about once per full run, because the 3 validators left were exactly the quorum and QBFT's round timer doubles (4, 8, 16, 32, 64 s). That is why the network was reduced to one validator on 2026-10-03 (plan D-17) and those tests were removed; `pytest -m integration` is now the only suite.
 
@@ -473,7 +473,7 @@ FF=http://localhost:5000/api/v1/namespaces/default
 - [x] All DL-2.x deliverables verified
 - [x] Integration tests (onboarding, transfer, rejection) pass
 - [x] Re-running register or claim sends no redundant transaction
-- [x] Reset repeatability proven (on the original network three clean runs of the gate; on the current one-validator network see Task 13 in `tasks/todo.md`)
+- [x] Reset repeatability proven (on the original network three clean runs of the gate; on the current one-validator network see Task 13 in `tasks/phase-2-firefly.md`)
 
 ---
 
@@ -625,25 +625,31 @@ FF=http://localhost:5000/api/v1/namespaces/default
 
 **What it is**: Pure logic in `src/core/` with a port, a FireFly HTTP adapter and a CLI adapter offering register, invoke, query, and show tx/events.
 
-**How to try it** (command names are planned):
+**How to try it** (the stack must be up and deployed; amounts are in base units, 18 decimals, and `@anson` is a wallet's address):
 ```
-1. `besu-ff query balanceOf --contract coin --address ANSON_ADDRESS`
-   Expect a number.
-2. `besu-ff invoke transfer --contract coin --as anson --to BEATRICE_ADDRESS --amount 25`
-   Expect a transfer-sent message with the operation id, then updated balances.
-3. `besu-ff invoke transfer --contract coin --as anson --to ADMIN_ADDRESS --amount 10`
-   Expect a compliance error with the revert reason, exit code non-zero.
-4. `besu-ff tx OPERATION_ID`
-   Expect the operation status and any events.
+1. `besu-ff query balanceOf --contract coin --input _userAddress=@anson`
+   Expect a number, for example `998000000000000000000`.
+2. `besu-ff invoke transfer --contract coin --as anson --input _to=@beatrice --input _amount=25000000000000000000`
+   Expect `sent       transfer as anson`, the operation and transaction ids, and the new balances of anson and beatrice. Exit code 0.
+3. `besu-ff invoke transfer --contract coin --as anson --input _to=@admin --input _amount=10000000000000000000`
+   Expect `error: refused by the contract: Transfer not possible` and `balances unchanged`. Exit code 1.
+4. `besu-ff tx OPERATION_ID` (the operation id from step 2)
+   Expect `status     Succeeded`, the transaction id and the events `transaction_submitted` and `blockchain_invoke_op_succeeded`.
+5. `besu-ff register --name coin-copy --abi abi.json --address TOKEN_ADDRESS`, run twice
+   Expect `registered  coin-copy` and then `already registered  coin-copy`; `besu-ff query name --contract coin-copy` prints `Coin`. The ABI file is a JSON array or an artifact with an `abi` key.
 ```
+
+Exit codes: `0` done, `1` failed or refused by the contract, `2` bad usage (argparse), `3` pending or unknown. `--json` (before the command) prints one JSON object instead of text.
 
 **Verification checklist**:
-- [ ] Each command maps to one FireFly API call
-- [ ] The CLI never prints success for a pending or unknown operation
-- [ ] `src/core/` has no `print`, `input` or network call
-- [ ] `ruff check .` and `mypy .` pass
+- [x] Each command maps to one FireFly API call (`query` and `invoke` to the contract API, `tx` to the operation and its events, `register` to the interface and API registration)
+- [x] The CLI never prints success for a pending or unknown operation (`test_cli_never_reports_success_from_pending`, and a live write whose answer is dropped exits 3 and still lands)
+- [x] `src/core/` has no `print`, `input` or network call (a test scans the package)
+- [x] `ruff check .` and `mypy .` pass
 
-**Known limitations at this phase**: no Paladin commands (FR-18, post-MVP).
+**Verified 2026-10-04**: steps 1 to 4 run against the live stack (balance `998000000000000000000`; transfer of 25 COIN exit 0 with anson `973000000000000000000` and beatrice `27000000000000000000`; transfer to admin exit 1 with `balances unchanged`; `tx` showed `Succeeded` and both events). Step 5 is covered by `tests/integration/test_cli_register.py`.
+
+**Known limitations at this phase**: no Paladin commands (FR-18, post-MVP). A write that times out after it was sent is reported as pending with no operation id (FireFly never answered), so check the state with `query` before sending it again. `tx` shows FireFly's own events; blockchain events need a contract listener, which the stack does not register (`docs/spike-results.md`, Phase 4 findings).
 
 ### DL-4.2 — Unit and integration suites
 

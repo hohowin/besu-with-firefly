@@ -28,6 +28,7 @@ Python 3.11+ (developed on 3.13). Run these from the repo root inside the virtua
 | Unit tests | `pytest` (integration tests are skipped) |
 | Integration tests | `pytest -m integration` (needs Docker and a running stack; about 13 minutes) |
 | Contract packages | `cd contracts && npm ci` (the pinned T-REX and OnchainID artifacts; needed by `deploy` and by some unit tests, which skip without them) |
+| CLI | `besu-ff query\|invoke\|tx\|register` (after `pip install -e ".[dev]"`; needs `up` and `deploy`; `besu-ff --help`) |
 | Stack | `python scripts/stack.py init\|up\|deploy\|onboard\|noto-demo\|reset` (plan D-16). `deploy` and `onboard` only do what is missing; `noto-demo` needs `deploy` and deploys a new Noto token each run |
 
 Lint and type checks skip `spike/`, `.agents/` and `.claude/` (Phase 0 evidence and installed third-party skills). They cover all our own code.
@@ -35,8 +36,8 @@ Lint and type checks skip `spike/`, `.agents/` and `.claude/` (Phase 0 evidence 
 ## Directory Layout
 
 ```
-src/core/          pure logic, no I/O (network/: genesis, enode, health; firefly/: config, keystore, request bodies; trex/: deploy plan, claims, onboarding, amounts; paladin/: node config, artifacts, JSON-RPC, bootstrap, registry, Noto requests, privacy checks)
-src/adapters/      I/O: Docker, files, JSON-RPC, the FireFly and Paladin clients, deploy, onboarding and Noto runners, the stack CLI
+src/core/          pure logic, no I/O (network/: genesis, enode, health; firefly/: config, keystore, request bodies, port, errors, outcome, inputs, invoke, register; trex/: deploy plan, claims, onboarding, amounts; paladin/: node config, artifacts, JSON-RPC, bootstrap, registry, Noto requests, privacy checks)
+src/adapters/      I/O: Docker, files, JSON-RPC, the FireFly and Paladin clients, deploy, onboarding and Noto runners, the stack CLI, the FireFly CLI (ff_cli.py, `besu-ff`)
 scripts/           thin entry points (stack.py) that call into src/adapters
 tests/unit/        unit tests, mirror src/
 tests/integration/ tests that need Docker and a live stack (marker: integration)

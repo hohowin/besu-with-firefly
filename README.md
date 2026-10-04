@@ -78,7 +78,14 @@ The Paladin base configs, certificates and database init script are committed in
 - Besu RPC: `http://localhost:8545` (WS `8546`). The validator publishes no ports.
 - Paladin JSON-RPC: `http://localhost:8548` (node1, notary), `:8648` (node2, Anson), `:8748` (node3, Beatrice). For example: `curl -s -X POST -H "Content-Type: application/json" --data '{"jsonrpc":"2.0","id":1,"method":"transport_nodeName","params":[]}' http://localhost:8548`
 - Contract addresses: `deployed-addresses.json` (created by `deploy`, not committed). Wallet addresses and keys: `network-config/wallets.json` (demo only).
-- *TBD:* the CLI as `besu-ff <command>` (Phase 4). Step-by-step examples with `curl` are in [docs/deliverables.md](docs/deliverables.md) §4.
+- The CLI, `besu-ff <command>` (installed by `pip install -e ".[dev]"`; the stack must be up and deployed). `--json` and `--network-dir` go before the command; `@anson` in a value is that wallet's address; amounts are in base units (18 decimals):
+  ```
+  besu-ff query balanceOf --contract coin --input _userAddress=@anson
+  besu-ff invoke transfer --contract coin --as anson --input _to=@beatrice --input _amount=25000000000000000000
+  besu-ff tx OPERATION_ID                       # the operation, its transaction and FireFly's events
+  besu-ff register --name coin-copy --abi abi.json --address 0x...   # a contract interface and API
+  ```
+  Exit codes: `0` done, `1` failed or refused by the contract, `3` pending or unknown (never reported as done; check with `tx`), `2` bad usage. Examples with `curl` are in [docs/deliverables.md](docs/deliverables.md) §4.
 
 ## Key documents
 
