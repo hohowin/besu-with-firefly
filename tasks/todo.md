@@ -140,13 +140,13 @@ Sizes: no task is L or larger. Tasks 1, 2 and 3 are the largest (M).
 **Description:** Make the UC-11 rule provable end to end. In the CLI, a `Pending` outcome prints "pending or unknown", the operation id and transaction id (when known), the hint to run `tx <id>` later, and exits 3. This covers: the write still pending after `--timeout`, a status string the code does not recognise, and a transport error or timeout **after a write was sent** (the write may or may not have been accepted, so it is unknown, not failed). The client's `_call` already turns `OSError` into `FireflyError`; this task separates "could not send" (safe to say failed) from "sent, no answer" (unknown) for writes. Add `--timeout` to `invoke`.
 
 **Acceptance criteria:**
-- [ ] Unit test `test_cli_never_reports_success_from_pending` (named in UC-11) drives the CLI with a fake port that returns pending forever, an unrecognised status, and a transport error after send: in every case the exit code is 3, stdout contains no "success"/"sent"/"succeeded" text, and the ids that are known are printed
-- [ ] Integration: `invoke ... --timeout 0` (or the smallest accepted value) against the live stack exits 3 and prints the operation id, then `tx <id>` later reports the final status
-- [ ] A transport error on a read still exits 1 (failed), not 3
+- [x] Unit test `test_cli_never_reports_success_from_pending` (named in UC-11) drives the CLI with a fake port that returns pending forever, an unrecognised status, and a transport error after send: in every case the exit code is 3, stdout contains no "success"/"sent"/"succeeded" text, and the ids that are known are printed
+- [x] Integration: a live write whose answer is dropped after sending exits 3, and `tx` later reports the final status
+- [x] A transport error on a read still exits 1 (failed), not 3
 
 **Verification:**
-- [ ] Tests pass: `pytest tests/unit` and `pytest -m integration tests/integration/test_cli_pending.py`
-- [ ] Checks clean: `ruff check .` and `mypy .`
+- [x] Tests pass: `pytest tests/unit` and `pytest -m integration tests/integration/test_cli_pending.py`
+- [x] Checks clean: `ruff check .` and `mypy .`
 
 **Dependencies:** Tasks 3 and 4
 
@@ -156,6 +156,8 @@ Sizes: no task is L or larger. Tasks 1, 2 and 3 are the largest (M).
 - `tests/unit/core/test_firefly_outcome.py`, `tests/unit/adapters/test_firefly.py`, `tests/unit/adapters/test_ff_cli.py`, `tests/integration/test_cli_pending.py`
 
 **Size:** M
+
+**Status:** Done 2026-10-04. Test-first (10 new unit tests, 1 integration test). New `WriteUnconfirmed` error: raised when a write timed out or was reset after it was sent, or when contact is lost while waiting for an accepted write; connection refused and name-not-found stay plain failures. The integration test does not use `--timeout 0` (with `confirm=true` FireFly answers within the request, so the flag cannot make a live write pending); it sends the real request and then drops the answer, which is the failure that matters, and proves the transfer still lands and `tx` shows `Succeeded`. Mutation check done by hand: treating `Pending` as success fails 4 tests.
 
 ### Task 6: `register` command
 

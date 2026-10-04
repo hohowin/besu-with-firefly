@@ -92,3 +92,12 @@ def test_core_has_no_print_input_or_network_call() -> None:
                 f"{path.name}: import {n}" for n in names if n.split(".")[0] in banned_modules
             ]
     assert problems == []
+
+
+def test_a_write_that_may_have_been_sent_is_pending_with_the_ids_that_are_known() -> None:
+    from src.core.firefly.errors import WriteUnconfirmed
+
+    assert classify_error(WriteUnconfirmed("no answer")) == Pending(None, None, "unknown")
+    assert classify_error(WriteUnconfirmed("lost", operation_id="op1")) == Pending(
+        "op1", None, "unknown"
+    )

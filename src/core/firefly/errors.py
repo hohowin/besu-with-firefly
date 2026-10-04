@@ -27,6 +27,17 @@ class OperationTimeout(FireflyError):
         self.status = status
 
 
+class WriteUnconfirmed(FireflyError):
+    """A write may have been accepted, but FireFly did not answer, so its fate is unknown.
+
+    Not a failure: the write can still land. `operation_id` is set when FireFly had accepted it.
+    """
+
+    def __init__(self, message: str, operation_id: str | None = None) -> None:
+        super().__init__(message)
+        self.operation_id = operation_id
+
+
 class AlreadySubmitted(FireflyError):
     """The idempotency key was used before: the write was accepted earlier, not repeated."""
 

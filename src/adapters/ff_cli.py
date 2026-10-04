@@ -42,6 +42,12 @@ def build_parser() -> argparse.ArgumentParser:
     invoke.add_argument("method")
     invoke.add_argument("--contract", required=True, help="the contract API name, e.g. coin")
     invoke.add_argument("--as", dest="identity", required=True, help="the wallet that signs")
+    invoke.add_argument(
+        "--timeout",
+        type=float,
+        default=120.0,
+        help="seconds to wait for the write to be confirmed (default: 120)",
+    )
     _add_input(invoke)
 
     tx = commands.add_parser("tx", help="show an operation and the events of its transaction")
@@ -91,7 +97,9 @@ def _invoke(firefly: FireflyPort, args: argparse.Namespace, out: Callable[[str],
     wallets = _wallets(args.network_dir)
     key = resolve_identity(args.identity, wallets)
     inputs = parse_inputs(args.input, wallets)
-    report = run_invoke(firefly, args.contract, args.method, inputs, key)
+    report = run_invoke(
+        firefly, args.contract, args.method, inputs, key, timeout=args.timeout
+    )
     names = {address: name for name, address in wallets.items()}
     balances = {names.get(address, address): value for address, value in report.after.items()}
     outcome = report.outcome
@@ -110,11 +118,7 @@ def _invoke(firefly: FireflyPort, args: argparse.Namespace, out: Callable[[str],
         return 0
     if isinstance(outcome, Pending):
         status, code, label = "pending", 3, "pending"
-        message = (
-            f"not confirmed ({outcome.status}), so not reported as done; operation "
-            f"{outcome.operation_id}, transaction {outcome.transaction_id}; "
-            f"check later with: besu-ff tx {outcome.operation_id}"
-        )
+        message = _pending_message(outcome)
     elif isinstance(outcome, ComplianceRevert):
         status, code, label = "refused", 1, "error"
         message = f"refused by the contract: {outcome.reason}"
@@ -133,6 +137,19 @@ def _invoke(firefly: FireflyPort, args: argparse.Namespace, out: Callable[[str],
         out("balances unchanged" if unchanged else "balances CHANGED")
     print(f"{label}: {message}", file=sys.stderr)
     return code
+
+
+def _pending_message(outcome: Pending) -> str:
+    message = f"not confirmed (status {outcome.status}), so not reported as done"
+    if outcome.operation_id is None:
+        return (
+            f"{message}; the write may or may not have been accepted, "
+            "so check the state with `query` before sending it again"
+        )
+    message += f"; operation {outcome.operation_id}"
+    if outcome.transaction_id:
+        message += f", transaction {outcome.transaction_id}"
+    return f"{message}; check later with: besu-ff tx {outcome.operation_id}"
 
 
 def _invoke_json(args: argparse.Namespace, status: str, **fields: Any) -> str:

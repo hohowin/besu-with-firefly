@@ -6,7 +6,13 @@ from typing import Any
 import pytest
 
 from src.adapters.ff_cli import main
-from src.core.firefly.errors import FireflyError, OperationFailed, Reverted
+from src.core.firefly.errors import (
+    FireflyError,
+    OperationFailed,
+    OperationTimeout,
+    Reverted,
+    WriteUnconfirmed,
+)
 from src.core.firefly.operations import Operation, TxEvent
 
 ANSON = "0x" + "a1" * 20
@@ -286,3 +292,68 @@ def test_invoke_json_never_contains_a_key(
     assert document["status"] == "succeeded" and document["operation"] == "op1"
     assert document["as"] == "anson"
     assert "11" * 32 not in out and "privateKey" not in out
+
+
+@pytest.mark.parametrize(
+    ("result", "known"),
+    [
+        (Operation(id="op1", status="Pending", tx="tx1"), ["op1", "tx1"]),
+        (Operation(id="op1", status="Initialized", tx="tx1"), ["op1", "tx1"]),
+        (Operation(id="op1", status="SomethingNew", tx="tx1"), ["op1", "tx1"]),
+        (Operation(id="op1", status="", tx=None), ["op1"]),
+        (OperationTimeout("op1", "Pending", 5.0), ["op1"]),
+        (WriteUnconfirmed("sent, no answer", operation_id="op1"), ["op1"]),
+        (WriteUnconfirmed("sent, no answer"), []),
+    ],
+)
+def test_cli_never_reports_success_from_pending(
+    capsys: pytest.CaptureFixture[str], two_wallets: Path, result: Operation | Exception,
+    known: list[str],
+) -> None:  # fmt: skip
+    code, out, err = run(capsys, WritePort(result), two_wallets, *TRANSFER)
+    assert code == 3
+    assert not any(word in (out + err).lower() for word in ("success", "succeeded", "sent  "))
+    assert "sent" not in out.split() and "error:" not in err
+    assert err.startswith("pending: ")
+    assert all(identifier in err for identifier in known)
+
+
+def test_a_pending_write_without_ids_says_it_may_or_may_not_have_been_sent(
+    capsys: pytest.CaptureFixture[str], two_wallets: Path
+) -> None:
+    port = WritePort(WriteUnconfirmed("sent, no answer"))
+    _, _, err = run(capsys, port, two_wallets, *TRANSFER)
+    assert "may or may not" in err and "besu-ff tx" not in err
+
+
+def test_invoke_timeout_is_passed_to_the_write(
+    capsys: pytest.CaptureFixture[str], two_wallets: Path
+) -> None:
+    seen: list[float] = []
+
+    class Spy(WritePort):
+        def api_invoke(
+            self,
+            api: str,
+            method: str,
+            inputs: Mapping[str, Any],
+            key: str | None = None,
+            idempotency_key: str | None = None,
+            timeout: float = 120.0,
+        ) -> Operation:
+            seen.append(timeout)
+            return super().api_invoke(api, method, inputs, key, idempotency_key, timeout)
+
+    port = Spy(Operation(id="op1", status="Succeeded"))
+    run(capsys, port, two_wallets, *TRANSFER, "--timeout", "7")
+    run(capsys, port, two_wallets, *TRANSFER)
+    assert seen == [7.0, 120.0]
+
+
+def test_a_read_that_cannot_reach_firefly_still_exits_one(
+    capsys: pytest.CaptureFixture[str], network_dir: Path
+) -> None:
+    port = FakePort()
+    port.error = FireflyError("POST /x could not reach FireFly: timed out")
+    code, _, err = run(capsys, port, network_dir, "query", "name", "--contract", "coin")
+    assert code == 1 and err.startswith("error: ")

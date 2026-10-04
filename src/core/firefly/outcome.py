@@ -6,7 +6,13 @@ does not know are all `Pending` (unknown): the write may still land, so nothing 
 
 from dataclasses import dataclass
 
-from src.core.firefly.errors import FireflyError, OperationFailed, OperationTimeout, Reverted
+from src.core.firefly.errors import (
+    FireflyError,
+    OperationFailed,
+    OperationTimeout,
+    Reverted,
+    WriteUnconfirmed,
+)
 from src.core.firefly.operations import Operation, revert_reason
 
 
@@ -51,6 +57,8 @@ def classify_error(error: FireflyError) -> Outcome:
         return _failure(error.error, error.operation_id)
     if isinstance(error, OperationTimeout):
         return Pending(error.operation_id, None, error.status)
+    if isinstance(error, WriteUnconfirmed):
+        return Pending(error.operation_id, None, "unknown")
     return Failed(str(error), None)
 
 

@@ -5,6 +5,7 @@ so FireFly answers with the final operation; a still-pending operation is polled
 """
 
 import json
+import socket
 import time
 import urllib.error
 import urllib.request
@@ -18,6 +19,7 @@ from src.core.firefly.errors import (
     OperationFailed,
     OperationTimeout,
     Reverted,
+    WriteUnconfirmed,
 )
 from src.core.firefly.operations import (
     Operation,
@@ -43,6 +45,7 @@ __all__ = [
     "OperationTimeout",
     "Reverted",
     "Transport",
+    "WriteUnconfirmed",
     "http_transport",
 ]
 
@@ -84,6 +87,14 @@ def _decode(raw: bytes) -> Any:
         return json.loads(text) if text else None
     except json.JSONDecodeError:
         return text
+
+
+def _may_have_been_sent(cause: BaseException | None) -> bool:
+    """False when the request certainly never left (connection refused, name not found)."""
+    reason = getattr(cause, "reason", cause)  # a URLError wraps the real error as `reason`
+    return isinstance(cause, OSError) and not isinstance(
+        reason, ConnectionRefusedError | socket.gaierror
+    )
 
 
 class FireflyClient:
@@ -220,7 +231,14 @@ class FireflyClient:
         return parse_operation(self._read("GET", f"{self._ns}/operations/{operation_id}"))
 
     def _write(self, path: str, body: dict[str, Any], timeout: float) -> Operation:
-        status, answer = self._call("POST", f"{self._ns}{path}", body)
+        try:
+            status, answer = self._call("POST", f"{self._ns}{path}", body)
+        except FireflyError as error:
+            if _may_have_been_sent(error.__cause__):
+                raise WriteUnconfirmed(
+                    f"{error}; the write may or may not have been accepted"
+                ) from error
+            raise
         original = already_submitted_transaction(status, answer)
         if original is not None:
             raise AlreadySubmitted(original)
@@ -238,7 +256,14 @@ class FireflyClient:
             if self._clock() >= deadline:
                 raise OperationTimeout(operation.id, operation.status, timeout)
             self._sleep(1.0)
-            operation = self.get_operation(operation.id)
+            try:
+                operation = self.get_operation(operation.id)
+            except FireflyError as error:
+                raise WriteUnconfirmed(
+                    f"lost contact with FireFly while waiting for operation {operation.id}: "
+                    f"{error}",
+                    operation.id,
+                ) from error
 
     def _read(self, method: str, path: str, body: Any = None) -> Any:
         """A request that changes nothing (a GET, a query, an ABI conversion). A timeout or a

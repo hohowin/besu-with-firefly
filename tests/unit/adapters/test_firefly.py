@@ -11,6 +11,7 @@ from src.adapters.firefly import (
     FireflyError,
     OperationFailed,
     OperationTimeout,
+    Transport,
 )
 
 ADDRESS = "0x" + "cd" * 20
@@ -29,7 +30,7 @@ class FakeTransport:
         return self.answers.pop(0) if len(self.answers) > 1 else self.answers[0]
 
 
-def client(transport: FakeTransport) -> FireflyClient:
+def client(transport: Transport) -> FireflyClient:
     ticks = iter(range(10_000))
     return FireflyClient(transport, sleep=lambda _s: None, clock=lambda: float(next(ticks)))
 
@@ -324,3 +325,57 @@ def test_transaction_events_reads_the_events_of_a_transaction_from_a_real_respon
     events = client(transport).transaction_events("tx1")
     assert [e.type for e in events] == ["transaction_submitted", "blockchain_invoke_op_succeeded"]
     assert transport.requests == [("GET", "/api/v1/namespaces/default/events?tx=tx1", None)]
+
+
+class Raises:
+    """A transport that fails with `error` on every call, and counts the calls."""
+
+    def __init__(self, error: OSError) -> None:
+        self.error = error
+        self.calls = 0
+
+    def __call__(self, method: str, path: str, body: Any = None) -> tuple[int, Any]:
+        self.calls += 1
+        raise self.error
+
+
+def test_a_write_that_times_out_after_being_sent_is_unconfirmed_not_failed() -> None:
+    from src.core.firefly.errors import WriteUnconfirmed
+
+    transport = Raises(TimeoutError("timed out"))
+    with pytest.raises(WriteUnconfirmed, match="may or may not"):
+        client(transport).api_invoke("coin", "mint", {}, key="0xk")
+    assert transport.calls == 1  # a write is never repeated by the client
+
+
+def test_a_write_that_was_refused_before_sending_is_a_plain_failure() -> None:
+    from src.core.firefly.errors import WriteUnconfirmed
+
+    transport = Raises(ConnectionRefusedError("refused"))
+    with pytest.raises(FireflyError) as raised:
+        client(transport).api_invoke("coin", "mint", {}, key="0xk")
+    assert not isinstance(raised.value, WriteUnconfirmed)
+
+
+def test_losing_firefly_while_waiting_for_an_accepted_write_is_unconfirmed_with_its_id() -> None:
+    from src.core.firefly.errors import WriteUnconfirmed
+
+    accepted = {"id": "op1", "status": "Pending", "tx": "tx1"}
+    answers: list[tuple[int, Any]] = [(200, accepted)]
+
+    def transport(method: str, path: str, body: Any = None) -> tuple[int, Any]:
+        if answers:
+            return answers.pop(0)
+        raise ConnectionResetError("reset")
+
+    with pytest.raises(WriteUnconfirmed) as raised:
+        FireflyClient(transport, sleep=lambda _s: None).api_invoke("coin", "mint", {})
+    assert raised.value.operation_id == "op1"
+
+
+def test_a_read_that_cannot_reach_firefly_stays_a_plain_failure() -> None:
+    from src.core.firefly.errors import WriteUnconfirmed
+
+    with pytest.raises(FireflyError) as raised:
+        client(Raises(TimeoutError("timed out"))).api_query("coin", "name", {})
+    assert not isinstance(raised.value, WriteUnconfirmed)
