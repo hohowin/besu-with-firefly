@@ -12,6 +12,13 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from src.core.firefly.errors import (
+    AlreadySubmitted,
+    FireflyError,
+    OperationFailed,
+    OperationTimeout,
+    Reverted,
+)
 from src.core.firefly.operations import (
     Operation,
     already_submitted_transaction,
@@ -25,43 +32,22 @@ from src.core.firefly.operations import (
     revert_reason,
 )
 
+__all__ = [
+    "AlreadySubmitted",
+    "DeployResult",
+    "FireflyClient",
+    "FireflyError",
+    "OperationFailed",
+    "OperationTimeout",
+    "Reverted",
+    "Transport",
+    "http_transport",
+]
+
 READ_RETRIES = 3
 
 # (HTTP method, path, JSON body or None) -> (HTTP status, parsed JSON or text).
 Transport = Callable[[str, str, Any], tuple[int, Any]]
-
-
-class FireflyError(Exception):
-    """A FireFly call failed. The message carries FireFly's own error text."""
-
-
-class Reverted(FireflyError):
-    """The contract refused the call (a revert). `reason` is the contract's own message."""
-
-    def __init__(self, reason: str, message: str) -> None:
-        super().__init__(message)
-        self.reason = reason
-
-
-class OperationFailed(FireflyError):
-    def __init__(self, operation_id: str, error: str | None) -> None:
-        super().__init__(f"operation {operation_id} failed: {error or 'no error text'}")
-        self.operation_id = operation_id
-        self.error = error
-
-
-class OperationTimeout(FireflyError):
-    def __init__(self, operation_id: str, status: str, timeout: float) -> None:
-        super().__init__(f"operation {operation_id} is still {status} after {timeout:g}s")
-        self.operation_id = operation_id
-
-
-class AlreadySubmitted(FireflyError):
-    """The idempotency key was used before: the write was accepted earlier, not repeated."""
-
-    def __init__(self, transaction_id: str) -> None:
-        super().__init__(f"already submitted as transaction {transaction_id}")
-        self.transaction_id = transaction_id
 
 
 @dataclass(frozen=True)
