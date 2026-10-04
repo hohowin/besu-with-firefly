@@ -1,230 +1,213 @@
-# Tasks — Phase 4: Python CLI
+# Tasks — Phase 5: Caliper
 
-> Source: `docs/plan.md` Phase 4 (steps 1 to 4, exit gate), `docs/prd.md` US-010, US-011, FR-9, FR-10, FR-12, `docs/deliverables.md` DL-4.1 and DL-4.2, `docs/use-cases.md` UC-05, UC-06, UC-11, `docs/architecture.md` §3 (failure handling), §5 (write lifecycle), §6 (per-module rationale). Decisions: D-06 (four commands: register, invoke, query, show tx/events; no Paladin). Phases 1 to 3 are complete; their lists are `tasks/phase-1-network.md`, `tasks/phase-2-firefly.md` and `tasks/phase-3-paladin.md` (Phase 3 was archived on 2026-10-03 with its three "human review" boxes still open, at Howin's choice).
+> Source: `docs/plan.md` Phase 5 (steps 1 to 5, exit gate, anti-gate), `docs/prd.md` US-012 and FR-13, `docs/deliverables.md` DL-5.1 to DL-5.3, `docs/use-cases.md` UC-10, `docs/spike-results.md` (Risk 5 and "Versions to pin"), and the working spike in `spike/caliper/`. Decisions: D-14 (Caliper 0.6.0, direct RPC over `ws://`, a custom FireFly connector, `perf/` a separate Node sub-project, `web3@1.3.0` installed by hand, a setup step that creates N verified wallets), D-16 (`python scripts/stack.py`), D-17 (one validator, one RPC node). Phases 1 to 4 are complete; their lists are `tasks/phase-1-network.md`, `tasks/phase-2-firefly.md`, `tasks/phase-3-paladin.md` and `tasks/phase-4-cli.md` (Phase 4 was archived on 2026-10-04 with its "human review" box still open, at Howin's choice).
 > **Status: draft, waiting for Howin's approval. No implementation has started.**
 
 ## Overview
 
-Phase 4 puts a small CLI over FireFly so a developer can drive the stack without `curl`: `register` (a contract interface and API), `invoke` (a write), `query` (a read) and `tx` (an operation and its events). Most of the FireFly plumbing already exists from Phase 2 (`src/adapters/firefly.py` has `api_invoke`, `api_query`, `ensure_interface`, `ensure_api`, `get_operation`, bounded polling, revert detection, and the request bodies are pure in `src/core/firefly/operations.py`). What is missing, and what this phase is really about, is:
+Phase 5 measures the same `COIN` `transfer` at two layers on the running stack: sent straight to Besu over JSON-RPC (chain layer), and sent through FireFly's contract API (FireFly layer). It ends with a results note that states both sets of numbers, the difference, and the configuration they were measured under. The spike already proved the method on a toy contract with one key (`spike/caliper/`, 60 transactions, indicative only); this phase redoes it on the real token with the real compliance rules, and with enough distinct senders that the numbers mean something.
 
-1. a **core-owned port and error model**, so the dependency points the right way (today `FireflyError`, `Reverted` and `OperationTimeout` live in the adapter, and the `Protocol`s that describe FireFly sit in adapter files, which core cannot import);
-2. a pure **outcome classification** (succeeded / failed / compliance revert / pending / unknown) that the CLI prints and the exit code follows, with the rule that **success is only ever printed for a `Succeeded` operation**;
-3. a **CLI adapter** with no business logic, plain text and `--json` output, no colour, no prompts (PRD §6), so integration tests can assert on it.
+What the spike did not settle, and what shapes the task order:
+
+1. **Senders.** The stock Caliper Ethereum connector signs every transaction of a worker with one account, and one account sending many transactions at once is limited by its own nonce. So the load needs N senders. The connector can derive one account per worker from `fromAddressSeed` (path `m/44'/60'/<workerIndex>'/0/0`), so **N wallets means N workers, each owning one wallet**, and the same wallets have to be known to FireFly's signer for the second round.
+2. **The token is already deployed.** The Ethereum connector normally deploys its contract in Caliper's install step. Whether a configured `address` lets it use the deployed `COIN` is untested.
+3. **FireFly's signer has to know the new keys.** It reads keystore files from `network-config/firefly/signer-data/keystore` at start. Whether it picks up new files without a restart is untested.
+4. **Every wallet must be a verified T-REX investor** (identity, registry entry, KYC claim) and hold `COIN`, or `transfer` reverts. That is four writes per wallet through FireFly, so setup can take longer than the rounds (risk R7).
 
 Design choices that apply to every task:
-- **Layers (`PROJECT.md`).** Pure logic and the port in `src/core/firefly/`; the existing FireFly client stays in `src/adapters/firefly.py` and implements the port; the CLI in a new `src/adapters/ff_cli.py` calls core only. `src/core/` gets no `print`, `input` or network call.
-- **Reuse, don't rewrite (CLAUDE §12).** The client's behaviour does not change except that the error classes move to core and are re-exported by the adapter, so the 5 other adapter modules that import them keep working.
-- **Command to endpoint.** Each command maps to one FireFly API call, as DL-4.1 requires: `query` is `POST /apis/{api}/query/{method}`, `invoke` is `POST /apis/{api}/invoke/{method}`, `tx` is `GET /operations/{id}` plus its events, and `register` is the existing interface and API registration.
-- **Acting identity.** `--as NAME` resolves a wallet name from `network-config/wallets.json` (reusing `src/core/network/wallets.py`) and the output names it (architecture §7, "wrong identity" risk). Private keys are never printed.
-- **Exit codes** (decided here, change in Open Questions if you disagree): `0` succeeded, `1` failed or reverted, `3` pending or unknown, `2` is left to `argparse` for usage errors.
-- **Tests.** Unit tests mock the port and touch no network. Integration tests call the CLI's `main(argv)` against the live stack and keep using `tests/support/firefly.py` (its own helper, so a bug in the adapter cannot hide a bug in the stack). Integration order inside a run: they need `up` and `deploy` first.
-- **Verification commands** (from `PROJECT.md`): `ruff check .`, `mypy .`, `pytest`, `pytest -m integration`.
-- **Working branch:** `main`, committing per task (memory: no feature branches).
+- **Layers (`PROJECT.md`).** Pure logic in `src/core/` (derive wallet addresses from the seed, the setup plan, the config snapshot). I/O in `src/adapters/` and `scripts/stack.py` (write keystores, restart the signer, run the onboarding through FireFly). Caliper and its two connectors are JavaScript under `perf/`, a separate sub-project with its own `package.json` (PRD US-012).
+- **Reuse (CLAUDE §12).** Wallet setup reuses the Phase 2 onboarding functions (`register_identities`, `issue_claims`) and `keystore_files`, and the FireFly connector reuses the shape of `spike/caliper/connector/firefly-connector.js`. The Python side is not rewritten in Node.
+- **Same load on both layers.** The same N workers, the same wallets, the same recipient pattern (each wallet sends to the next one in a ring, so every recipient is verified), the same offered rate and transaction count. Only the path differs.
+- **No numbers without their configuration** (plan anti-gate). Every report is saved next to a small config snapshot (block period and gas limit read from `network-config/genesis.json`, validator and RPC count, N, offered rate, transaction count, image versions), and the results note is built from those files.
+- **Side effect on the demo state.** Funding the wallets mints new `COIN`, which breaks two existing integration invariants (`totalSupply == 1000` and `anson + beatrice == 1000`). So the setup integration test burns what it minted in its teardown, and the README says to `reset` after benchmarking (Open Question 3).
+- **Tests.** Unit tests need no Docker or Node. The setup has an integration test. The two rounds have no pass or fail (UC-10): their check is that both reports exist, the numbers come from a clean stack, and the note states the configuration. Round runs are verified by hand on the live stack and recorded.
+- **Verification commands.** Python ones from `PROJECT.md`: `ruff check .`, `mypy .`, `pytest`, `pytest -m integration`. **There is no Caliper command in `PROJECT.md` yet** (`TBD`): Task 1 defines the `npm` scripts in `perf/package.json`, and Task 7 adds them to `PROJECT.md` (Open Question 5).
+- **Working branch:** `main`, committing per task.
 
-Sizes: no task is L or larger. Tasks 1, 2 and 3 are the largest (M).
+Sizes: no task is L or larger. Tasks 1 to 6 are M, Task 7 is S.
 
 ---
 
-## Group A — Core and the first command (plan steps 1 to 3 begin)
+## Group A — `perf/` runs, and N verified wallets exist (plan steps 1 and 2, DL-5.1)
 
-### Task 1: Core port, error model and outcome classification
+### Task 1: `perf/` with Caliper 0.6.0 and a trivial round against the deployed `COIN`
 
-**Description:** Add `src/core/firefly/port.py` (a `FireflyPort` `Protocol`: `api_query`, `api_invoke`, `get_operation`, `operation_events`, `ensure_interface`, `ensure_api`), `src/core/firefly/errors.py` (move `FireflyError`, `Reverted`, `OperationFailed`, `OperationTimeout`, `AlreadySubmitted` out of the adapter, unchanged) and `src/core/firefly/outcome.py`: a pure function that turns "what the port returned or raised" into one of `Succeeded`, `Failed(error)`, `ComplianceRevert(reason)` or `Pending(operation_id, tx)` (a timeout, a still-pending or an unrecognised status, or a transport error on a write, all of which are unknown and must carry whatever ids are known). `src/adapters/firefly.py` imports the errors from core and re-exports them, so existing imports still work.
+**Description:** Create `perf/` with its own `package.json` (Caliper `caliper-cli`, `caliper-core` and `caliper-ethereum` at exactly 0.6.0, `web3@1.3.0` installed by hand with `npm install --no-save web3@1.3.0` because `caliper bind` fails on Windows, per spike Risk 5), the `ws://localhost:8546` network config for `besu-rpc-anson`, and `npm` scripts that run a round. The trivial round is a read-only `COIN.name()` against the **already deployed** token at the address in `deployed-addresses.json`, run with `--caliper-flow-skip-install`. This is the riskiest Caliper unknown, so it goes first; the probes below are recorded in `docs/spike-results.md`.
 
 **Acceptance criteria:**
-- [x] A `Succeeded` operation is the only input that classifies as `Succeeded`; `Pending`, `Initialized`, an empty or unknown status string, and `OperationTimeout` all classify as `Pending` (unit-tested, parametrised over statuses)
-- [x] A `Reverted` error classifies as `ComplianceRevert` with the contract's reason, and an `OperationFailed` as `Failed` with FireFly's error text
-- [x] `src/core/` contains no `print`, `input` or network call (checked by a test that scans the package source), and `FireflyClient` satisfies `FireflyPort` under `mypy`
+- [ ] `cd perf && npm ci && npm install --no-save web3@1.3.0` then the trivial round runs against the live stack and writes `report.html` (gitignored); the exact versions are pinned in a committed `package-lock.json`
+- [ ] Probe A recorded: a configured contract `address` with `--caliper-flow-skip-install` lets the connector call the deployed `COIN` (or, if not, what works instead)
+- [ ] Probe B recorded: how a worker gets its own sender (`fromAddressSeed` and the derivation of worker 0, 1, 2, printed so Task 2 can test against them), and that it works on this zero-gas chain
 
 **Verification:**
-- [x] Tests pass: `pytest tests/unit/core/test_firefly_outcome.py tests/unit/adapters/test_firefly.py tests/unit/adapters`
-- [x] Checks clean: `ruff check .` and `mypy .`
+- [ ] Tests pass: no unit tests; the round exits 0 and the report exists (`npm run` script defined here)
+- [ ] Checks clean: `ruff check .` and `mypy .` unchanged; `npm ci` has no new vulnerability beyond the ones the spike already accepted (deprecated Caliper dependencies, spike Risk 5)
 
-**Dependencies:** None (Phases 1 to 3 done)
+**Dependencies:** None (Phase 4 done, stack up and deployed)
 
 **Files likely touched:**
-- `src/core/firefly/port.py`, `src/core/firefly/errors.py`, `src/core/firefly/outcome.py` (new)
-- `src/adapters/firefly.py` (import and re-export the errors; add `operation_events` only in Task 3)
-- `tests/unit/core/test_firefly_outcome.py` (new)
+- `perf/package.json`, `perf/package-lock.json`, `perf/network/ethereum.json`, `perf/benchmarks/smoke.yaml`, `perf/workload/name.js`, `perf/README.md` (new)
+- `docs/spike-results.md` (Phase 5 probes)
 
 **Size:** M
 
-**Status:** Done 2026-10-04. Test-first (9 new unit tests). `src/core/firefly/{errors,outcome,port}.py`; the adapter re-exports the moved errors (`__all__`). `operation_events` is named `transaction_events` and arrives in Task 3. A transport error after a write was sent is left to Task 5, as listed there.
+### Task 2: N wallets from a seed, known to FireFly's signer
 
-### Task 2: CLI skeleton and `query` end to end
-
-**Description:** Create the CLI adapter `src/adapters/ff_cli.py` with `main(argv)` (so tests can call it), a `query` subcommand (`query <method> --contract coin --input NAME=VALUE ...`), plain-text output by default and `--json`, and the console-script entry point in `pyproject.toml`. A pure core function parses `NAME=VALUE` inputs and resolves a wallet name given as a value to its address, and validates an address before anything is sent (architecture §8, input validation). FireFly unreachable exits non-zero with a transport error and no retry beyond the client's existing read retries (architecture §3). This is the riskiest task for the CLI shape (arguments, output, entry point), so it goes first.
+**Description:** Pure code in `src/core/` derives the wallets from a demo seed with the same scheme as Caliper (BIP32 master key from the seed's UTF-8 bytes, path `m/44'/60'/<i>'/0/0`, built on `eth_keys`, already installed with `eth-account`, so no new dependency), returning `Wallet` objects named `perf-001` and so on. An adapter writes their keystores with the existing `keystore_files` into the signer's keystore folder and makes the signer load them. First step: probe whether the signer needs a restart (Open Question 2); the answer decides between a file write plus `docker restart firefly-signer` and something lighter. Keystore files for perf wallets are gitignored (they are generated per N), and `init` and the committed Phase 1 and 2 keystores stay untouched.
 
 **Acceptance criteria:**
-- [x] `query balanceOf --contract coin --input _userAddress=anson` against the live stack prints the balance as a number and exits 0; `--json` prints a JSON object with the same value
-- [x] A malformed address or unknown wallet name exits non-zero with a clear message and sends nothing (unit test with a port that fails on any call)
-- [x] FireFly down: non-zero exit, message names the transport error, no traceback
+- [ ] The derived addresses for workers 0, 1 and 2 equal the ones Caliper's own derivation printed in Task 1 (a recorded test vector, unit-tested), N is configurable, and the same seed always gives the same wallets
+- [ ] After the adapter runs for N wallets, FireFly's signer lists all N addresses (`eth_accounts` against the signer, through `docker exec` since its port is not published), and the existing wallets are still listed
+- [ ] Running it twice changes nothing the second time; running it for a smaller N does not remove wallets already loaded
 
 **Verification:**
-- [x] Tests pass: `pytest tests/unit` and `pytest -m integration tests/integration/test_cli_query.py`
-- [x] Checks clean: `ruff check .` and `mypy .`
+- [ ] Tests pass: `pytest tests/unit` and `pytest -m integration tests/integration/test_perf_wallets.py`
+- [ ] Checks clean: `ruff check .` and `mypy .`
 
-**Dependencies:** Task 1
+**Dependencies:** Task 1 (the test vector)
 
 **Files likely touched:**
-- `src/adapters/ff_cli.py` (new), `pyproject.toml` (`[project.scripts]`)
-- `src/core/firefly/inputs.py` (new: parse and validate inputs)
-- `tests/unit/core/test_firefly_inputs.py`, `tests/unit/adapters/test_ff_cli.py`, `tests/integration/test_cli_query.py` (new)
+- `src/core/perf/wallets.py` (new), `src/adapters/perf_wallets.py` (new), `.gitignore`
+- `tests/unit/core/test_perf_wallets.py`, `tests/unit/adapters/test_perf_wallets.py`, `tests/integration/test_perf_wallets.py` (new)
 
 **Size:** M
 
-**Status:** Done 2026-10-04. Wallet names are written `@anson` in `--input` (explicit, so a plain string argument is never mistaken for a name; a `0x` value must be whole-byte hex). `--json` and `--network-dir` go before the command. `pip install -e ".[dev]"` was re-run for the `besu-ff` entry point.
+### Task 3: `perf-setup`: the wallets become verified investors holding `COIN`
 
-### Task 3: `tx` command (operation and events)
-
-**Description:** `tx <operation-id>` prints the operation's status, type, error text if any, its transaction id, and the events FireFly recorded for that transaction. First step: probe the live stack to find which FireFly endpoint returns useful events for a `blockchain_invoke` operation (candidates: `/transactions/{id}/blockchainevents`, `/transactions/{id}/status`, `/events?tx={id}`), because blockchain events only exist when a contract listener is registered, and Phase 2 registers none. Record the finding in `docs/spike-results.md` and pick the endpoint that needs no new listener; if only a listener gives events, stop and ask (Open Question 3). Add `operation_events` to the adapter, with tests against recorded response bodies (plan step 2 gate).
+**Description:** `python scripts/stack.py perf-setup --wallets N --coins K` runs Task 2, then for each perf wallet registers an identity, adds the KYC claim and mints `K` COIN to it, all through FireFly and the existing onboarding functions, skipping what is already true (a second run sends nothing). Setup duration is measured and printed (R7). A pure function decides what is still missing per wallet, like `registration_steps` does today.
 
 **Acceptance criteria:**
-- [x] `tx <operation-id>` for a succeeded transfer prints status `Succeeded`, the transaction id and at least one event line; for an unknown id it exits non-zero with FireFly's not-found text
-- [x] The adapter's `operation_events` is tested against a recorded real FireFly response (stored under `tests/unit/adapters/`), not an invented one
-- [x] The probe result and the chosen endpoint are written in `docs/spike-results.md` (a short Phase 4 section)
+- [ ] `perf-setup --wallets 3 --coins 100` on a deployed stack leaves 3 wallets with `isVerified == true` and `balanceOf == 100 COIN` (checked through the contract API), and prints its duration
+- [ ] A second identical run sends no transaction; `--wallets 4` afterwards onboards only the fourth
+- [ ] The integration test mints, checks, then burns what it minted in teardown, so `totalSupply` is 1000 again and the existing supply tests still pass
 
 **Verification:**
-- [x] Tests pass: `pytest tests/unit/adapters/test_firefly.py` and `pytest -m integration tests/integration/test_cli_tx.py`
-- [x] Checks clean: `ruff check .` and `mypy .`
+- [ ] Tests pass: `pytest tests/unit` and `pytest -m integration tests/integration/test_perf_setup.py`
+- [ ] Checks clean: `ruff check .` and `mypy .`
 
 **Dependencies:** Task 2
 
 **Files likely touched:**
-- `src/adapters/firefly.py` (`operation_events`), `src/adapters/ff_cli.py` (`tx`)
-- `src/core/firefly/outcome.py` or a small formatter in core for the status text
-- `docs/spike-results.md`, `tests/unit/adapters/test_firefly.py`, `tests/integration/test_cli_tx.py`
+- `src/core/perf/setup.py` (new), `src/adapters/perf_setup.py` (new), `src/adapters/stack_cli.py`, `src/adapters/trex_onboard.py` (only if the existing functions need the account list passed in)
+- `tests/unit/core/test_perf_setup.py`, `tests/unit/adapters/test_perf_setup.py`, `tests/unit/adapters/test_stack_cli.py`, `tests/integration/test_perf_setup.py`
 
 **Size:** M
-
-**Status:** Done 2026-10-04. Probe result in `docs/spike-results.md` (Phase 4 findings): `GET /events?tx={id}` gives `transaction_submitted` and `blockchain_invoke_op_succeeded` with no listener, so Open Question 3 needed no decision. Adapter tested against the real response in `tests/unit/adapters/recorded/events_by_tx.json`.
 
 ---
 
 ## Checkpoint: After Tasks 1–3
 
-- [x] `ruff check .`, `mypy .`, `pytest` all pass; `src/core/` has no `print`, `input` or network call
-- [x] `query` and `tx` run against the live stack and their output is asserted in integration tests
-- [x] The events endpoint question (Task 3) is settled, or escalated
+- [ ] `ruff check .`, `mypy .`, `pytest` pass, and `pytest -m integration` still passes with the new tests (supply back to 1000 after them)
+- [ ] The trivial Caliper round runs and the three probes are recorded
+- [ ] N wallets verified on-chain, N configurable, setup duration printed
 - [ ] Human review before proceeding (**waiting for Howin**)
 
 ---
 
-## Group B — Writes and the never-success-from-pending rule (plan steps 3 and 4)
+## Group B — The two rounds (plan steps 3 and 4, DL-5.2)
 
-### Task 4: `invoke` command with compliance transfer and rejection
+### Task 4: Chain-layer round: `COIN.transfer` direct over JSON-RPC
 
-**Description:** `invoke <method> --contract coin --as NAME --input NAME=VALUE ...` sends a write through the contract API, waits for the final operation, then prints the classified outcome from Task 1: success names the acting identity and the operation id (UC-06); a revert prints the contract's reason, exits 1 (UC-07). For the `transfer` example in the deliverables the CLI also prints the sender's and recipient's balances after a success and, on a rejection, confirms they are unchanged (read through the same port, so it is core orchestration, not CLI logic). The rejection is raised by the contract, not the CLI (PRD US-008): the CLI does no compliance check of its own.
+**Description:** A Caliper workload (`perf/workload/transfer.js`) where worker `i` sends `COIN.transfer(wallet[(i+1) mod N], amount)` from its own derived wallet, through the stock Ethereum connector against `besu-rpc-anson`, with `transactionConfirmationBlocks: 1` as in the spike. The benchmark file takes N workers, the offered rate and the transaction count from one place (the same values Task 5 uses). `npm run round:chain` writes the report and a config snapshot (block period and gas limit read from `network-config/genesis.json`, N, rate, count, Besu image).
 
 **Acceptance criteria:**
-- [x] `invoke transfer --contract coin --as anson --input _to=beatrice --input _amount=<base units>` exits 0, prints the acting identity and operation id, and the balances change by the amount (integration)
-- [x] The same transfer to `admin` (unverified) exits 1, prints the contract's revert reason, and both balances are unchanged (integration, and equal to the revert seen by calling the contract API directly with `tests/support/firefly.py`)
-- [x] Unit tests with a mocked port cover: succeeded, failed, reverted, and that no private key or key file path appears in any output
+- [ ] The round runs with N=10 on a deployed and set-up stack, every transaction succeeds, and the report shows throughput and average, minimum and maximum latency
+- [ ] The snapshot file is written with the round and holds the genesis block period (2) and gas limit, N, the offered rate, the transaction count and the validator and RPC node count
+- [ ] After the round, the sum of the N balances is unchanged (transfers only move `COIN`), checked by a small script
 
 **Verification:**
-- [x] Tests pass: `pytest tests/unit` and `pytest -m integration tests/integration/test_cli_invoke.py`
-- [x] Checks clean: `ruff check .` and `mypy .`
+- [ ] Tests pass: `npm run round:chain` exits 0 (name per Task 1); unit tests for any Python helper
+- [ ] Checks clean: `ruff check .` and `mypy .`
 
-**Dependencies:** Tasks 1 and 2
+**Dependencies:** Task 3
 
 **Files likely touched:**
-- `src/adapters/ff_cli.py` (`invoke`), `src/core/firefly/invoke.py` (new: the orchestration and balance report)
-- `tests/unit/core/test_firefly_invoke.py`, `tests/unit/adapters/test_ff_cli.py`, `tests/integration/test_cli_invoke.py` (new)
+- `perf/workload/transfer.js`, `perf/benchmarks/chain.yaml`, `perf/network/ethereum.json`, `perf/package.json`, `perf/README.md`
+- `perf/lib/snapshot.js` (new, writes the config snapshot), a balance-sum check script
 
 **Size:** M
 
-**Status:** Done 2026-10-04. Test-first (8 core and 6 CLI unit tests, 2 integration tests). `src/core/firefly/invoke.py` runs the write and reads both balances before and after; `ContractApiPort` (query and invoke only) is the narrow port it needs, `FireflyPort` extends it. A `Pending` outcome already exits 3 with the ids; Task 5 adds `--timeout`, the transport-error case and the named test.
+### Task 5: FireFly-layer round: the same transfer through FireFly's contract API
 
-### Task 5: Pending and unknown states never report success
-
-**Description:** Make the UC-11 rule provable end to end. In the CLI, a `Pending` outcome prints "pending or unknown", the operation id and transaction id (when known), the hint to run `tx <id>` later, and exits 3. This covers: the write still pending after `--timeout`, a status string the code does not recognise, and a transport error or timeout **after a write was sent** (the write may or may not have been accepted, so it is unknown, not failed). The client's `_call` already turns `OSError` into `FireflyError`; this task separates "could not send" (safe to say failed) from "sent, no answer" (unknown) for writes. Add `--timeout` to `invoke`.
+**Description:** A custom Caliper connector (`perf/connector/firefly-connector.js`, from the spike's shape) that sends the same transfer as `POST /apis/coin/invoke/transfer?confirm=true` with `key` set to the worker's wallet address, and marks a transaction successful only for a `Succeeded` operation (the Phase 4 rule: nothing else counts). It reuses `workload/transfer.js` unchanged, so only the path differs, and writes the same snapshot. `npm run round:firefly` runs it.
 
 **Acceptance criteria:**
-- [x] Unit test `test_cli_never_reports_success_from_pending` (named in UC-11) drives the CLI with a fake port that returns pending forever, an unrecognised status, and a transport error after send: in every case the exit code is 3, stdout contains no "success"/"sent"/"succeeded" text, and the ids that are known are printed
-- [x] Integration: a live write whose answer is dropped after sending exits 3, and `tx` later reports the final status
-- [x] A transport error on a read still exits 1 (failed), not 3
+- [ ] The round runs with the same N, rate and count as Task 4, and the report shows throughput and latency
+- [ ] A failed or pending operation is counted as failed, never as success (shown with a unit test of the connector's status mapping, no stack needed)
+- [ ] The two snapshots are identical except for the layer, so the two reports are comparable
 
 **Verification:**
-- [x] Tests pass: `pytest tests/unit` and `pytest -m integration tests/integration/test_cli_pending.py`
-- [x] Checks clean: `ruff check .` and `mypy .`
+- [ ] Tests pass: `npm run round:firefly` exits 0; the connector's status mapping test (a small `node --test` file, no new dependency)
+- [ ] Checks clean: `ruff check .` and `mypy .`
 
-**Dependencies:** Tasks 3 and 4
+**Dependencies:** Task 4
 
 **Files likely touched:**
-- `src/adapters/firefly.py` (distinguish send failure from no answer on writes), `src/core/firefly/outcome.py`
-- `src/adapters/ff_cli.py` (`--timeout`, exit code 3)
-- `tests/unit/core/test_firefly_outcome.py`, `tests/unit/adapters/test_firefly.py`, `tests/unit/adapters/test_ff_cli.py`, `tests/integration/test_cli_pending.py`
+- `perf/connector/firefly-connector.js`, `perf/benchmarks/firefly.yaml`, `perf/network/firefly.json`, `perf/test/firefly-connector.test.js`, `perf/package.json`, `perf/README.md`
 
 **Size:** M
-
-**Status:** Done 2026-10-04. Test-first (10 new unit tests, 1 integration test). New `WriteUnconfirmed` error: raised when a write timed out or was reset after it was sent, or when contact is lost while waiting for an accepted write; connection refused and name-not-found stay plain failures. The integration test does not use `--timeout 0` (with `confirm=true` FireFly answers within the request, so the flag cannot make a live write pending); it sends the real request and then drops the answer, which is the failure that matters, and proves the transfer still lands and `tx` shows `Succeeded`. Mutation check done by hand: treating `Pending` as success fails 4 tests.
-
-### Task 6: `register` command
-
-**Description:** `register --name NAME --abi PATH --address ADDRESS [--version V]` registers a contract interface from an ABI file (a raw ABI array or an artifact JSON with an `abi` key) and creates a contract API for the address, using the existing `ensure_interface` and `ensure_api`. Running it twice does nothing the second time and says so; an API of the same name pointing elsewhere is an error (the client already refuses). The new API is then usable by `query` and `invoke` through `--contract NAME`.
-
-**Acceptance criteria:**
-- [x] `register --name coin-copy --abi <token abi> --address <deployed token>` exits 0, prints the interface and API ids, and `query name --contract coin-copy` returns `Coin` (integration)
-- [x] The second run exits 0 and prints "already registered" with no new registration; a different address under the same name exits non-zero with the client's message (unit, mocked port)
-- [x] A missing or malformed ABI file exits non-zero before any FireFly call
-
-**Verification:**
-- [x] Tests pass: `pytest tests/unit` and `pytest -m integration tests/integration/test_cli_register.py`
-- [x] Checks clean: `ruff check .` and `mypy .`
-
-**Dependencies:** Task 2
-
-**Files likely touched:**
-- `src/adapters/ff_cli.py` (`register`), `src/core/firefly/abi.py` (new: read the ABI shapes, pure on parsed JSON)
-- `tests/unit/core/test_firefly_abi.py`, `tests/unit/adapters/test_ff_cli.py`, `tests/integration/test_cli_register.py` (new)
-
-**Size:** S
-
-**Status:** Done 2026-10-04. Test-first (13 unit tests, 2 integration tests). `src/core/firefly/register.py` orchestrates; the client gained `api_registered` so the CLI can say "already registered". The ABI file may be a raw array or an artifact with an `abi` key; the interface name is the API name. The integration test registers `coin-copy` for the deployed token (it stays until `reset`).
 
 ---
 
-## Checkpoint: After Tasks 4–6
+## Checkpoint: After Tasks 4–5
 
-- [x] `ruff check .`, `mypy .`, `pytest` all pass
-- [x] The DL-4.1 "how to try it" steps 1 to 4 ran against the live stack with the real command syntax (`--input _to=@beatrice`, base-unit amounts, not the planned `--to`/`--amount`; DL-4.1 is rewritten in Task 7)
-- [x] The pending/unknown test exists, passes, and fails when the rule is deliberately broken (mutation check done once by hand)
+- [ ] `ruff check .`, `mypy .`, `pytest` pass
+- [ ] Both rounds run on the same stack with the same load and write a report and a snapshot each
+- [ ] The FireFly round counts only `Succeeded` operations as success
 - [ ] Human review before proceeding (**waiting for Howin**)
 
 ---
 
-## Group C — Exit gate and documentation (Phase 4 exit gate, DL-4.1 and DL-4.2)
+## Group C — Results, reproducibility and documentation (plan step 5 and the exit gate, DL-5.1 to DL-5.3)
 
-### Task 7: Repeatability and Phase 4 documentation
+### Task 6: Fresh-stack runs and the results note
 
-**Description:** Prove the full integration suite, including the new CLI tests, passes on 3 consecutive fresh stacks: `python scripts/stack.py reset && python scripts/stack.py up && python scripts/stack.py deploy && pytest -m integration`, three times (about 13 minutes each). Fix the cause of any flaky test rather than rerunning (plan anti-gate). Then update `README.md` (the CLI commands and the `pip install -e ".[dev]"` re-run for the entry point), `PROJECT.md` (commands table and directory layout: `src/core/firefly/`, `ff_cli.py`), `docs/deliverables.md` (DL-4.1 and DL-4.2 set to `Done`, with commands that were actually run and their real output), `docs/plan.md` (Phase 4 status with the date and exact result, exit gate boxes) and `docs/prd.md` (US-010 and US-011 boxes only where proved).
+**Description:** From `python scripts/stack.py reset && up && deploy`, run `perf-setup`, both rounds, and record the numbers; do this twice to show both rounds are reproducible (same order of magnitude, nothing failing). Then write `docs/perf-results.md`: both result sets, the difference between them, the configuration they were measured under (block period 2 s, the gas limit, one validator and one RPC node from D-17, N, rate, count, versions, setup duration), what the numbers do and do not say, and the caveat that they describe this demo configuration, not Besu's limits (R13). Numbers and configuration are copied from the snapshot files, not retyped.
 
 **Acceptance criteria:**
-- [x] 3 consecutive fresh-stack runs of `pytest -m integration` pass, with the three outputs recorded in the plan note; no test is marked flaky, and none is skipped without a reason
-- [x] `ruff check .`, `mypy .` and `pytest` (offline) pass
-- [x] DL-4.1 and DL-4.2 are `Done` with commands that were run; `docs/plan.md` marks Phase 4 with the date and result
+- [ ] Two fresh-stack runs of setup plus both rounds finish with every transaction succeeding, and the note shows both runs
+- [ ] The note lists chain-layer and FireFly-layer throughput and latency, the difference, the genesis block period and gas limit, and the caveat; no number appears without its configuration
+- [ ] A reader can repeat the runs from the note's commands alone (checked by following it from the top once)
 
 **Verification:**
-- [x] Tests pass: the 3-run loop above
-- [x] Checks clean: `ruff check .` and `mypy .`; README steps verified from a fresh clone (as in Phase 3)
+- [ ] Tests pass: `npm run round:chain` and `npm run round:firefly` exit 0 twice from a fresh stack; `pytest -m integration` still passes before benchmarking
+- [ ] Checks clean: `ruff check .` and `mypy .`
 
-**Dependencies:** Tasks 1 to 6
+**Dependencies:** Tasks 4 and 5
 
 **Files likely touched:**
-- `README.md`, `PROJECT.md`, `docs/deliverables.md`, `docs/plan.md`, `docs/prd.md`
+- `docs/perf-results.md` (new)
+
+**Size:** M
+
+### Task 7: Phase 5 documentation and exit gate
+
+**Description:** Update `README.md` (running the benchmark, the supply side effect and the `reset` afterwards), `PROJECT.md` (the `perf-setup` and Caliper commands in the table, the `perf/` layout, the node and npm versions), `docs/deliverables.md` (DL-5.1 to DL-5.3 `Done`, with commands that were actually run), `docs/plan.md` (Phase 5 status with the date and exact result, exit gate boxes) and `docs/spike-results.md` (the probes). Verify the README steps from a fresh clone as in Phases 3 and 4.
+
+**Acceptance criteria:**
+- [ ] DL-5.1 to DL-5.3 are `Done` with commands that were run, and `docs/plan.md` marks Phase 5 with the date and result
+- [ ] `PROJECT.md` lists every command used in this phase, and `perf/README.md` and the README agree with it
+- [ ] `ruff check .`, `mypy .`, `pytest` and `pytest -m integration` pass after a `reset`, `up` and `deploy`
+
+**Verification:**
+- [ ] Tests pass: `pytest` and `pytest -m integration` once more on a fresh stack, after the benchmarks have been `reset` away
+- [ ] Checks clean: `ruff check .` and `mypy .`; README steps checked from a fresh clone
+
+**Dependencies:** Task 6
+
+**Files likely touched:**
+- `README.md`, `PROJECT.md`, `docs/deliverables.md`, `docs/plan.md`, `docs/spike-results.md`
 
 **Size:** S
 
-**Status:** Done 2026-10-04. Two attempts at the 3-run gate. Attempt 1: run 1 passed (875 s), run 2 failed in the Phase 3 test `test_an_interrupted_deploy_is_finished_by_running_deploy_again` because Docker took 3 min 44 s to start `paladin-node1` after a restart (container start 15:06:20, first log 15:10:04; node2 34 s, node3 2 s), past the 180 s readiness bound, so it did not count. Attempt 2: 3 passes in a row (1053 s, 825 s, 938 s; 113 tests each, none skipped). `docs/prd.md` was left unticked, like the other phases. Fresh clone checked: `pip install -e ".[dev]"` gives a working `besu-ff` (it answered `Coin` from the running stack), `ruff` and `mypy` are clean, and `pytest` passes 497 with 2 skipped (they need `npm ci` in `contracts/`, as `PROJECT.md` says).
-
 ---
 
-## Checkpoint: After Task 7 (Phase 4 exit gate)
+## Checkpoint: After Task 7 (Phase 5 exit gate)
 
-- [x] All DL-4.x deliverables verified
-- [x] `ruff check .`, `mypy .`, `pytest` all pass
-- [x] Integration tests pass across 3 consecutive fresh-stack runs
-- [ ] Human review of the Phase 4 exit gate (**waiting for Howin**)
+- [ ] All DL-5.x deliverables verified
+- [ ] Both rounds reproducible from a fresh `python scripts/stack.py reset && python scripts/stack.py up && python scripts/stack.py deploy` (plus `perf-setup`)
+- [ ] Results note committed, with the configuration beside every number
+- [ ] Human review of the Phase 5 exit gate (**waiting for Howin**)
 
 ---
 
@@ -232,15 +215,16 @@ Sizes: no task is L or larger. Tasks 1, 2 and 3 are the largest (M).
 
 | # | Question | Owner | Recommended default |
 |---|---|---|---|
-| 1 | CLI name and entry point. DL-4.1 plans `besu-ff` (a console script, so `pip install -e ".[dev]"` must be re-run), while `stack.py` is run as `python scripts/stack.py`. | Howin | Console script `besu-ff` in `pyproject.toml`, as DL-4.1 says; tests call `main(argv)` directly |
-| 2 | Argument style. DL-4.1 shows `invoke transfer --to ADDR --amount 25` (friendly flags, coins), but D-06 and PRD §6 want one FireFly endpoint behind each command and no per-method special cases. | Howin | Generic `--input NAME=VALUE` (wallet names resolve to addresses; amounts in base units), and update the DL-4.1 examples to match. Per-method flags (`--to`, `--amount` in coins) would put contract-specific logic in the CLI |
-| 3 | `tx` events. Blockchain events only appear in FireFly when a contract listener is registered, and none is today. If Task 3's probe finds no usable events without one, should Phase 4 add a listener (a new write at `deploy`) or show only FireFly's own transaction and operation records? | Howin | Show operations and FireFly's transaction events only; a listener is out of scope for the MVP |
-| 4 | Exit code for pending/unknown. `argparse` already uses 2 for usage errors. | Howin | `3` for pending or unknown, `1` for failed or reverted, as in the Overview |
-| 5 | Idempotency (plan Q7, UC-11 notes). Should `invoke` send an idempotency key so a retry after "unknown" cannot double-send? It adds a flag and output beyond the four commands. | Howin | Not in Phase 4. Print the operation and transaction ids so the developer can check with `tx`; revisit if a retry ever double-sends |
-| 6 | Phase 3's three "human review" boxes (`tasks/phase-3-paladin.md`, lines 191, 297, 359) are still open. Do they need ticking before Phase 4 starts? | Howin | Tick them (the exit gate was verified in `a21c399`) when convenient; nothing in Phase 4 depends on them |
+| 1 | Where does wallet setup live? The Phase 2 onboarding logic is Python, `perf/` is Node. | Howin | Python: `python scripts/stack.py perf-setup`, reusing the onboarding functions; Node only runs Caliper |
+| 2 | FireFly's signer reads keystores at start. If Task 2's probe shows it does not pick up new files, restart the signer (a few seconds, FireFly reconnects) or preload a fixed set of perf wallets at `init` (committed, demo, no restart, but N has a ceiling and Phase 1 and 2 files change)? | Howin | Restart `firefly-signer` from the setup adapter; keep `init` and the committed keystores untouched |
+| 3 | Funding the wallets mints new `COIN`, which breaks `totalSupply == 1000` and `anson + beatrice == 1000` in the existing tests until a `reset`. | Howin | The setup integration test burns what it minted; the README says to `reset` after a benchmark. Do not change the existing tests |
+| 4 | Load parameters. The spike used one key at 20 TPS for 60 transactions. | Howin | N=10 workers, offered rate 20 TPS in total (2 per worker), 600 transactions, the same on both layers; N, rate and count are options, so a second, higher rate can be added later |
+| 5 | There is no Caliper command in `PROJECT.md` (`TBD`). | Claude, in Task 1 | Define `npm run round:chain`, `round:firefly` and the smoke round in `perf/package.json` in Task 1, and add them to `PROJECT.md` in Task 7 |
+| 6 | Phase 4's and Phase 3's "human review" boxes (`tasks/phase-4-cli.md`, `tasks/phase-3-paladin.md`) are still open. | Howin | Tick them when convenient; nothing in Phase 5 depends on them |
 
 ## Notes
 
-- Out of scope (plan §4 Phase 4): Paladin commands (FR-18), a web UI, a contract listener, anything beyond the four commands. Phase 5 adds `perf/`.
-- No task is XL. No `TBD` verification commands: every command above is in `PROJECT.md`.
-- Phase 4 is about 3 to 5 days (plan).
+- Out of scope (plan §4 Phase 5): Paladin benchmarks, tuning Besu for throughput, more validators, a benchmark of the CLI. Numbers describe one validator with a 2 s block period (D-17); they are not Besu's limits.
+- Caliper 0.6.0 pulls deprecated dependencies (`web3@1.3.0`, old `glob`, `core-js` 2; spike Risk 5). Accepted for a local demo; versions are pinned in the lock file.
+- Round runs are measured on a laptop already running 10 containers, so run-to-run spread is expected; the note reports both runs instead of one number.
+- Phase 5 is about 3 to 5 days (plan).
