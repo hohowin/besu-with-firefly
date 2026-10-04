@@ -1,0 +1,15 @@
+test:
+  name: smoke-chain-layer
+  description: A read-only COIN.name() against the deployed token, to prove Caliper reaches it
+  workers:
+    type: local
+    number: 1
+  rounds:
+    - label: name
+      txNumber: 10
+      rateControl:
+        type: fixed-rate
+        opts:
+          tps: 5
+      workload:
+        module: workload/name.js

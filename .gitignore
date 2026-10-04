@@ -18,3 +18,4 @@ build/
 .pytest_cache/
 deployed-addresses.json
 paladin-runtime/
+perf/generated/

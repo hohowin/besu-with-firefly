@@ -296,3 +296,10 @@ What building Phase 3 (Paladin and Noto in the real stack) added to the spike. D
 | `GET /transactions/{id}/events` | `FF10109: Not found` (no such route) |
 
 So `tx` shows FireFly's own transaction events and registers no listener (task list Open Question 3). The real response is stored in `tests/unit/adapters/recorded/events_by_tx.json`.
+
+## Phase 5 findings
+
+**Task 1 probes (2026-10-04, Caliper 0.6.0, Node v24.11.1, npm 11.6.2, the real stack).**
+
+- **A. An already deployed contract can be used with `--caliper-flow-skip-install`, but only if the network config carries the contract's `abi` inline next to its `address`.** With `path` and `address` alone the worker fails with `You must provide the json interface of the contract when instantiating a contract object`, because the connector sets `abi` only inside `installSmartContract` (the deploy step). With `abi` and `address` inline, `COIN.name()` ran 10 of 10 (read-only, 5 TPS). `perf/lib/prepare.js` writes that config from `deployed-addresses.json` and the pinned T-REX `Token.json`, so the token address is not committed.
+- **B. A worker's own sender comes from `fromAddressSeed`.** The connector derives `m/44'/60'/<workerIndex>'/0/0` from `EthereumHDKey.fromMasterSeed(seed)` (the seed string is hashed as UTF-8 bytes) and keeps a nonce per worker, so N senders means N workers. For the seed `besu-with-firefly perf demo seed` workers 0, 1 and 2 are `0x625c876b12ee5de00f848e4ff2644280cf4420b8`, `0x6c8b51832c5ff5d14d70c215e825ea38d3490478` and `0xe877993fcb99db7728cfd2bf51d04021e0bbea29` (printed by `perf/lib/derive.js`, which makes the same call as the connector). A write from a derived key was not run in this task: it needs a verified wallet (Task 3). The zero-gas path itself is the one the spike already exercised (`gasPrice` 0, explicit nonce, 60 of 60 sent).

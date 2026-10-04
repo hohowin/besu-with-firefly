@@ -35,13 +35,13 @@ Sizes: no task is L or larger. Tasks 1 to 6 are M, Task 7 is S.
 **Description:** Create `perf/` with its own `package.json` (Caliper `caliper-cli`, `caliper-core` and `caliper-ethereum` at exactly 0.6.0, `web3@1.3.0` installed by hand with `npm install --no-save web3@1.3.0` because `caliper bind` fails on Windows, per spike Risk 5), the `ws://localhost:8546` network config for `besu-rpc-anson`, and `npm` scripts that run a round. The trivial round is a read-only `COIN.name()` against the **already deployed** token at the address in `deployed-addresses.json`, run with `--caliper-flow-skip-install`. This is the riskiest Caliper unknown, so it goes first; the probes below are recorded in `docs/spike-results.md`.
 
 **Acceptance criteria:**
-- [ ] `cd perf && npm ci && npm install --no-save web3@1.3.0` then the trivial round runs against the live stack and writes `report.html` (gitignored); the exact versions are pinned in a committed `package-lock.json`
-- [ ] Probe A recorded: a configured contract `address` with `--caliper-flow-skip-install` lets the connector call the deployed `COIN` (or, if not, what works instead)
-- [ ] Probe B recorded: how a worker gets its own sender (`fromAddressSeed` and the derivation of worker 0, 1, 2, printed so Task 2 can test against them), and that it works on this zero-gas chain
+- [x] `cd perf && npm ci && npm install --no-save web3@1.3.0` then the trivial round runs against the live stack and writes `report.html` (gitignored); the exact versions are pinned in a committed `package-lock.json`
+- [x] Probe A recorded: a configured contract `address` with `--caliper-flow-skip-install` lets the connector call the deployed `COIN` (or, if not, what works instead)
+- [x] Probe B recorded: how a worker gets its own sender (`fromAddressSeed` and the derivation of worker 0, 1, 2, printed so Task 2 can test against them); the zero-gas write itself is first exercised in Task 3, see the status
 
 **Verification:**
-- [ ] Tests pass: no unit tests; the round exits 0 and the report exists (`npm run` script defined here)
-- [ ] Checks clean: `ruff check .` and `mypy .` unchanged; `npm ci` has no new vulnerability beyond the ones the spike already accepted (deprecated Caliper dependencies, spike Risk 5)
+- [x] Tests pass: no unit tests; the round exits 0 and the report exists (`npm run` script defined here)
+- [x] Checks clean: `ruff check .` and `mypy .` unchanged; `npm ci` has no new vulnerability beyond the ones the spike already accepted (deprecated Caliper dependencies, spike Risk 5)
 
 **Dependencies:** None (Phase 4 done, stack up and deployed)
 
@@ -50,6 +50,8 @@ Sizes: no task is L or larger. Tasks 1 to 6 are M, Task 7 is S.
 - `docs/spike-results.md` (Phase 5 probes)
 
 **Size:** M
+
+**Status:** Done 2026-10-04. `npm run smoke` runs 10 of 10 and writes `report.html`. Probe A: the network config must carry `abi` inline beside `address`, otherwise the worker fails (the connector only reads the ABI when it deploys). Probe B: `fromAddressSeed` gives each worker `m/44'/60'/<i>'/0/0`; vectors for the seed `besu-with-firefly perf demo seed` are in `docs/spike-results.md`. A write from a derived key was not run here (it needs a verified wallet, Task 3). `perf/package-lock.json` pins Caliper 0.6.0; `web3@1.3.0` stays a manual `--no-save` install. Commands: `npm run smoke`, `npm run prepare-run`, `node lib/derive.js` (Open Question 5; `PROJECT.md` gets them in Task 7).
 
 ### Task 2: N wallets from a seed, known to FireFly's signer
 
