@@ -1,4 +1,6 @@
+import json
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -312,3 +314,13 @@ def test_a_write_that_times_out_is_not_retried_by_the_client() -> None:
     with pytest.raises(FireflyError, match="context deadline exceeded"):
         client(transport).invoke(ADDRESS, METHOD, {}, key="0xk")
     assert len(transport.requests) == 1
+
+
+def test_transaction_events_reads_the_events_of_a_transaction_from_a_real_response() -> None:
+    recorded = json.loads(
+        (Path(__file__).parent / "recorded" / "events_by_tx.json").read_text(encoding="utf-8")
+    )
+    transport = FakeTransport((200, recorded))
+    events = client(transport).transaction_events("tx1")
+    assert [e.type for e in events] == ["transaction_submitted", "blockchain_invoke_op_succeeded"]
+    assert transport.requests == [("GET", "/api/v1/namespaces/default/events?tx=tx1", None)]

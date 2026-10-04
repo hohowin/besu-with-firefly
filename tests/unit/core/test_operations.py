@@ -141,3 +141,27 @@ def test_other_errors_have_no_revert_reason() -> None:
 
     assert revert_reason("HTTP 400: FF10111: bad input") is None
     assert revert_reason("context deadline exceeded") is None
+
+
+def test_parse_events_reads_the_fields_and_orders_by_sequence() -> None:
+    from src.core.firefly.operations import TxEvent, parse_events
+
+    body = [
+        {"sequence": 52, "type": "blockchain_invoke_op_succeeded", "reference": "op1",
+         "created": "2026-10-04T14:03:43Z", "id": "e2"},
+        {"sequence": 51, "type": "transaction_submitted", "reference": "tx1",
+         "created": "2026-10-04T14:03:40Z", "id": "e1"},
+    ]  # fmt: skip
+    assert parse_events(body) == [
+        TxEvent(51, "transaction_submitted", "2026-10-04T14:03:40Z", "tx1"),
+        TxEvent(52, "blockchain_invoke_op_succeeded", "2026-10-04T14:03:43Z", "op1"),
+    ]
+
+
+def test_parse_events_refuses_what_is_not_a_list_of_events() -> None:
+    from src.core.firefly.operations import parse_events
+
+    with pytest.raises(ValueError, match="not a list of FireFly events"):
+        parse_events({"error": "x"})
+    with pytest.raises(ValueError, match="not a FireFly event"):
+        parse_events([{"type": "x"}])

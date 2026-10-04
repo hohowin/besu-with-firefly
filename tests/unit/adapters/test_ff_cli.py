@@ -7,7 +7,7 @@ import pytest
 
 from src.adapters.ff_cli import main
 from src.core.firefly.errors import FireflyError
-from src.core.firefly.operations import Operation
+from src.core.firefly.operations import Operation, TxEvent
 
 ANSON = "0x" + "a1" * 20
 
@@ -19,6 +19,8 @@ class FakePort:
         self.answers = dict(answers or {})
         self.calls: list[tuple[str, str, Mapping[str, Any]]] = []
         self.error: Exception | None = None
+        self.operations: dict[str, Operation] = {}
+        self.events: list[TxEvent] = []
 
     def api_query(self, api: str, method: str, inputs: Mapping[str, Any]) -> Any:
         self.calls.append((api, method, inputs))
@@ -30,7 +32,14 @@ class FakePort:
         raise AssertionError("no write expected")
 
     def get_operation(self, operation_id: str) -> Operation:
-        raise AssertionError("not expected")
+        self.calls.append(("operation", operation_id, {}))
+        if self.error:
+            raise self.error
+        return self.operations[operation_id]
+
+    def transaction_events(self, transaction_id: str) -> list[TxEvent]:
+        self.calls.append(("events", transaction_id, {}))
+        return self.events
 
     def ensure_interface(self, *args: Any, **kwargs: Any) -> str:
         raise AssertionError("not expected")
@@ -108,3 +117,63 @@ def test_missing_wallets_file_is_an_error_only_when_a_name_is_needed(
         capsys, port, tmp_path, "query", "balanceOf", "--contract", "coin", "--input", "a=@anson"
     )
     assert code == 1 and "wallets.json" in err
+
+
+def test_tx_prints_status_transaction_and_events(
+    capsys: pytest.CaptureFixture[str], network_dir: Path
+) -> None:
+    port = FakePort()
+    port.operations["op1"] = Operation(id="op1", status="Succeeded", tx="tx1")
+    port.events = [TxEvent(51, "transaction_submitted", "2026-10-04T14:03:40Z", "tx1")]
+    code, out, _ = run(capsys, port, network_dir, "tx", "op1")
+    assert code == 0
+    assert out.splitlines() == [
+        "operation  op1",
+        "status     Succeeded",
+        "tx         tx1",
+        "event      51  transaction_submitted  2026-10-04T14:03:40Z",
+    ]
+    assert port.calls == [("operation", "op1", {}), ("events", "tx1", {})]
+
+
+def test_tx_of_an_operation_still_pending_says_so_and_never_says_success(
+    capsys: pytest.CaptureFixture[str], network_dir: Path
+) -> None:
+    port = FakePort()
+    port.operations["op1"] = Operation(id="op1", status="Pending", tx="tx1")
+    code, out, _ = run(capsys, port, network_dir, "tx", "op1")
+    assert code == 0 and "status     Pending" in out
+    assert "succe" not in out.lower()
+
+
+def test_tx_shows_the_error_of_a_failed_operation(
+    capsys: pytest.CaptureFixture[str], network_dir: Path
+) -> None:
+    port = FakePort()
+    port.operations["op1"] = Operation(id="op1", status="Failed", tx="tx1", error="boom")
+    _, out, _ = run(capsys, port, network_dir, "tx", "op1")
+    assert "error      boom" in out
+
+
+def test_tx_json_has_the_operation_and_the_events(
+    capsys: pytest.CaptureFixture[str], network_dir: Path
+) -> None:
+    port = FakePort()
+    port.operations["op1"] = Operation(id="op1", status="Succeeded", tx="tx1")
+    port.events = [TxEvent(51, "transaction_submitted", "t", None)]
+    _, out, _ = run(capsys, port, network_dir, "--json", "tx", "op1")
+    assert json.loads(out) == {
+        "operation": {"id": "op1", "status": "Succeeded", "tx": "tx1", "error": None},
+        "events": [{"sequence": 51, "type": "transaction_submitted", "created": "t",
+                    "reference": None}],
+    }  # fmt: skip
+
+
+def test_tx_of_an_unknown_operation_exits_one_with_fireflys_text(
+    capsys: pytest.CaptureFixture[str], network_dir: Path
+) -> None:
+    port = FakePort()
+    port.error = FireflyError("HTTP 404: FF10109: Not found")
+    code, out, err = run(capsys, port, network_dir, "tx", "nope")
+    assert (code, out) == (1, "")
+    assert err == "error: HTTP 404: FF10109: Not found\n"

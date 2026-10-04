@@ -21,12 +21,14 @@ from src.core.firefly.errors import (
 )
 from src.core.firefly.operations import (
     Operation,
+    TxEvent,
     already_submitted_transaction,
     api_invoke_body,
     api_query_body,
     deploy_body,
     invoke_body,
     is_transient,
+    parse_events,
     parse_operation,
     query_body,
     revert_reason,
@@ -208,6 +210,11 @@ class FireflyClient:
         """The operations of a transaction, for example to see whether an earlier attempt failed."""
         body = self._read("GET", f"{self._ns}/transactions/{transaction_id}/operations")
         return [parse_operation(item) for item in body]
+
+    def transaction_events(self, transaction_id: str) -> list[TxEvent]:
+        """FireFly's own events for a transaction (submitted, operation succeeded or failed).
+        Blockchain events are not here: they exist only for a registered contract listener."""
+        return parse_events(self._read("GET", f"{self._ns}/events?tx={transaction_id}"))
 
     def get_operation(self, operation_id: str) -> Operation:
         return parse_operation(self._read("GET", f"{self._ns}/operations/{operation_id}"))

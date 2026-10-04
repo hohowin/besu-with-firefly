@@ -49,6 +49,36 @@ def parse_operation(body: Any) -> Operation:
     )
 
 
+@dataclass(frozen=True)
+class TxEvent:
+    """One FireFly event of a transaction, for example `transaction_submitted`."""
+
+    sequence: int
+    type: str
+    created: str
+    reference: str | None
+
+
+def parse_events(body: Any) -> list[TxEvent]:
+    """Read FireFly's event list for a transaction, oldest first."""
+    if not isinstance(body, list):
+        raise ValueError(f"not a list of FireFly events: {body!r}")
+    events = []
+    for item in body:
+        if not isinstance(item, Mapping) or "sequence" not in item or "type" not in item:
+            raise ValueError(f"not a FireFly event: {item!r}")
+        reference = item.get("reference")
+        events.append(
+            TxEvent(
+                int(item["sequence"]),
+                str(item["type"]),
+                str(item.get("created", "")),
+                str(reference) if reference else None,
+            )
+        )
+    return sorted(events, key=lambda event: event.sequence)
+
+
 def deploy_body(
     bytecode: str,
     abi: Sequence[Any],

@@ -283,3 +283,16 @@ What building Phase 3 (Paladin and Noto in the real stack) added to the spike. D
 ### Result
 
 `pytest -m integration` (103 tests) passed three times in a row from `reset`, `up` and `deploy` (772 s, 750 s, 707 s). Unit tests (439), `ruff check` and `mypy` are clean.
+
+## Phase 4 findings
+
+**Events for `besu-ff tx` (probed 2026-10-04 on the live stack, FireFly v1.5.0).** For a succeeded `blockchain_invoke` operation with no contract listener registered:
+
+| Endpoint | Result |
+|---|---|
+| `GET /events?tx={transactionId}` | two FireFly events: `transaction_submitted` and `blockchain_invoke_op_succeeded` (used by the CLI) |
+| `GET /transactions/{id}/blockchainevents` and `GET /blockchainevents?tx={id}` | `[]`: blockchain events exist only for a registered contract listener |
+| `GET /transactions/{id}/status` | the operation step only, with the transaction hash and block (no events) |
+| `GET /transactions/{id}/events` | `FF10109: Not found` (no such route) |
+
+So `tx` shows FireFly's own transaction events and registers no listener (task list Open Question 3). The real response is stored in `tests/unit/adapters/recorded/events_by_tx.json`.

@@ -3,7 +3,7 @@
 from collections.abc import Mapping, Sequence
 from typing import Any, Protocol
 
-from src.core.firefly.operations import Operation
+from src.core.firefly.operations import Operation, TxEvent
 
 
 class FireflyPort(Protocol):
@@ -20,6 +20,8 @@ class FireflyPort(Protocol):
     ) -> Operation: ...
 
     def get_operation(self, operation_id: str) -> Operation: ...
+
+    def transaction_events(self, transaction_id: str) -> list[TxEvent]: ...
 
     def ensure_interface(self, name: str, version: str, abi: Sequence[Any]) -> str: ...
 
