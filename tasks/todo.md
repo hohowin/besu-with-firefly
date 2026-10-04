@@ -215,15 +215,15 @@ Sizes: no task is L or larger. Tasks 1, 2 and 3 are the largest (M).
 
 **Size:** S
 
-**Status:** Done 2026-10-04. Two attempts at the 3-run gate. Attempt 1: run 1 passed (875 s), run 2 failed in the Phase 3 test `test_an_interrupted_deploy_is_finished_by_running_deploy_again` because Docker took 3 min 44 s to start `paladin-node1` after a restart (container start 15:06:20, first log 15:10:04; node2 34 s, node3 2 s), past the 180 s readiness bound, so it did not count. Attempt 2: 3 passes in a row (1053 s, 825 s, 938 s; 113 tests each, none skipped). `docs/prd.md` was left unticked, like the other phases. A fresh-clone check of the README steps is recorded below.
+**Status:** Done 2026-10-04. Two attempts at the 3-run gate. Attempt 1: run 1 passed (875 s), run 2 failed in the Phase 3 test `test_an_interrupted_deploy_is_finished_by_running_deploy_again` because Docker took 3 min 44 s to start `paladin-node1` after a restart (container start 15:06:20, first log 15:10:04; node2 34 s, node3 2 s), past the 180 s readiness bound, so it did not count. Attempt 2: 3 passes in a row (1053 s, 825 s, 938 s; 113 tests each, none skipped). `docs/prd.md` was left unticked, like the other phases. Fresh clone checked: `pip install -e ".[dev]"` gives a working `besu-ff` (it answered `Coin` from the running stack), `ruff` and `mypy` are clean, and `pytest` passes 497 with 2 skipped (they need `npm ci` in `contracts/`, as `PROJECT.md` says).
 
 ---
 
 ## Checkpoint: After Task 7 (Phase 4 exit gate)
 
-- [ ] All DL-4.x deliverables verified
-- [ ] `ruff check .`, `mypy .`, `pytest` all pass
-- [ ] Integration tests pass across 3 consecutive fresh-stack runs
+- [x] All DL-4.x deliverables verified
+- [x] `ruff check .`, `mypy .`, `pytest` all pass
+- [x] Integration tests pass across 3 consecutive fresh-stack runs
 - [ ] Human review of the Phase 4 exit gate (**waiting for Howin**)
 
 ---
