@@ -20,6 +20,9 @@ dev = [
     "ruff>=0.6",
 ]
 
+[project.scripts]
+besu-ff = "src.adapters.ff_cli:main"
+
 [tool.setuptools.packages.find]
 include = ["src*"]
 
