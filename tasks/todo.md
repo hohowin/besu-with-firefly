@@ -58,13 +58,13 @@ Sizes: no task is L or larger. Tasks 1 to 6 are M, Task 7 is S.
 **Description:** Pure code in `src/core/` derives the wallets from a demo seed with the same scheme as Caliper (BIP32 master key from the seed's UTF-8 bytes, path `m/44'/60'/<i>'/0/0`, built on `eth_keys`, already installed with `eth-account`, so no new dependency), returning `Wallet` objects named `perf-001` and so on. An adapter writes their keystores with the existing `keystore_files` into the signer's keystore folder and makes the signer load them. First step: probe whether the signer needs a restart (Open Question 2); the answer decides between a file write plus `docker restart firefly-signer` and something lighter. Keystore files for perf wallets are gitignored (they are generated per N), and `init` and the committed Phase 1 and 2 keystores stay untouched.
 
 **Acceptance criteria:**
-- [ ] The derived addresses for workers 0, 1 and 2 equal the ones Caliper's own derivation printed in Task 1 (a recorded test vector, unit-tested), N is configurable, and the same seed always gives the same wallets
-- [ ] After the adapter runs for N wallets, FireFly's signer lists all N addresses (`eth_accounts` against the signer, through `docker exec` since its port is not published), and the existing wallets are still listed
-- [ ] Running it twice changes nothing the second time; running it for a smaller N does not remove wallets already loaded
+- [x] The derived addresses for workers 0, 1 and 2 equal the ones Caliper's own derivation printed in Task 1 (a recorded test vector, unit-tested), N is configurable, and the same seed always gives the same wallets
+- [x] After the adapter runs for N wallets, FireFly's signer lists all N addresses (`eth_accounts` against the signer, through `docker exec` since its port is not published), and the existing wallets are still listed
+- [x] Running it twice changes nothing the second time; running it for a smaller N does not remove wallets already loaded
 
 **Verification:**
-- [ ] Tests pass: `pytest tests/unit` and `pytest -m integration tests/integration/test_perf_wallets.py`
-- [ ] Checks clean: `ruff check .` and `mypy .`
+- [x] Tests pass: `pytest tests/unit` and `pytest -m integration tests/integration/test_perf_wallets.py`
+- [x] Checks clean: `ruff check .` and `mypy .`
 
 **Dependencies:** Task 1 (the test vector)
 
@@ -73,6 +73,8 @@ Sizes: no task is L or larger. Tasks 1 to 6 are M, Task 7 is S.
 - `tests/unit/core/test_perf_wallets.py`, `tests/unit/adapters/test_perf_wallets.py`, `tests/integration/test_perf_wallets.py` (new)
 
 **Size:** M
+
+**Status:** Done 2026-10-04. Test-first (8 core, 8 adapter unit tests, 2 integration tests). Probe in `docs/spike-results.md`: the signer needs a restart (Open Question 2 default taken) and takes the address from the file name, so keystores are named by address and `.gitignore` ignores new files in the keystore folder (tracked ones stay tracked; a new committed wallet needs `git add -f`). `eth-keys` is now a declared dependency (it was only transitive). Files are written only when missing, so a smaller N later removes nothing.
 
 ### Task 3: `perf-setup`: the wallets become verified investors holding `COIN`
 

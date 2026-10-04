@@ -10,6 +10,7 @@ requires-python = ">=3.11"
 dependencies = [
     "eth-abi>=5",
     "eth-account>=0.13",
+    "eth-keys>=0.5",
     "eth-utils>=5",
 ]
 

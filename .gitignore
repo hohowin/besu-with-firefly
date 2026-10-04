@@ -19,3 +19,6 @@ build/
 deployed-addresses.json
 paladin-runtime/
 perf/generated/
+# Benchmark wallets (perf-setup) add keystores here, named by address, so they cannot be matched by a
+# prefix. The committed ones stay tracked; a new committed wallet needs `git add -f`.
+network-config/firefly/signer-data/keystore/*
