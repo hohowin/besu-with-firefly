@@ -332,13 +332,13 @@ Note: a first full integration run was stopped by the tool's 30-minute backgroun
 **Description:** Prove `reset && up && deploy` leaves a working Noto setup three times in a row with the full gate. Then update `README.md` (Getting started, Accessing, the Paladin ports and `noto-demo`), `PROJECT.md`, `docs/deliverables.md` (DL-3.1 to DL-3.3 with runnable examples, every one run against the live stack), `docs/plan.md` (Phase 3 status) and `docs/spike-results.md` (Phase 3 findings), and verify the README from a fresh clone.
 
 **Acceptance criteria:**
-- [ ] `reset && up && deploy` followed by `pytest -m integration` passes in three consecutive runs
-- [ ] Following the README literally from a clean clone brings up the stack, deploys COIN and the Noto setup, and the gate passes
-- [ ] `docs/deliverables.md` DL-3.1 to DL-3.3 are `Done` with commands that were actually run, and `docs/plan.md` marks Phase 3 with the date and the exact result
+- [x] `reset && up && deploy` followed by `pytest -m integration` passes in three consecutive runs
+- [x] Following the README literally from a clean clone brings up the stack, deploys COIN and the Noto setup, and the gate passes
+- [x] `docs/deliverables.md` DL-3.1 to DL-3.3 are `Done` with commands that were actually run, and `docs/plan.md` marks Phase 3 with the date and the exact result
 
 **Verification:**
-- [ ] Tests pass: `pytest` and the gate, three times
-- [ ] Checks clean: `ruff check .` and `mypy .`
+- [x] Tests pass: `pytest` and the gate, three times
+- [x] Checks clean: `ruff check .` and `mypy .`
 
 **Dependencies:** Tasks 1–11
 
@@ -347,14 +347,16 @@ Note: a first full integration run was stopped by the tool's 30-minute backgroun
 
 **Size:** S
 
+**Status:** done. Gate `reset`, `up`, `deploy` (all exit 0) then `pytest -m integration` (103 passed) three times: 772 s, 750 s, 707 s. Fresh clone of `b00e20f` following the README: venv, `pip install -e ".[dev]"`, `npm ci`, `up`, `deploy`, `noto-demo` exit 0, `pytest -m integration` 103 passed (682 s), ruff and mypy clean, 439 unit tests passed.
+
 ## Checkpoint: After Tasks 11–12 (Phase 3 exit gate)
 
-- [ ] Noto integration tests pass (mint, transfer, privacy, restart)
-- [ ] `python scripts/stack.py reset` clears all three stores (chain, FireFly DB, Paladin DB)
-- [ ] The gate passes three times in a row from `reset`, `up` and `deploy`
-- [ ] `ruff check .`, `mypy .` and `pytest` clean
-- [ ] Anti-gate from `docs/plan.md`: if Paladin cannot run from hand-written config on Compose, fall back to Paladin on `kind` and record the change in D-09 (not expected, the spike ran it)
-- [ ] Human review before proceeding
+- [x] Noto integration tests pass (mint, transfer, privacy, restart)
+- [x] `python scripts/stack.py reset` clears all three stores (chain, FireFly DB, Paladin DB)
+- [x] The gate passes three times in a row from `reset`, `up` and `deploy`
+- [x] `ruff check .`, `mypy .` and `pytest` clean
+- [x] Anti-gate (not triggered) from `docs/plan.md`: if Paladin cannot run from hand-written config on Compose, fall back to Paladin on `kind` and record the change in D-09 (not expected, the spike ran it)
+- [ ] Human review of the Phase 3 exit gate (**waiting for Howin**)
 
 ---
 
