@@ -161,9 +161,9 @@ Sizes: no task is L or larger. Tasks 1 to 6 are M, Task 7 is S.
 
 ## Checkpoint: After Tasks 4–5
 
-- [ ] `ruff check .`, `mypy .`, `pytest` pass
-- [ ] Both rounds run on the same stack with the same load and write a report and a snapshot each
-- [ ] The FireFly round counts only `Succeeded` operations as success
+- [x] `ruff check .`, `mypy .`, `pytest` (561) pass, `npm test` (18) passes
+- [x] Both rounds run on the same stack with the same load (5 TPS, 300 transactions, 10 workers) and write a report and a snapshot each; the snapshots are identical except for layer and time
+- [x] The FireFly round counts only `Succeeded` operations as success (`lib/firefly-status.js`, tested)
 - [ ] Human review before proceeding (**waiting for Howin**)
 
 ---
