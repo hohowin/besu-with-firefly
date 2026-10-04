@@ -52,7 +52,8 @@ def test_the_signer_holds_the_three_demo_wallets(stack: DockerStack) -> None:
         (REPO_ROOT / "network-config" / "wallets.json").read_text(encoding="utf-8")
     )["wallets"]
     assert [w["name"] for w in wallets] == ["admin", "anson", "beatrice"]
-    assert {a.lower() for a in signer_rpc("eth_accounts")} == {w["address"] for w in wallets}
+    # The benchmark wallets (`perf-setup`) are loaded into the same signer, so it may hold more.
+    assert {w["address"] for w in wallets} <= {a.lower() for a in signer_rpc("eth_accounts")}
 
 
 def test_firefly_reaches_our_chain_through_the_rpc_node_not_a_node_of_its_own(

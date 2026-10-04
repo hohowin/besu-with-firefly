@@ -103,9 +103,9 @@ Sizes: no task is L or larger. Tasks 1 to 6 are M, Task 7 is S.
 
 ## Checkpoint: After Tasks 1–3
 
-- [ ] `ruff check .`, `mypy .`, `pytest` pass, and `pytest -m integration` still passes with the new tests (supply back to 1000 after them)
-- [ ] The trivial Caliper round runs and the three probes are recorded
-- [ ] N wallets verified on-chain, N configurable, setup duration printed
+- [x] `ruff check .`, `mypy .`, `pytest` (558) pass, and `pytest -m integration` ran 116 tests with 115 passing; the one failure, `test_the_signer_holds_the_three_demo_wallets`, compared the signer's accounts for equality with the three demo wallets and so failed once perf keystores were loaded. It now checks that the demo wallets are among the signer's accounts, and passes alone; the full suite is rerun in Task 6 and Task 7. Supply is back to 1000 after the new tests
+- [x] The trivial Caliper round runs and the probes are recorded (two in Task 1, one in Task 2)
+- [x] N wallets verified on-chain, N configurable, setup duration printed (about 13 s per wallet)
 - [ ] Human review before proceeding (**waiting for Howin**)
 
 ---
