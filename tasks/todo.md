@@ -81,13 +81,13 @@ Sizes: no task is L or larger. Tasks 1 to 6 are M, Task 7 is S.
 **Description:** `python scripts/stack.py perf-setup --wallets N --coins K` runs Task 2, then for each perf wallet registers an identity, adds the KYC claim and mints `K` COIN to it, all through FireFly and the existing onboarding functions, skipping what is already true (a second run sends nothing). Setup duration is measured and printed (R7). A pure function decides what is still missing per wallet, like `registration_steps` does today.
 
 **Acceptance criteria:**
-- [ ] `perf-setup --wallets 3 --coins 100` on a deployed stack leaves 3 wallets with `isVerified == true` and `balanceOf == 100 COIN` (checked through the contract API), and prints its duration
-- [ ] A second identical run sends no transaction; `--wallets 4` afterwards onboards only the fourth
-- [ ] The integration test mints, checks, then burns what it minted in teardown, so `totalSupply` is 1000 again and the existing supply tests still pass
+- [x] `perf-setup --wallets 3 --coins 100` on a deployed stack leaves 3 wallets with `isVerified == true` and `balanceOf == 100 COIN` (checked through the contract API), and prints its duration
+- [x] A second identical run sends no transaction; `--wallets 4` afterwards onboards only the fourth
+- [x] The integration test mints, checks, then burns what it minted in teardown, so `totalSupply` is 1000 again and the existing supply tests still pass
 
 **Verification:**
-- [ ] Tests pass: `pytest tests/unit` and `pytest -m integration tests/integration/test_perf_setup.py`
-- [ ] Checks clean: `ruff check .` and `mypy .`
+- [x] Tests pass: `pytest tests/unit` and `pytest -m integration tests/integration/test_perf_setup.py`
+- [x] Checks clean: `ruff check .` and `mypy .`
 
 **Dependencies:** Task 2
 
@@ -96,6 +96,8 @@ Sizes: no task is L or larger. Tasks 1 to 6 are M, Task 7 is S.
 - `tests/unit/core/test_perf_setup.py`, `tests/unit/adapters/test_perf_setup.py`, `tests/unit/adapters/test_stack_cli.py`, `tests/integration/test_perf_setup.py`
 
 **Size:** M
+
+**Status:** Done 2026-10-04. Test-first (7 core and adapter unit tests plus 2 CLI tests, 1 integration test). `register_identities` and `issue_claims` got a `names` parameter (default unchanged), so the Phase 2 code is reused as is. Mint tops each wallet up to the target and its idempotency key holds the starting balance, so a later top-up never reuses an earlier key. Measured on the live stack: 3 wallets in 38 s (about 13 s per wallet, so N=10 is about 2 minutes), a second run in 1.4 s sending nothing, and a fourth wallet added in 10 s. The test burns the minted COIN in its teardown and `totalSupply` is 1000 again. Found and fixed on the way (own commit): the `reset` unit tests ran `main(["reset"])` with the default paths, so every `pytest` run deleted the real `deployed-addresses.json` and the contents of `paladin-runtime/` of a running stack; they now use `tmp_path`.
 
 ---
 

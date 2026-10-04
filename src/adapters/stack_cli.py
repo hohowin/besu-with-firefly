@@ -1,6 +1,6 @@
 """Command line for the stack: `python scripts/stack.py <command>`.
 
-`init`, `up`, `deploy`, `onboard`, `noto-demo` and `reset`.
+`init`, `up`, `deploy`, `onboard`, `perf-setup`, `noto-demo` and `reset`.
 """
 
 import argparse
@@ -25,6 +25,7 @@ from src.adapters.paladin_command import deploy_paladin_phase
 from src.adapters.paladin_demo import DemoFailed, NotDeployed, noto_demo
 from src.adapters.paladin_deploy import PaladinBootstrapError
 from src.adapters.paladin_files import CertMaker, docker_cert_maker, seed_runtime
+from src.adapters.perf_setup import perf_setup
 from src.adapters.rpc import chain_heights_reader
 from src.adapters.trex_artifacts import ArtifactsMissingError
 from src.adapters.trex_command import deploy_trex, onboard_trex
@@ -80,6 +81,20 @@ def build_parser() -> argparse.ArgumentParser:
         default=REPO_ROOT / "network-config",
         help="where wallets.json is (default: network-config/)",
     )
+    perf = commands.add_parser(
+        "perf-setup",
+        help="make N verified wallets holding COIN for the Caliper benchmark (needs deploy)",
+    )
+    perf.add_argument("--wallets", type=int, default=10, help="how many wallets (default: 10)")
+    perf.add_argument(
+        "--coins", type=int, default=100, help="COIN each wallet should hold (default: 100)"
+    )
+    perf.add_argument(
+        "--network-dir",
+        type=Path,
+        default=REPO_ROOT / "network-config",
+        help="where wallets.json is (default: network-config/)",
+    )
     commands.add_parser(
         "noto-demo", help="mint and transfer a private Noto token and show what each node sees"
     )
@@ -104,6 +119,7 @@ def main(
     onboarder: Callable[[Path], None] | None = None,
     paladin_deployer: Callable[[], None] | None = None,
     demo_runner: Callable[[], str] | None = None,
+    perf_runner: Callable[[Path, int, int], float] | None = None,
     addresses_file: Path = DEPLOYED_ADDRESSES,
     paladin_source: Path | None = None,
     paladin_runtime: Path | None = None,
@@ -111,7 +127,7 @@ def main(
     """Run a command and return the process exit code.
 
     Tests inject `generator`, `cert_maker`, `stack`, `deployer`, `onboarder`, `paladin_deployer`,
-    `demo_runner`, `addresses_file`, `paladin_source` and `paladin_runtime`.
+    `demo_runner`, `perf_runner`, `addresses_file`, `paladin_source` and `paladin_runtime`.
     """
     args = build_parser().parse_args(argv)
     if args.command == "init":
@@ -158,6 +174,12 @@ def main(
         try:
             (onboarder or onboard_trex)(args.network_dir)
         except (DeployStepError, FireflyError, OSError) as error:
+            print(f"error: {error}", file=sys.stderr)
+            return 1
+    if args.command == "perf-setup":
+        try:
+            (perf_runner or perf_setup)(args.network_dir, args.wallets, args.coins)
+        except (DeployStepError, FireflyError, StackError, ValueError, OSError) as error:
             print(f"error: {error}", file=sys.stderr)
             return 1
     if args.command == "noto-demo":

@@ -77,8 +77,9 @@ def register_identities(
     log: Callable[[str], None],
     sleep: Callable[[float], None] = time.sleep,
     clock: Callable[[], float] = time.monotonic,
+    names: Sequence[str] = ONBOARD_ACCOUNTS,
 ) -> None:
-    """Give each onboarded account an OnchainID and register it in the IdentityRegistry.
+    """Give each account in `names` (the demo investors by default) an OnchainID and register it.
 
     Reads the state first and sends only the writes that are missing, so a second run sends
     nothing. Admin signs everything (it owns the IdFactory and is an agent of the registry).
@@ -88,7 +89,7 @@ def register_identities(
     methods = client.generate_interface(_abi(load, "id-factory"))
     identity_of = _identity_lookup(client, factory, methods)
 
-    for name in ONBOARD_ACCOUNTS:
+    for name in names:
         wallet = accounts[name]
         registered = bool(client.api_query(API_REGISTRY, "contains", {"_userAddress": wallet}))
         for todo in registration_steps(name, AccountState(identity_of(wallet), registered)):
@@ -147,8 +148,10 @@ def issue_claims(
     log: Callable[[str], None],
     sleep: Callable[[float], None] = time.sleep,
     clock: Callable[[], float] = time.monotonic,
+    names: Sequence[str] = ONBOARD_ACCOUNTS,
 ) -> None:
-    """Make each registered investor `isVerified` by giving their identity a signed KYC claim.
+    """Make each registered investor in `names` (the demo investors by default) `isVerified` by
+    giving their identity a signed KYC claim.
 
     The `ClaimIssuer` is managed by Admin, so Admin's key (`issuer_key`) signs the claim. The
     claim is added by the identity's owner (the investor's own FireFly key), as OnchainID
@@ -158,7 +161,7 @@ def issue_claims(
     identity_methods = client.generate_interface(_abi(load, "identity-implementation"))
     identity_of = _identity_lookup(client, addresses["id-factory"], factory_methods)
 
-    for name in ONBOARD_ACCOUNTS:
+    for name in names:
         wallet = accounts[name]
         identity = identity_of(wallet)
         verified = bool(client.api_query(API_REGISTRY, "isVerified", {"_userAddress": wallet}))
