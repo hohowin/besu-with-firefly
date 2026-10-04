@@ -104,25 +104,42 @@ def test_up_failure_exits_one_with_the_reason(capsys: pytest.CaptureFixture[str]
     assert "besu-validator-2 is starting" in capsys.readouterr().err
 
 
-def test_reset_prints_what_it_removed_and_exits_zero(capsys: pytest.CaptureFixture[str]) -> None:
+def reset_in(tmp_path: Path, stack: FakeStack) -> int:
+    """Run `reset` with paths in `tmp_path`, so a test never touches the real
+    deployed-addresses.json or paladin-runtime/ of a running stack."""
+    return main(
+        ["reset"],
+        stack=stack,
+        addresses_file=tmp_path / "a.json",
+        paladin_runtime=tmp_path / "runtime",
+    )
+
+
+def test_reset_prints_what_it_removed_and_exits_zero(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
     stack = FakeStack()
-    assert main(["reset"], stack=stack) == 0
+    assert reset_in(tmp_path, stack) == 0
     assert stack.resets == 1
     out = capsys.readouterr().out
     assert "besu-validator-1" in out and "besu-rpc-anson" in out
 
 
-def test_reset_with_nothing_to_remove_says_so(capsys: pytest.CaptureFixture[str]) -> None:
+def test_reset_with_nothing_to_remove_says_so(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
     class Empty(FakeStack):
         def reset(self) -> list[str]:
             return []
 
-    assert main(["reset"], stack=Empty()) == 0
+    assert reset_in(tmp_path, Empty()) == 0
     assert "nothing to remove" in capsys.readouterr().out
 
 
-def test_reset_exits_one_when_docker_is_not_reachable(capsys: pytest.CaptureFixture[str]) -> None:
-    assert main(["reset"], stack=FakeStack(error="docker is not reachable")) == 1
+def test_reset_exits_one_when_docker_is_not_reachable(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    assert reset_in(tmp_path, FakeStack(error="docker is not reachable")) == 1
     assert "docker is not reachable" in capsys.readouterr().err
 
 
@@ -363,3 +380,28 @@ def test_noto_demo_that_saw_a_leak_exits_one(capsys: pytest.CaptureFixture[str])
 
     assert main(["noto-demo"], demo_runner=demo) == 1
     assert "leak" in capsys.readouterr().err
+
+
+def test_perf_setup_passes_the_options_to_the_runner(tmp_path: Path) -> None:
+    seen: list[tuple[Path, int, int]] = []
+
+    def runner(network_dir: Path, wallets: int, coins: int) -> float:
+        seen.append((network_dir, wallets, coins))
+        return 1.0
+
+    assert main(["perf-setup", "--network-dir", str(tmp_path)], perf_runner=runner) == 0
+    assert main(
+        ["perf-setup", "--wallets", "4", "--coins", "50", "--network-dir", str(tmp_path)],
+        perf_runner=runner,
+    ) == 0
+    assert seen == [(tmp_path, 10, 100), (tmp_path, 4, 50)]
+
+
+def test_perf_setup_reports_a_stack_that_is_not_deployed_and_exits_one(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    def runner(network_dir: Path, wallets: int, coins: int) -> float:
+        raise ValueError("nothing is deployed yet: run `python scripts/stack.py deploy` first")
+
+    assert main(["perf-setup"], perf_runner=runner) == 1
+    assert "stack.py deploy" in capsys.readouterr().err
