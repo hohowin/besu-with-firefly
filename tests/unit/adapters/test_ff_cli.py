@@ -6,7 +6,7 @@ from typing import Any
 import pytest
 
 from src.adapters.ff_cli import main
-from src.core.firefly.errors import FireflyError
+from src.core.firefly.errors import FireflyError, OperationFailed, Reverted
 from src.core.firefly.operations import Operation, TxEvent
 
 ANSON = "0x" + "a1" * 20
@@ -177,3 +177,112 @@ def test_tx_of_an_unknown_operation_exits_one_with_fireflys_text(
     code, out, err = run(capsys, port, network_dir, "tx", "nope")
     assert (code, out) == (1, "")
     assert err == "error: HTTP 404: FF10109: Not found\n"
+
+
+BEATRICE = "0x" + "b2" * 20
+
+
+class WritePort(FakePort):
+    """A port that also takes writes. Balances come from `balances`, by address."""
+
+    def __init__(self, result: Operation | Exception) -> None:
+        super().__init__()
+        self.result = result
+        self.balances = {ANSON: "1000", BEATRICE: "0"}
+        self.writes: list[tuple[str, str, Mapping[str, Any], str | None]] = []
+
+    def api_query(self, api: str, method: str, inputs: Mapping[str, Any]) -> Any:
+        return self.balances[inputs["_userAddress"]]
+
+    def api_invoke(
+        self,
+        api: str,
+        method: str,
+        inputs: Mapping[str, Any],
+        key: str | None = None,
+        idempotency_key: str | None = None,
+        timeout: float = 120.0,
+    ) -> Operation:
+        self.writes.append((api, method, inputs, key))
+        if isinstance(self.result, Exception):
+            raise self.result
+        return self.result
+
+
+@pytest.fixture
+def two_wallets(tmp_path: Path) -> Path:
+    wallets = {
+        "wallets": [
+            {"name": "anson", "address": ANSON, "privateKey": "0x" + "11" * 32},
+            {"name": "beatrice", "address": BEATRICE, "privateKey": "0x" + "22" * 32},
+        ]
+    }
+    (tmp_path / "wallets.json").write_text(json.dumps(wallets), encoding="utf-8")
+    return tmp_path
+
+
+TRANSFER = (
+    "invoke", "transfer", "--contract", "coin", "--as", "anson",
+    "--input", "_to=@beatrice", "--input", "_amount=25",
+)  # fmt: skip
+
+
+def test_invoke_success_names_the_identity_and_operation_and_shows_balances(
+    capsys: pytest.CaptureFixture[str], two_wallets: Path
+) -> None:
+    port = WritePort(Operation(id="op1", status="Succeeded", tx="tx1"))
+    code, out, err = run(capsys, port, two_wallets, *TRANSFER)
+    assert code == 0 and err == ""
+    assert out.splitlines()[:3] == [
+        "sent       transfer as anson",
+        "operation  op1",
+        "tx         tx1",
+    ]
+    assert "balance    anson  1000" in out and "balance    beatrice  0" in out
+    assert port.writes == [("coin", "transfer", {"_to": BEATRICE, "_amount": "25"}, ANSON)]
+
+
+def test_invoke_revert_prints_the_reason_and_says_balances_are_unchanged(
+    capsys: pytest.CaptureFixture[str], two_wallets: Path
+) -> None:
+    port = WritePort(Reverted("Transfer not possible", "HTTP 400"))
+    code, out, err = run(capsys, port, two_wallets, *TRANSFER)
+    assert code == 1
+    assert err == "error: refused by the contract: Transfer not possible\n"
+    assert "balances unchanged" in out and "sent" not in out
+
+
+def test_invoke_failed_exits_one_with_fireflys_text(
+    capsys: pytest.CaptureFixture[str], two_wallets: Path
+) -> None:
+    code, _, err = run(capsys, WritePort(OperationFailed("op1", "boom")), two_wallets, *TRANSFER)
+    assert code == 1 and err == "error: operation op1 failed: boom\n"
+
+
+def test_invoke_pending_is_not_success(
+    capsys: pytest.CaptureFixture[str], two_wallets: Path
+) -> None:
+    port = WritePort(Operation(id="op1", status="Pending", tx="tx1"))
+    code, out, err = run(capsys, port, two_wallets, *TRANSFER)
+    assert code == 3 and "sent" not in out and "op1" in err and "tx1" in err
+
+
+def test_invoke_unknown_identity_sends_nothing(
+    capsys: pytest.CaptureFixture[str], two_wallets: Path
+) -> None:
+    port = WritePort(Operation(id="op1", status="Succeeded"))
+    code, _, err = run(
+        capsys, port, two_wallets, "invoke", "transfer", "--contract", "coin", "--as", "bob"
+    )
+    assert code == 1 and "no wallet called 'bob'" in err and port.writes == []
+
+
+def test_invoke_json_never_contains_a_key(
+    capsys: pytest.CaptureFixture[str], two_wallets: Path
+) -> None:
+    port = WritePort(Operation(id="op1", status="Succeeded", tx="tx1"))
+    _, out, _ = run(capsys, port, two_wallets, "--json", *TRANSFER)
+    document = json.loads(out)
+    assert document["status"] == "succeeded" and document["operation"] == "op1"
+    assert document["as"] == "anson"
+    assert "11" * 32 not in out and "privateKey" not in out

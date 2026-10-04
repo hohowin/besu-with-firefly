@@ -6,7 +6,9 @@ from typing import Any, Protocol
 from src.core.firefly.operations import Operation, TxEvent
 
 
-class FireflyPort(Protocol):
+class ContractApiPort(Protocol):
+    """Reads and writes through a registered contract API: all a call needs."""
+
     def api_query(self, api: str, method: str, inputs: Mapping[str, Any]) -> Any: ...
 
     def api_invoke(
@@ -19,6 +21,8 @@ class FireflyPort(Protocol):
         timeout: float = ...,
     ) -> Operation: ...
 
+
+class FireflyPort(ContractApiPort, Protocol):
     def get_operation(self, operation_id: str) -> Operation: ...
 
     def transaction_events(self, transaction_id: str) -> list[TxEvent]: ...

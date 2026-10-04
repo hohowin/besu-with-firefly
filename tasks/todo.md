@@ -117,13 +117,13 @@ Sizes: no task is L or larger. Tasks 1, 2 and 3 are the largest (M).
 **Description:** `invoke <method> --contract coin --as NAME --input NAME=VALUE ...` sends a write through the contract API, waits for the final operation, then prints the classified outcome from Task 1: success names the acting identity and the operation id (UC-06); a revert prints the contract's reason, exits 1 (UC-07). For the `transfer` example in the deliverables the CLI also prints the sender's and recipient's balances after a success and, on a rejection, confirms they are unchanged (read through the same port, so it is core orchestration, not CLI logic). The rejection is raised by the contract, not the CLI (PRD US-008): the CLI does no compliance check of its own.
 
 **Acceptance criteria:**
-- [ ] `invoke transfer --contract coin --as anson --input _to=beatrice --input _amount=<base units>` exits 0, prints the acting identity and operation id, and the balances change by the amount (integration)
-- [ ] The same transfer to `admin` (unverified) exits 1, prints the contract's revert reason, and both balances are unchanged (integration, and equal to the revert seen by calling the contract API directly with `tests/support/firefly.py`)
-- [ ] Unit tests with a mocked port cover: succeeded, failed, reverted, and that no private key or key file path appears in any output
+- [x] `invoke transfer --contract coin --as anson --input _to=beatrice --input _amount=<base units>` exits 0, prints the acting identity and operation id, and the balances change by the amount (integration)
+- [x] The same transfer to `admin` (unverified) exits 1, prints the contract's revert reason, and both balances are unchanged (integration, and equal to the revert seen by calling the contract API directly with `tests/support/firefly.py`)
+- [x] Unit tests with a mocked port cover: succeeded, failed, reverted, and that no private key or key file path appears in any output
 
 **Verification:**
-- [ ] Tests pass: `pytest tests/unit` and `pytest -m integration tests/integration/test_cli_invoke.py`
-- [ ] Checks clean: `ruff check .` and `mypy .`
+- [x] Tests pass: `pytest tests/unit` and `pytest -m integration tests/integration/test_cli_invoke.py`
+- [x] Checks clean: `ruff check .` and `mypy .`
 
 **Dependencies:** Tasks 1 and 2
 
@@ -132,6 +132,8 @@ Sizes: no task is L or larger. Tasks 1, 2 and 3 are the largest (M).
 - `tests/unit/core/test_firefly_invoke.py`, `tests/unit/adapters/test_ff_cli.py`, `tests/integration/test_cli_invoke.py` (new)
 
 **Size:** M
+
+**Status:** Done 2026-10-04. Test-first (8 core and 6 CLI unit tests, 2 integration tests). `src/core/firefly/invoke.py` runs the write and reads both balances before and after; `ContractApiPort` (query and invoke only) is the narrow port it needs, `FireflyPort` extends it. A `Pending` outcome already exits 3 with the ids; Task 5 adds `--timeout`, the transport-error case and the named test.
 
 ### Task 5: Pending and unknown states never report success
 
