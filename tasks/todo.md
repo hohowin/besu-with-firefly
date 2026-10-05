@@ -221,7 +221,7 @@ Sizes: no task is L or larger. Tasks 1 to 6 are M, Task 7 is S.
 - [x] All DL-5.x deliverables verified
 - [x] Both rounds reproducible from a fresh `python scripts/stack.py reset && python scripts/stack.py up && python scripts/stack.py deploy` (plus `perf-setup`)
 - [x] Results note committed, with the configuration beside every number
-- [ ] Human review of the Phase 5 exit gate (**waiting for Howin**)
+- [x] Human review of the Phase 5 exit gate (Howin, 2026-10-04)
 
 ---
 
