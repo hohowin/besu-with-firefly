@@ -1,0 +1,17 @@
+# The deployer image needs only pyproject.toml, src/ and contracts/package*.json.
+.git
+.venv
+**/node_modules
+**/__pycache__
+.mypy_cache
+.ruff_cache
+.pytest_cache
+*.egg-info
+perf
+spike
+docs
+tasks
+paladin-runtime
+deployed-addresses.json
+network-config
+tests

@@ -5,6 +5,8 @@ Nothing is compiled: the packages ship compiled artifacts. Install them with `np
 """
 
 import json
+import os
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -12,7 +14,23 @@ from typing import Any
 from src.core.trex.plan import Artifact
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-NODE_MODULES = REPO_ROOT / "contracts" / "node_modules"
+
+
+def contracts_node_modules(env: Mapping[str, str] = os.environ) -> Path:
+    """Where the contract packages are: `CONTRACTS_NODE_MODULES`, else `contracts/node_modules`.
+
+    The deployer container keeps the packages outside the repository folder, because it mounts
+    that folder from the host and the mount would hide anything baked in beneath it.
+    """
+    if "CONTRACTS_NODE_MODULES" not in env:
+        return REPO_ROOT / "contracts" / "node_modules"
+    value = env["CONTRACTS_NODE_MODULES"].strip()
+    if not value:
+        raise ValueError("CONTRACTS_NODE_MODULES is set but blank")
+    return Path(value)
+
+
+NODE_MODULES = contracts_node_modules()
 
 # Folder, below node_modules, that holds each package's `contracts/` artifacts.
 _PACKAGE_ARTIFACTS = {

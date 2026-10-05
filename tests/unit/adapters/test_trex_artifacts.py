@@ -51,3 +51,27 @@ def test_a_missing_package_gives_a_clear_hint(tmp_path: object) -> None:
 
     with pytest.raises(ArtifactsMissingError, match="npm ci"):
         load_artifact(DEPLOYS[0].artifact, modules=Path(str(tmp_path)) / "nothing")
+
+
+def test_the_artifact_folder_defaults_to_contracts_node_modules() -> None:
+    from src.adapters.trex_artifacts import REPO_ROOT, contracts_node_modules
+
+    assert contracts_node_modules({}) == REPO_ROOT / "contracts" / "node_modules"
+
+
+def test_the_artifact_folder_can_be_moved_with_an_environment_variable() -> None:
+    from pathlib import Path
+
+    from src.adapters.trex_artifacts import contracts_node_modules
+
+    env = {"CONTRACTS_NODE_MODULES": "/opt/contracts/node_modules"}
+    assert contracts_node_modules(env) == Path("/opt/contracts/node_modules")
+
+
+def test_a_blank_artifact_folder_variable_is_refused() -> None:
+    import pytest
+
+    from src.adapters.trex_artifacts import contracts_node_modules
+
+    with pytest.raises(ValueError, match="CONTRACTS_NODE_MODULES"):
+        contracts_node_modules({"CONTRACTS_NODE_MODULES": "  "})

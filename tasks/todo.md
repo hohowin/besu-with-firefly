@@ -90,13 +90,13 @@ Sizes: no task is L or larger. Tasks 3 and 4 are the largest (M).
 **Description:** A `deploy/Dockerfile` (multi-stage) that gives the job what `deploy` needs: a Node stage that runs `npm ci` in `contracts/` for the pinned T-REX and OnchainID artifacts, and a Python stage that installs this project and the Docker CLI. It runs as a normal user where it can. **First step: prove the risky part** before building on it: from a container with `/var/run/docker.sock` mounted, `docker restart paladin-node1` works on this machine (Docker Desktop on Windows). If it does not, stop and take Open Question 1 back to Howin.
 
 **Acceptance criteria:**
-- [ ] `docker compose build deployer` succeeds, and the image runs `python scripts/stack.py --help`
-- [ ] Probe recorded in `docs/spike-results.md`: a container with the socket mounted restarts `paladin-node1`, and what it needed (user, group, path)
-- [ ] The image contains the contract artifacts, so no host `npm ci` is needed for the compose route (checked by building from a clone without `contracts/node_modules`)
+- [x] The image builds (`docker build -f deploy/Dockerfile`; the `deployer` service that makes it `docker compose build deployer` arrives in Task 4) and runs `python scripts/stack.py --help`
+- [x] Probe recorded in `docs/spike-results.md`: a container with the socket mounted restarts `paladin-node1`, and what it needed (user, group, path)
+- [x] The image contains the contract artifacts, so no host `npm ci` is needed for the compose route (checked by building from a clone without `contracts/node_modules`)
 
 **Verification:**
-- [ ] Tests pass: `docker compose build deployer`; the probe command
-- [ ] Checks clean: `docker compose config -q`
+- [x] Tests pass: `docker compose build deployer`; the probe command
+- [x] Checks clean: `docker compose config -q`
 
 **Dependencies:** Task 2 (it uses the same stack for the probe)
 
@@ -104,6 +104,8 @@ Sizes: no task is L or larger. Tasks 3 and 4 are the largest (M).
 - `deploy/Dockerfile`, `.dockerignore`, `docs/spike-results.md`
 
 **Size:** M
+
+**Status:** Done 2026-10-05. Probe passed (details in `docs/spike-results.md`, Phase 6 findings): a root container with the socket mounted restarted `paladin-node1`. `deploy/Dockerfile` (multi-stage: Node for `npm ci`, then Python with the Docker client) builds in about 34 s and holds only dependencies, because Compose will mount the repository at `/work` and a mount hides anything baked in beneath it. So the contract packages are in `/opt/contracts/node_modules` and a new `CONTRACTS_NODE_MODULES` variable (`contracts_node_modules()` in `trex_artifacts.py`, default unchanged, 3 unit tests) points the code at them. Checked from a copy of the repository without `contracts/node_modules`: the image runs `stack.py --help` and loads a contract artifact. `.dockerignore` keeps the build context small.
 
 ### Task 4: `deployer` service (option c)
 
