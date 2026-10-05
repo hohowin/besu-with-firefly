@@ -25,6 +25,12 @@ Runner = Callable[[Sequence[str]], tuple[int, str, str]]
 ChainHeights = Callable[[], dict[str, int | None]]
 
 
+# Services that run once and exit. `up` does not wait for them to be healthy and does not start
+# them by name: `paladin-seed` runs because the Paladin nodes depend on it, and `deployer` is what
+# `python scripts/stack.py deploy` does by hand, so `up` must leave it alone.
+ONE_SHOT_SERVICES = frozenset({"paladin-seed", "deployer"})
+
+
 class StackError(Exception):
     """A Docker or Compose command failed, or the stack did not become healthy in time."""
 
@@ -81,13 +87,14 @@ class DockerStack:
         return parse_compose_ps(self._compose("ps", "--format", "json"))
 
     def up(self, wait_timeout: float = 300.0, poll_seconds: float = 2.0) -> list[ContainerState]:
-        """Start every service, wait until all are healthy, then until the chain has blocks.
+        """Start every long-running service, wait until all are healthy, then until the chain
+        has blocks.
 
         The chain wait matters because a cold QBFT start can take a while to produce its first
         block, and everything above Besu needs a chain that is moving.
         """
-        expected = self.services()
-        self._compose("up", "-d")
+        expected = [s for s in self.services() if s not in ONE_SHOT_SERVICES]
+        self._compose("up", "-d", *expected)
         deadline = self._clock() + wait_timeout
         while True:
             states = self.states()

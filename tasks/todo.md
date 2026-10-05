@@ -68,13 +68,13 @@ Sizes: no task is L or larger. Tasks 3 and 4 are the largest (M).
 **Description:** Add a one-shot service to `docker-compose.yml` using a small image (`alpine`), mounting `./network-config/paladin` read-only and `./paladin-runtime` read-write, that copies each node's base config into `paladin-runtime/` **only if it is not there yet** (so a later `deploy` that has already written the final config is never overwritten). The three Paladin nodes get `depends_on: paladin-seed: condition: service_completed_successfully`. `stack.py up` keeps its own copy step, which does the same thing and stays harmless.
 
 **Acceptance criteria:**
-- [ ] From a clean clone (no `paladin-runtime/`), `docker compose up -d` brings up all 10 containers healthy with no `stack.py` call (contracts not deployed yet), and `paladin-seed` has exited with code 0
-- [ ] Running `docker compose up -d` again leaves an existing `paladin-runtime/` untouched, checked by a changed file surviving
-- [ ] `python scripts/stack.py up` and `deploy` still work on top of it
+- [x] From a clean clone (no `paladin-runtime/`), `docker compose up -d` brings up all 10 containers healthy with no `stack.py` call (contracts not deployed yet), and `paladin-seed` has exited with code 0
+- [x] Running `docker compose up -d` again leaves an existing `paladin-runtime/` untouched, checked by a changed file surviving
+- [x] `python scripts/stack.py up` and `deploy` still work on top of it
 
 **Verification:**
-- [ ] Tests pass: `docker compose config -q`; the two manual runs above, recorded in the status
-- [ ] Checks clean: `ruff check .` and `mypy .`
+- [x] Tests pass: `docker compose config -q`; the two manual runs above, recorded in the status
+- [x] Checks clean: `ruff check .` and `mypy .`
 
 **Dependencies:** None
 
@@ -82,6 +82,8 @@ Sizes: no task is L or larger. Tasks 3 and 4 are the largest (M).
 - `docker-compose.yml`
 
 **Size:** S
+
+**Status:** Done 2026-10-05. `paladin-seed` (alpine, `restart: "no"`) copies each node's base config only when missing and logs `base config copied` or `config already there, kept`; the Paladin nodes wait for it through the shared `x-paladin` anchor. Real runs: from `down -v` with no `paladin-runtime/`, a plain `docker compose up -d` started all 10 containers in 43 s (every one healthy within about a minute) and `paladin-seed` exited 0; a marker line added to node1's config survived a second run of the seed; `stack.py up` and `deploy` then worked on top (Coin, and `noto` on all three nodes). **One thing the task list did not foresee:** `stack.py up` waited for every service to be running and healthy, and `docker compose up -d` named no services, so a one-shot service that exits would have made `up` time out, and Task 4's `deployer` would have deployed during `up`. `DockerStack.up` now starts the long-running services by name and leaves out `ONE_SHOT_SERVICES` (`paladin-seed`, `deployer`); `paladin-seed` still runs as the nodes' dependency. 1 new unit test.
 
 ### Task 3: The deployer image, and proof the restart works from a container
 

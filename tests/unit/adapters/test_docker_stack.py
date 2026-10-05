@@ -6,6 +6,7 @@ import pytest
 from src.adapters.docker_stack import DockerStack, StackError
 
 SERVICES = "besu-validator-1\nbesu-validator-2\n"
+UP_COMMAND = ["docker", "compose", "up", "-d", "besu-validator-1", "besu-validator-2"]
 
 
 def ps(*health: str) -> str:
@@ -54,7 +55,24 @@ def test_up_starts_the_stack_and_returns_once_every_service_is_healthy() -> None
     )
     states = make_stack(runner).up(wait_timeout=100)
     assert [s.service for s in states] == ["besu-validator-1", "besu-validator-2"]
-    assert ["docker", "compose", "up", "-d"] in runner.commands
+    assert UP_COMMAND in runner.commands
+
+
+def test_up_names_the_long_running_services_and_leaves_one_shot_jobs_to_their_dependents() -> None:
+    """`paladin-seed` and `deployer` run once and exit. `up` must not wait for them to be healthy
+    (they never are) and must not start `deployer` (that is `deploy`'s job); `paladin-seed` still
+    runs because the Paladin nodes depend on it."""
+
+    class WithJobs(FakeRunner):
+        def __call__(self, command: Sequence[str]) -> tuple[int, str, str]:
+            if command[:3] == ["docker", "compose", "config"]:
+                self.commands.append(list(command))
+                return 0, SERVICES + "paladin-seed\ndeployer\n", ""
+            return super().__call__(command)
+
+    runner = WithJobs([ps("healthy", "healthy")])
+    make_stack(runner).up(wait_timeout=100)
+    assert UP_COMMAND in runner.commands
 
 
 def test_up_times_out_and_names_the_services_that_are_not_healthy() -> None:
