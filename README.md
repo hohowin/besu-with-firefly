@@ -270,6 +270,7 @@ The local demo is the only environment that exists today. Its Explorer needs no 
 | [docs/use-cases.md](docs/use-cases.md) | End-to-end flows |
 | [docs/deliverables.md](docs/deliverables.md) | Per-phase deliverables and how to try them |
 | [docs/firefly-user-guide.md](docs/firefly-user-guide.md) | Beginner's guide to FireFly and its Explorer UI, with screenshots |
+| [docs/paladin-guide.md](docs/paladin-guide.md) | What Paladin does here, how it is integrated and works, and how to observe it |
 | [docs/production-step-by-step.md](docs/production-step-by-step.md) | Discussion draft: what it would take to run this for real, step by step |
 
 ## Development notes
