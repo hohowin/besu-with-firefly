@@ -239,6 +239,47 @@ services:
     ports:
       - "8748:8548"
 
+  # deployer (local demo only): runs `python scripts/stack.py deploy` once, after everything it needs
+  # is healthy, then exits. That deploys the T-REX contracts through FireFly, creates COIN, onboards
+  # Anson and Beatrice, and runs the two-phase Paladin bootstrap, which restarts the Paladin nodes.
+  # - The repository is mounted at /work so deployed-addresses.json and paladin-runtime/ land on the
+  #   host, where `stack.py` and the tests expect them.
+  # - The Docker socket is mounted so the job can restart the Paladin nodes. That lets the job
+  #   control Docker on this machine: fine for a local demo, not something to copy to production.
+  # - The service addresses are the Compose service names instead of localhost.
+  # `python scripts/stack.py up` leaves this service alone (it starts the others by name).
+  deployer:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile
+    image: besu-with-firefly-deployer
+    container_name: deployer
+    restart: "no"
+    working_dir: /work
+    command: ["python", "scripts/stack.py", "deploy"]
+    environment:
+      FIREFLY_URL: http://firefly-core:5000
+      BESU_RPC_URL: http://besu-rpc-anson:8545
+      PALADIN_NODE1_URL: http://paladin-node1:8548
+      PALADIN_NODE2_URL: http://paladin-node2:8548
+      PALADIN_NODE3_URL: http://paladin-node3:8548
+    volumes:
+      - .:/work
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      firefly-core:
+        condition: service_healthy
+      besu-rpc-anson:
+        condition: service_healthy
+      paladin-node1:
+        condition: service_healthy
+      paladin-node2:
+        condition: service_healthy
+      paladin-node3:
+        condition: service_healthy
+    networks:
+      - besu
+
 volumes:
   paladin-postgres-data:
 

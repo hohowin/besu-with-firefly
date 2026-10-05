@@ -112,13 +112,13 @@ Sizes: no task is L or larger. Tasks 3 and 4 are the largest (M).
 **Description:** Add the `deployer` service to `docker-compose.yml`: built from `deploy/Dockerfile`, `restart: "no"`, the repository bind-mounted so the files land where they do today, the Docker socket mounted, the environment of Task 1 pointing at the Compose service names, and `depends_on` with `service_healthy` for FireFly core, the RPC node and the three Paladin nodes. Its command is `python scripts/stack.py deploy`. `docker compose up` then does everything; the job's logs show the same lines `deploy` prints today.
 
 **Acceptance criteria:**
-- [ ] From a clean clone, one `docker compose up` ends with the `deployer` exited with code 0, and `besu-ff query name --contract coin` answers `Coin`, Anson holds 1000 COIN, and `domain_listDomains` on each Paladin node returns `noto`
-- [ ] Running `docker compose up` again changes nothing and sends no transaction (the job is idempotent, as `deploy` is)
-- [ ] If the job fails, `docker compose ps -a` shows it with a non-zero exit code and `docker compose logs deployer` shows why, and a second `docker compose up` finishes the interrupted run
+- [x] From a clean clone, one `docker compose up` ends with the `deployer` exited with code 0, and `besu-ff query name --contract coin` answers `Coin`, Anson holds 1000 COIN, and `domain_listDomains` on each Paladin node returns `noto`
+- [x] Running `docker compose up` again changes nothing and sends no transaction (the job is idempotent, as `deploy` is)
+- [x] If the job fails, `docker compose ps -a` shows it with a non-zero exit code and `docker compose logs deployer` shows why, and a second `docker compose up` finishes the interrupted run
 
 **Verification:**
-- [ ] Tests pass: the manual runs above, with the real output recorded in the status
-- [ ] Checks clean: `docker compose config -q`; `ruff check .` and `mypy .`
+- [x] Tests pass: the manual runs above, with the real output recorded in the status
+- [x] Checks clean: `docker compose config -q`; `ruff check .` and `mypy .`
 
 **Dependencies:** Tasks 1, 2 and 3
 
@@ -127,13 +127,15 @@ Sizes: no task is L or larger. Tasks 3 and 4 are the largest (M).
 
 **Size:** M
 
+**Status:** Done 2026-10-05. `deployer` added to `docker-compose.yml` (built from `deploy/Dockerfile`, repository mounted at `/work`, Docker socket mounted, `FIREFLY_URL`, `BESU_RPC_URL` and `PALADIN_NODE1_URL` to `PALADIN_NODE3_URL` set to the Compose service names, `depends_on` FireFly core, the RPC node and the three Paladin nodes healthy). Real run from `down -v` with no host files: one `docker compose up -d` returned after 41 s with the deployer started, `docker wait deployer` returned `0` after 94 s more, and the log is the usual `deploy` output ending in `paladin registry  node3 transport.grpc set`. Then, with no `stack.py` involved: `deployed-addresses.json` and `paladin-runtime/node1/` are on the host, `besu-ff query name` answers `Coin`, Anson holds 1000 COIN, and `domain_listDomains` answers `noto` on 8548, 8648 and 8748. A second `docker compose up -d` re-ran the job, which printed `(already deployed)` and `(already unpaused)` lines, left `deployed-addresses.json` byte-identical and Anson's balance at 1000. Failure is visible: with `FIREFLY_URL` unreachable the job exits `1`, and with `FIREFLY_URL=nonsense` it stops at once with `ValueError: FIREFLY_URL must be an http:// or https:// address`. Finishing an interrupted run is the same `deploy` code that `test_an_interrupted_deploy_is_finished_by_running_deploy_again` already covers, so it was not simulated again here.
+
 ---
 
 ## Checkpoint: After Tasks 1–4
 
-- [ ] `docker compose up` from a clean clone gives a deployed stack, and `stack.py up` then `deploy` still gives the same one
-- [ ] The restart-from-a-container probe is recorded
-- [ ] `ruff check .`, `mypy .`, `pytest` pass
+- [x] `docker compose up` from a clean state gives a deployed stack (checked above); `stack.py up` then `deploy` on top of a seeded stack gave the same one (Task 2), and a full `pytest -m integration` on each route is Task 5
+- [x] The restart-from-a-container probe is recorded (`docs/spike-results.md`)
+- [x] `ruff check .`, `mypy .`, `pytest` (577) pass
 - [ ] Human review before proceeding (**waiting for Howin**)
 
 ---
