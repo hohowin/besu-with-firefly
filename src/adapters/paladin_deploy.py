@@ -128,12 +128,16 @@ def deploy_paladin(
     log: Callable[[str], None],
     sleep: Callable[[float], None] = time.sleep,
     clock: Callable[[], float] = time.monotonic,
-    ready_timeout: float = 180.0,
+    ready_timeout: float = 600.0,
 ) -> dict[str, str]:
     """Bring Paladin from "nodes running" to "Noto loaded and the nodes registered".
 
     Safe to repeat: contracts that exist are kept, a config that is already final is not
     rewritten, and a node is restarted only if its config changed or its domain is not loaded.
+
+    A node gets `ready_timeout` seconds to load its domain after a restart. Docker Desktop was seen
+    to start a Paladin container 224 s and 288 s late (the JVM printed its first line that long
+    after the container started), so the wait is generous; it costs nothing when the start is fast.
     """
     addresses = deploy_contracts(client, load, existing, code_at, save, log)
     changed = set(write_runtime_configs(source, runtime, addresses))

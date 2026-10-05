@@ -269,3 +269,37 @@ def test_a_domain_that_never_loads_means_no_registration(tmp_path: Path) -> None
     with pytest.raises(PaladinBootstrapError):
         orchestrate(tmp_path, client)
     assert REGISTERED == []
+
+
+def test_a_node_that_takes_five_minutes_to_start_is_still_waited_for(tmp_path: Path) -> None:
+    """Docker Desktop was seen to start a Paladin container 224 s and 288 s late (the JVM printed
+    its first line that long after the container started), so the default wait must outlast that."""
+    now = [0.0]
+    restarted_at: dict[str, float] = {}
+
+    class Slow(FakeClient):
+        def call(self, node: str, method: str, params: list[Any] | None = None) -> Any:
+            if node in restarted_at and now[0] - restarted_at[node] >= 300.0:
+                self.has_domain[node] = True
+            return ["noto"] if self.has_domain[node] else []
+
+    client = Slow()
+
+    def restart(container: str) -> None:
+        restarted_at[container.removeprefix("paladin-")] = now[0]
+
+    deploy_paladin(
+        client,  # type: ignore[arg-type]
+        load=load_paladin_artifact,
+        source=source_dir(tmp_path),
+        runtime=tmp_path / "runtime",
+        existing={},
+        code_at=code_everywhere,
+        save=lambda _updates: None,
+        restart=restart,
+        register=lambda _registry: None,
+        log=lambda _line: None,
+        sleep=lambda seconds: now.__setitem__(0, now[0] + seconds),
+        clock=lambda: now[0],
+    )
+    assert all(client.has_domain.values())
