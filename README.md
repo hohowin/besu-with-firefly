@@ -220,6 +220,10 @@ The results note, with the configuration beside every number, is [docs/perf-resu
 - `src/core/` is pure logic with no I/O; the FireFly HTTP client is an adapter
 - The chain, FireFly DB and Paladin DB are not persistent across a reset (but Paladin's DB must survive a plain restart). `python scripts/stack.py reset` resets all three.
 
+## License
+
+[MIT](LICENSE), for the code and documents in this repository. The Paladin contract artifacts vendored in `contracts/paladin/` are Apache-2.0 (see its README), and the packages installed by `npm ci` and `pip install` keep their own licenses.
+
 ## Compliance notes
 
 - **Demo network only.** Validator keys, wallet keys and genesis are committed deliberately. They are throwaway demo credentials with no real value. Never reuse them anywhere else.
