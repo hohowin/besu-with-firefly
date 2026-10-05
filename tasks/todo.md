@@ -1,7 +1,7 @@
 # Tasks — Phase 5: Caliper
 
 > Source: `docs/plan.md` Phase 5 (steps 1 to 5, exit gate, anti-gate), `docs/prd.md` US-012 and FR-13, `docs/deliverables.md` DL-5.1 to DL-5.3, `docs/use-cases.md` UC-10, `docs/spike-results.md` (Risk 5 and "Versions to pin"), and the working spike in `spike/caliper/`. Decisions: D-14 (Caliper 0.6.0, direct RPC over `ws://`, a custom FireFly connector, `perf/` a separate Node sub-project, `web3@1.3.0` installed by hand, a setup step that creates N verified wallets), D-16 (`python scripts/stack.py`), D-17 (one validator, one RPC node). Phases 1 to 4 are complete; their lists are `tasks/phase-1-network.md`, `tasks/phase-2-firefly.md`, `tasks/phase-3-paladin.md` and `tasks/phase-4-cli.md` (Phase 4 was archived on 2026-10-04 with its "human review" box still open, at Howin's choice).
-> **Status: draft, waiting for Howin's approval. No implementation has started.**
+> **Status: done 2026-10-04 and reviewed by Howin (approved 2026-10-04, checkpoints confirmed as they came).**
 
 ## Overview
 
@@ -106,7 +106,7 @@ Sizes: no task is L or larger. Tasks 1 to 6 are M, Task 7 is S.
 - [x] `ruff check .`, `mypy .`, `pytest` (558) pass, and `pytest -m integration` ran 116 tests with 115 passing; the one failure, `test_the_signer_holds_the_three_demo_wallets`, compared the signer's accounts for equality with the three demo wallets and so failed once perf keystores were loaded. It now checks that the demo wallets are among the signer's accounts, and passes alone; the full suite is rerun in Task 6 and Task 7. Supply is back to 1000 after the new tests
 - [x] The trivial Caliper round runs and the probes are recorded (two in Task 1, one in Task 2)
 - [x] N wallets verified on-chain, N configurable, setup duration printed (about 13 s per wallet)
-- [ ] Human review before proceeding (**waiting for Howin**)
+- [x] Human review before proceeding (Howin)
 
 ---
 
@@ -164,7 +164,7 @@ Sizes: no task is L or larger. Tasks 1 to 6 are M, Task 7 is S.
 - [x] `ruff check .`, `mypy .`, `pytest` (561) pass, `npm test` (18) passes
 - [x] Both rounds run on the same stack with the same load (5 TPS, 300 transactions, 10 workers) and write a report and a snapshot each; the snapshots are identical except for layer and time
 - [x] The FireFly round counts only `Succeeded` operations as success (`lib/firefly-status.js`, tested)
-- [ ] Human review before proceeding (**waiting for Howin**)
+- [x] Human review before proceeding (Howin)
 
 ---
 
