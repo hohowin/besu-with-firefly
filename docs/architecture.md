@@ -9,9 +9,10 @@
 
 **Architecture style: Hybrid.** A small Python modular monolith (the CLI, split into a pure `core` and I/O adapters) in front of an infrastructure tier made of off-the-shelf platforms (Besu, FireFly, Paladin) that this project configures but does not modify. Nothing here is custom-built middleware: the earlier project's `mock-middleware` is replaced by FireFly (D-02).
 
-**Deployment model:** one Docker Compose stack on a single host, no orchestrator, no Kubernetes (D-09). The CLI, Hardhat/contract tooling and Caliper run on the host.
+**Deployment model:** one Docker Compose stack on a single host, no orchestrator, no Kubernetes (D-09). A single `docker compose up -d` starts every container and then runs two one-shot jobs (`paladin-seed`, then `deployer`; Phase 6). The CLI and Caliper run on the host.
 
 Containers:
+- `paladin-seed` and `deployer` — one-shot jobs that run once and exit. `paladin-seed` copies the Paladin base configs into `paladin-runtime/`. `deployer` runs `python scripts/stack.py deploy` after everything is healthy and the chain is moving; it mounts the repository (so its outputs land on the host) and the Docker socket (to restart the Paladin nodes), which is acceptable for a local demo only
 - `besu-validator-1` — the QBFT validator
 - `besu-rpc-anson` — the RPC node (one validator and one RPC node since 2026-10-03, plan D-17; it was 4 validators and 2 RPC nodes)
 - FireFly: core, evmconnect, signer, Postgres (gateway mode, single node)

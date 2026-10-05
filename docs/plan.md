@@ -316,6 +316,14 @@ Phase 1 is sliced horizontally by layer, not by vertical slice (see rationale be
 
 ---
 
+### Phase 6 — One `docker compose up` (about 1 to 2 days)
+
+**Goal**: The whole stack, contracts included, starts with one `docker compose up -d`, so a reader can see the entire setup in `docker-compose.yml`.
+
+**Status**: Built 2026-10-05, developer review of the exit gate pending. Evidence: `tasks/todo.md`, `docs/spike-results.md` (Phase 6 findings). Two one-shot services were added: `paladin-seed` copies the Paladin base configs into `paladin-runtime/`, and `deployer` (an image of dependencies only, with the repository mounted at `/work` and the Docker socket mounted so it can restart the Paladin nodes) runs `python scripts/stack.py deploy` once everything is healthy and the chain is moving. `stack.py up | deploy | reset` keep working and are still what the integration tests use (`DockerStack.up` leaves the one-shot services alone). Service addresses are now environment variables (defaults unchanged). `pytest -m fresh_stack` passed three times in a row from a clean state (179, 183 and 187 s), and `pytest -m integration` (116 tests) passed on a stack started only by `docker compose up`. Three causes were found and fixed on the way: the deploy now waits for the RPC node to report blocks, a restarted Paladin node gets 600 s to load its domain, and one-shot services are excluded from `stack.py up`'s health wait. The Docker socket mount is for the local demo only (`docs/production-step-by-step.md`).
+
+---
+
 ## §5 Architecture Snapshot
 
 **Topology:** one Compose stack: 1 QBFT validator + 1 RPC node → FireFly (gateway, signs for `COIN`) and Paladin (Noto) → Python CLI and Caliper on the host. Detail: `docs/architecture.md`.

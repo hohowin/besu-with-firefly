@@ -30,6 +30,7 @@ Python 3.11+ (developed on 3.13). Run these from the repo root inside the virtua
 | Contract packages | `cd contracts && npm ci` (the pinned T-REX and OnchainID artifacts; needed by `deploy` and by some unit tests, which skip without them) |
 | Benchmark | `python scripts/stack.py perf-setup --wallets N --coins K` (N per layer, needs `deploy`), then `cd perf && npm ci && npm install --no-save web3@1.3.0`, `npm run round:chain`, `npm run round:firefly`, `npm test` (unit tests of the report parser, snapshot and connector rules), `npm run smoke`. Load: `PERF_WALLETS`, `PERF_TPS`, `PERF_TXS`, `PERF_AMOUNT` (see `perf/README.md`). Setup mints COIN: `reset` before the integration tests |
 | CLI | `besu-ff query\|invoke\|tx\|register` (after `pip install -e ".[dev]"`; needs `up` and `deploy`; `besu-ff --help`) |
+| One command | `docker compose up -d` then `docker wait deployer` (prints `0` when the deploy succeeded); `docker compose logs -f deployer`; teardown `docker compose down -v` plus removing `paladin-runtime/` and `deployed-addresses.json` (or `python scripts/stack.py reset`). Needs only Docker. `pytest -m fresh_stack` tests it (destroys the stack, about 3 minutes) |
 | Stack | `python scripts/stack.py init\|up\|deploy\|onboard\|noto-demo\|reset` (plan D-16). `deploy` and `onboard` only do what is missing; `noto-demo` needs `deploy` and deploys a new Noto token each run |
 
 Lint and type checks skip `spike/`, `.agents/` and `.claude/` (Phase 0 evidence and installed third-party skills). They cover all our own code.
@@ -47,7 +48,8 @@ network-config/    generated genesis, validator keys, static-nodes.json, demo wa
 paladin-runtime/   the Paladin configs Compose mounts; `up` copies them from network-config/paladin, `deploy` adds the Noto domain, `reset` removes it (not committed)
 contracts/paladin/ the vendored Paladin v1.0.0 contract artifacts and the private Noto ABI, with SHA256SUMS (committed)
 contracts/         package.json pinning the T-REX and OnchainID artifacts (node_modules is not committed)
-docker-compose.yml the Besu network, FireFly, and three Paladin nodes with one Postgres
+docker-compose.yml the Besu network, FireFly, and three Paladin nodes with one Postgres, plus two one-shot services: `paladin-seed` (fills paladin-runtime/) and `deployer` (runs `stack.py deploy`)
+deploy/            Dockerfile of the `deployer` image: dependencies only (Python packages, Docker client, the pinned contract packages in /opt); the code comes from the repository, mounted at /work
 deployed-addresses.json  addresses written by `deploy` (not committed)
 docs/              PRD, architecture, plan, use cases, deliverables, spike results, perf results (perf-results.md, perf-data/)
 tasks/             task lists per phase

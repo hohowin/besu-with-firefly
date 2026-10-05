@@ -48,7 +48,50 @@ Caliper 0.6.0 (`perf/`, Node.js) and the Python CLI run on the host. Caliper 0.7
 
 ## Getting started (from a fresh clone)
 
-A one-validator Besu network, FireFly in gateway mode, the ERC-3643 token `COIN`, three Paladin nodes with a private Noto token, the `besu-ff` CLI and a Caliper benchmark. Every command runs from the repo root. Use any shell (the commands are written one per line, so they also work in Windows PowerShell); the only difference is how the virtual environment is activated.
+A one-validator Besu network, FireFly in gateway mode, the ERC-3643 token `COIN`, three Paladin nodes with a private Noto token, the `besu-ff` CLI and a Caliper benchmark. Every command runs from the repo root. Use any shell (the commands are written one per line, so they also work in Windows PowerShell).
+
+There are two routes to the same running stack:
+
+- **The quick route** (next section): one `docker compose up -d`. It needs only Docker.
+- **The step-by-step route** (steps 1 to 9): `python scripts/stack.py up`, then `deploy`. It needs Python and Node as well, and it is the route the tests use. Use it when you want to see each stage on its own.
+
+### The quick route: one command
+
+Needs only Docker Desktop (Compose v2) and a clone of this repository.
+
+```bash
+docker compose up -d
+docker wait deployer
+```
+
+The first command starts everything. The second waits for the deploy job to finish and prints `0` when it has succeeded (any other number means it failed; see below).
+
+**What happens**
+1. **`paladin-seed`** copies the Paladin base configs into `paladin-runtime/` and exits.
+2. The 10 long-running containers start: the Besu validator and RPC node, FireFly (core, connector, signer, database), three Paladin nodes and their database.
+3. **`deployer`** waits until FireFly, the RPC node and the Paladin nodes are healthy, then waits until the chain is producing blocks, and then runs `python scripts/stack.py deploy` inside a container. That deploys the contracts through FireFly, onboards Anson and Beatrice, mints 1000 COIN, and sets up Paladin (which restarts the three nodes once). It writes `deployed-addresses.json` next to your clone, exactly as the step-by-step route does, and exits.
+
+**How long.** The first time, Docker also pulls the images and builds the small `deployer` image (about 35 s, it downloads the contract packages). After that, `docker compose up -d` returns in about 45 s (when the deployer has started) and the deploy takes a couple of minutes more: six successful fresh runs took between 2 min 40 s and 5 min in all.
+
+**Watch it**
+```bash
+docker compose logs -f deployer     # the deploy output, live; Ctrl+C stops watching, not the job
+docker compose ps -a                # every container; `deployer` shows `exited (0)` when it is done
+```
+
+**When it is done** you have the same stack as steps 4 and 5 below. To use it, jump to step 6 (install `besu-ff` first with `pip install -e ".[dev]"`) or run `python scripts/stack.py noto-demo`.
+
+**If the deployer fails** (`docker wait deployer` prints a number other than `0`): `docker compose logs deployer` shows why. The job only does what is missing, so `docker compose up -d` again finishes an interrupted run.
+
+**Tear down**
+```bash
+docker compose down -v                # removes the containers, their volumes and the network
+```
+It does not remove the two folders the deploy left in your clone, `paladin-runtime/` and `deployed-addresses.json`. Delete them as well (or run `python scripts/stack.py reset`, which does all of it), or the next `docker compose up` will think the contracts already exist.
+
+**About the `deployer` and the Docker socket.** Paladin needs its nodes restarted once during the deploy, and a container cannot restart other containers by itself. So the `deployer` is given access to your machine's Docker (it mounts `/var/run/docker.sock`). That means the job can control every container on this machine. It is fine for a local demo and is **not** something to copy into a real deployment: see [docs/production-step-by-step.md](docs/production-step-by-step.md), where a deploy runs from a pipeline with approvals. On Linux and macOS hosts, the files the job writes into your clone are owned by `root`.
+
+### The step-by-step route
 
 ### 1. Check the prerequisites
 
@@ -156,7 +199,7 @@ The benchmark has its own section below. It mints extra COIN, so tear the stack 
 python scripts/stack.py reset
 ```
 
-This removes all the containers and their volumes (the chain, FireFly's database, Paladin's database), `deployed-addresses.json` and `paladin-runtime/`, so the next `up` starts again at block 0. It leaves your clone alone: the virtual environment, `node_modules/` and the Docker images stay, so a new `up` and `deploy` is quick. `reset` is also the way to get back to a clean 1000 COIN after demo A or the benchmark.
+This removes all the containers and their volumes (the chain, FireFly's database, Paladin's database), `deployed-addresses.json` and `paladin-runtime/` (it also clears a stack that was started with the quick route), so the next `up` starts again at block 0. It leaves your clone alone: the virtual environment, `node_modules/` and the Docker images stay, so a new `up` and `deploy` is quick. `reset` is also the way to get back to a clean 1000 COIN after demo A or the benchmark.
 
 To pause without losing anything, run `docker compose stop`; `python scripts/stack.py up` starts the containers again with the same chain, balances and Paladin state (checked: Anson's balance and the `noto` domain were still there after a stop and an `up`).
 
@@ -190,6 +233,19 @@ The results note, with the configuration beside every number, is [docs/perf-resu
 
 ## Accessing the application
 
+### UI links by environment
+
+| Environment | FireFly Explorer (web UI) | FireFly API (Swagger) | Contract API docs (Swagger), token `coin` | Paladin UI |
+|---|---|---|---|---|
+| **Local demo** (this repository, `python scripts/stack.py up`) | http://localhost:5000/ui | http://localhost:5000/api | http://localhost:5000/api/v1/namespaces/default/apis/coin/api | none (JSON-RPC only, see below) |
+| Development | not deployed | | | |
+| Pre-production | not deployed | | | |
+| Production | not deployed | | | |
+
+The local demo is the only environment that exists today. Its Explorer needs no login (the demo has no authentication and its ports are bound to localhost). The other rows are placeholders: fill them in when those environments exist, and see [docs/production-step-by-step.md](docs/production-step-by-step.md) for what building them involves. A beginner's tour of the Explorer is in [docs/firefly-user-guide.md](docs/firefly-user-guide.md).
+
+### Other endpoints (local demo)
+
 - FireFly API and Swagger UI: `http://localhost:5000/api`. The FireFly Explorer: `http://localhost:5000/ui`.
 - Generated contract APIs (Swagger UI): `http://localhost:5000/api/v1/namespaces/default/apis/coin/api` for the token and `.../apis/identity-registry/api` for the identity registry. For example, the token name: `curl -s -X POST -H "Content-Type: application/json" --data '{}' http://localhost:5000/api/v1/namespaces/default/apis/coin/query/name`
 - Besu RPC: `http://localhost:8545` (WS `8546`). The validator publishes no ports.
@@ -213,6 +269,8 @@ The results note, with the configuration beside every number, is [docs/perf-resu
 | [docs/plan.md](docs/plan.md) | Phases, locked decisions, risks |
 | [docs/use-cases.md](docs/use-cases.md) | End-to-end flows |
 | [docs/deliverables.md](docs/deliverables.md) | Per-phase deliverables and how to try them |
+| [docs/firefly-user-guide.md](docs/firefly-user-guide.md) | Beginner's guide to FireFly and its Explorer UI, with screenshots |
+| [docs/production-step-by-step.md](docs/production-step-by-step.md) | Discussion draft: what it would take to run this for real, step by step |
 
 ## Development notes
 
