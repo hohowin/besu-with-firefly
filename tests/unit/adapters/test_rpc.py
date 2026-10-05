@@ -45,3 +45,44 @@ def test_reader_reports_an_unreachable_node_as_none(server: str) -> None:
     heights = read()
     assert heights["down"] is None
     assert heights["up"] is not None
+
+
+def test_wait_for_chain_returns_at_once_when_every_node_has_blocks() -> None:
+    from src.adapters.rpc import wait_for_chain
+
+    slept: list[float] = []
+    wait_for_chain(lambda: {"rpc": 7}, sleep=slept.append)
+    assert slept == []
+
+
+def test_wait_for_chain_waits_while_a_node_is_at_block_zero_or_unreachable() -> None:
+    from src.adapters.rpc import wait_for_chain
+
+    answers: Iterator[dict[str, int | None]] = iter([{"rpc": None}, {"rpc": 0}, {"rpc": 3}])
+    slept: list[float] = []
+    ticks = iter(range(1000))
+    wait_for_chain(
+        lambda: next(answers), sleep=slept.append, clock=lambda: float(next(ticks)), poll=2.0
+    )
+    assert slept == [2.0, 2.0]
+
+
+def test_wait_for_chain_gives_up_and_names_the_node_that_is_not_moving() -> None:
+    from src.adapters.docker_stack import StackError
+    from src.adapters.rpc import wait_for_chain
+
+    ticks = iter(range(1000))
+    with pytest.raises(StackError, match=r"rpc is still at block 0"):
+        wait_for_chain(
+            lambda: {"rpc": 0},
+            timeout=5.0,
+            sleep=lambda _s: None,
+            clock=lambda: float(next(ticks)),
+        )
+    with pytest.raises(StackError, match=r"rpc is unreachable"):
+        wait_for_chain(
+            lambda: {"rpc": None},
+            timeout=5.0,
+            sleep=lambda _s: None,
+            clock=lambda: float(next(ticks)),
+        )

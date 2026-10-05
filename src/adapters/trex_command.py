@@ -6,7 +6,7 @@ from pathlib import Path
 
 from src.adapters.addresses import DEPLOYED_ADDRESSES, read_addresses, update_addresses
 from src.adapters.firefly import FireflyClient, http_transport
-from src.adapters.rpc import get_code
+from src.adapters.rpc import get_code, wait_for_chain
 from src.adapters.trex_apis import register_apis, unpause_token
 from src.adapters.trex_artifacts import load_artifact
 from src.adapters.trex_deploy import run_plan
@@ -20,8 +20,12 @@ def deploy_trex(
     network_dir: Path,
     out: Path = DEPLOYED_ADDRESSES,
     log: Callable[[str], None] = print,
+    wait: Callable[[], None] = wait_for_chain,
 ) -> dict[str, str]:
     """Deploy the T-REX infrastructure through the running FireFly and create `COIN`.
+
+    First waits until the RPC node reports blocks (it peers with the validator some time after it
+    starts, and a transaction sent before that is never mined).
 
     Then registers the contract APIs `coin` and `identity-registry`, unpauses the token and
     registers and verifies the demo investors and mints the initial supply (the same as
@@ -30,6 +34,7 @@ def deploy_trex(
     Writes every address to `out`, including those of the token and its registries, which are
     read back from the factory and the token. Running it again sends nothing that is done.
     """
+    wait()
     document = json.loads((network_dir / "wallets.json").read_text(encoding="utf-8"))
     accounts = account_addresses(document)
     existing = read_addresses(out)

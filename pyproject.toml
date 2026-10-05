@@ -31,9 +31,11 @@ include = ["src*"]
 testpaths = ["tests"]
 pythonpath = ["."]
 # Integration tests need Docker and a running stack. They are skipped unless selected with -m integration.
-addopts = "-m 'not integration'"
+# fresh_stack tests destroy the stack and build a new one, so they run only with -m fresh_stack.
+addopts = "-m 'not integration and not fresh_stack'"
 markers = [
     "integration: needs Docker and a live stack (run with: pytest -m integration)",
+    "fresh_stack: destroys the stack and starts a new one with docker compose (run with: pytest -m fresh_stack)",
 ]
 
 [tool.ruff]

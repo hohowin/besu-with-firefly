@@ -2,12 +2,14 @@
 
 import json
 import os
+import time
 import urllib.error
 import urllib.request
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 
-from src.adapters.docker_stack import ChainHeights
+from src.adapters.docker_stack import ChainHeights, StackError
 from src.adapters.settings import service_url
+from src.core.network.health import nodes_without_blocks
 
 
 def rpc_nodes(env: Mapping[str, str] = os.environ) -> dict[str, str]:
@@ -54,3 +56,32 @@ def chain_heights_reader(
         return heights
 
     return read
+
+
+def wait_for_chain(
+    reader: ChainHeights | None = None,
+    timeout: float = 180.0,
+    poll: float = 2.0,
+    sleep: Callable[[float], None] = time.sleep,
+    clock: Callable[[], float] = time.monotonic,
+) -> None:
+    """Wait until the RPC node reports blocks, so a transaction sent now can be mined.
+
+    The RPC node only peers with the validator some time after it starts. A transaction sent to it
+    before that sits in its own pool and is never mined (seen in a run of `docker compose up`, where
+    the deployer started before the RPC node was at block 1). `stack.py up` makes the same wait.
+    """
+    heights_of = reader or chain_heights_reader()
+    deadline = clock() + timeout
+    while True:
+        heights = heights_of()
+        waiting = nodes_without_blocks(heights)
+        if not waiting:
+            return
+        if clock() >= deadline:
+            described = [
+                f"{name} is unreachable" if heights[name] is None else f"{name} is still at block 0"
+                for name in waiting
+            ]
+            raise StackError(f"chain is not producing blocks: {', '.join(described)}")
+        sleep(poll)

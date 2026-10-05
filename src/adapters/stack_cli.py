@@ -167,7 +167,7 @@ def main(
     if args.command == "deploy":
         try:
             (deployer or deploy_trex)(args.network_dir)
-        except (DeployStepError, ArtifactsMissingError, OSError) as error:
+        except (DeployStepError, ArtifactsMissingError, StackError, OSError) as error:
             print(f"error: {error}", file=sys.stderr)
             return 1
         try:
