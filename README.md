@@ -237,7 +237,7 @@ The results note, with the configuration beside every number, is [docs/perf-resu
 
 | Environment | FireFly Explorer (web UI) | FireFly API (Swagger) | Contract API docs (Swagger), token `coin` | Paladin UI |
 |---|---|---|---|---|
-| **Local demo** (this repository, `docker compose up -d`) | http://localhost:5000/ui | http://localhost:5000/api | http://localhost:5000/api/v1/namespaces/default/apis/coin/api | none (JSON-RPC only, see below) |
+| **Local demo** (this repository, `docker compose up -d`) | http://localhost:5000/ui | http://localhost:5000/api | http://localhost:5000/api/v1/namespaces/default/apis/coin/api | http://localhost:8548/ui/ (node1, the notary), http://localhost:8648/ui/ (node2), http://localhost:8748/ui/ (node3) |
 | Development | not deployed | | | |
 | Pre-production | not deployed | | | |
 | Production | not deployed | | | |
@@ -249,7 +249,7 @@ The local demo is the only environment that exists today. Its Explorer needs no 
 - FireFly API and Swagger UI: `http://localhost:5000/api`. The FireFly Explorer: `http://localhost:5000/ui`.
 - Generated contract APIs (Swagger UI): `http://localhost:5000/api/v1/namespaces/default/apis/coin/api` for the token and `.../apis/identity-registry/api` for the identity registry. For example, the token name: `curl -s -X POST -H "Content-Type: application/json" --data '{}' http://localhost:5000/api/v1/namespaces/default/apis/coin/query/name`
 - Besu RPC: `http://localhost:8545` (WS `8546`). The validator publishes no ports.
-- Paladin JSON-RPC: `http://localhost:8548` (node1, notary), `:8648` (node2, Anson), `:8748` (node3, Beatrice). For example: `curl -s -X POST -H "Content-Type: application/json" --data '{"jsonrpc":"2.0","id":1,"method":"transport_nodeName","params":[]}' http://localhost:8548`
+- Paladin JSON-RPC: `http://localhost:8548` (node1, notary), `:8648` (node2, Anson), `:8748` (node3, Beatrice). The same ports serve each node's web UI at `/ui/` (for example `http://localhost:8548/ui/`). For example: `curl -s -X POST -H "Content-Type: application/json" --data '{"jsonrpc":"2.0","id":1,"method":"transport_nodeName","params":[]}' http://localhost:8548`
 - Contract addresses: `deployed-addresses.json` (created by `deploy`, not committed). Wallet addresses and keys: `network-config/wallets.json` (demo only).
 - The CLI, `besu-ff <command>` (installed by `pip install -e ".[dev]"`; the stack must be up and deployed). `--json` and `--network-dir` go before the command; `@anson` in a value is that wallet's address; amounts are in base units (18 decimals):
   ```
@@ -271,6 +271,7 @@ The local demo is the only environment that exists today. Its Explorer needs no 
 | [docs/deliverables.md](docs/deliverables.md) | Per-phase deliverables and how to try them |
 | [docs/firefly-user-guide.md](docs/firefly-user-guide.md) | Beginner's guide to FireFly and its Explorer UI, with screenshots |
 | [docs/paladin-guide.md](docs/paladin-guide.md) | What Paladin does here, how it is integrated and works, and how to observe it |
+| [docs/paladin-domains.md](docs/paladin-domains.md) | Paladin's three domains (Noto, Zeto, Pente): differences, their smart contracts, and how to build custom contracts or replace parts |
 | [docs/production-step-by-step.md](docs/production-step-by-step.md) | Discussion draft: what it would take to run this for real, step by step |
 
 ## Development notes

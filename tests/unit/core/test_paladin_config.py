@@ -75,3 +75,39 @@ def test_a_mnemonic_must_be_twelve_valid_words() -> None:
 def test_the_postgres_init_script_creates_one_database_per_node() -> None:
     sql = postgres_init_sql()
     assert sql.splitlines() == [f"CREATE DATABASE {n};" for n in NODES]
+
+
+def test_the_base_config_serves_the_paladin_ui_under_the_http_rpc_server() -> None:
+    """The image ships the UI in /app/ui; it is only served when `staticServers` enables it."""
+    text = base_config("node1", PHRASE)
+    http_block = text.split("rpcServer:\n", 1)[1].split("  ws:\n", 1)[0]
+    assert "    staticServers:\n" in http_block
+    expected = (
+        "      - enabled: true\n",
+        "        staticPath: /app/ui\n",
+        "        urlPath: /ui\n",
+        "        baseRedirect: /ui/\n",
+    )
+    for line in expected:
+        assert line in http_block
+
+
+def test_the_ui_is_on_the_same_published_port_as_the_rpc_server() -> None:
+    from src.core.paladin.config import UI_PATH
+
+    assert UI_PATH == "/ui"
+    assert RPC_HTTP_PORT == 8548  # http://localhost:8548/ui/ on node1, 8648 and 8748 on the others
+
+
+def test_the_committed_node_configs_are_what_the_builder_makes_from_their_own_seed() -> None:
+    """`init` regenerates these files with new seeds, so they are patched in place when the builder
+    changes; this keeps them in step with it (the seed is the only part that is not derived)."""
+    import re
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[3] / "network-config" / "paladin"
+    for node in NODES:
+        committed = (root / node / "pldconf.paladin.yaml").read_text(encoding="utf-8")
+        seed = re.search(r'inline: "([a-z ]+)"', committed)
+        assert seed is not None, node
+        assert committed == base_config(node, seed.group(1)), node

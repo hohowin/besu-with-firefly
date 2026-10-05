@@ -38,44 +38,58 @@ The two are independent: Paladin does not use FireFly, and FireFly does not know
 | **Key manager** | Paladin's own wallet. Each node derives its keys from a secret seed. |
 | **Block indexer** | Reads the chain and tells the node when its transactions are final. |
 
+### The other two domains: Zeto and Pente
+
+Noto is one of three domains in Paladin v1.0.0, and **this project runs only Noto**. The image also contains the other two, and the stack could be extended to use them (nothing below was run here; the sources are in [paladin-domains.md](paladin-domains.md), which has the full comparison, the smart contracts of each, and how to build on or replace them).
+
+| | **Noto** (used here) | **Zeto** | **Pente** |
+|---|---|---|---|
+| What it is | Tokens managed by one party, the notary | Tokens whose rules are checked by **zero-knowledge proofs** | **Private EVM**: your own Solidity contracts in a privacy group |
+| Who enforces the rules | The notary, then the chain checks its signature | Mathematics: the chain verifies a proof, nobody has to be trusted | The group members, who endorse each transaction; the chain verifies their signatures |
+| Who sees a transaction | The parties, and the notary sees all | The parties; the chain learns only commitments and a proof | The group members only |
+| Best for | Regulated assets where an issuer must see every transfer (bonds, funds) | Cash-like tokens where no one should see or veto a valid payment | Private business logic between known parties, and policy for the other two |
+| Cost | Light | A proof for every transaction | The EVM runs on every member's node |
+| Written in | Go | Go, with circuits in Circom | Java, using the Besu EVM as a library |
+| Anchored on chain by | `NotoFactory`, then one `Noto` proxy per token | `ZetoFactory`, then one Zeto token per token (the token and verifier contracts come from the separate Zeto project) | `PenteFactory`, then one `PentePrivacyGroup` per group |
+| In the v1.0.0 image | `/app/domains/libnoto.so` | `/app/domains/libzeto.so` and `/app/domains/zeto/zkp/` (circuits and keys) | `/app/domains/pente.jar` |
+
+- **Zeto** comes in variants (`Zeto_Anon`, `Zeto_AnonEnc`, `Zeto_AnonNullifier`, `Zeto_AnonNullifierKyc`) that add encryption, nullifiers (so a spend does not reveal which coin was spent) and a KYC check in the circuit. Paladin supplies the indexer, the coin selector and the proof generator around it.
+- **Pente** is the one that lets you **write your own smart contracts**: you create a privacy group (one contract on the chain), then deploy any Solidity contract into it; the contract and its state exist only on the members' nodes. It is also the way to add rules to Noto (a Noto token in `hooks` mode asks a Pente contract to approve every operation), whereas this project's `basic` mode applies fixed rules.
+- **Adding either to this stack** means deploying the domain's factory contracts, adding a `domains.pente` or `domains.zeto` block to each node's config, and restarting the nodes, as the two-phase bootstrap does for Noto today.
+
 ---
 
 ## 2. How it is integrated here
 
 ```mermaid
 flowchart TB
-  subgraph Host["Docker Compose stack"]
-    subgraph PAL["Paladin"]
-      N1["paladin-node1<br/>notary and registry admin<br/>HTTP RPC 8548"]
-      N2["paladin-node2<br/>Anson, RPC 8648"]
-      N3["paladin-node3<br/>Beatrice, RPC 8748"]
-      PG[("paladin-postgres<br/>databases node1, node2, node3")]
-    end
-    subgraph CHAIN["Besu"]
-      RPC["besu-rpc-anson<br/>HTTP 8545, WebSocket 8546"]
-      VAL["besu-validator-1"]
-    end
-    FF["FireFly<br/>not connected to Paladin"]
+  subgraph PAL["Paladin nodes"]
+    N1["paladin-node1<br/>notary and registry admin<br/>RPC and UI on 8548"]
+    N2["paladin-node2<br/>Anson<br/>RPC and UI on 8648"]
+    N3["paladin-node3<br/>Beatrice<br/>RPC and UI on 8748"]
   end
+  MESH{{"gRPC with mutual TLS, port 9000<br/>between every pair of nodes"}}
+  PG[("paladin-postgres<br/>databases node1, node2, node3")]
+  subgraph CHAIN["Besu"]
+    RPC["besu-rpc-anson<br/>HTTP 8545, WebSocket 8546"]
+    VAL["besu-validator-1"]
+  end
+  FF["FireFly<br/>not connected to Paladin"]
 
-  N1 <-->|"gRPC, mutual TLS, port 9000"| N2
-  N1 <-->|"gRPC, mutual TLS"| N3
-  N2 <-->|"gRPC, mutual TLS"| N3
-  N1 --> PG
-  N2 --> PG
-  N3 --> PG
-  N1 -->|"submit transactions,<br/>follow blocks"| RPC
-  N2 --> RPC
-  N3 --> RPC
+  N1 <--> MESH
+  N2 <--> MESH
+  N3 <--> MESH
+  PAL --> PG
+  PAL -->|"submit transactions,<br/>follow blocks"| RPC
   RPC --> VAL
-  FF -.->|"same chain, separate path"| RPC
+  FF -.->|"same chain,<br/>separate path"| RPC
 ```
 
 - **Three nodes, one database server.** Each node has its own database (`node1`, `node2`, `node3`) inside one `paladin-postgres` container. The nodes' private data (coins, keys' index, transaction history) lives there, so the database is kept on a volume and survives a plain restart.
 - **Roles.** `node1` is the **notary** and the registry's administrator. `node2` represents Anson and `node3` Beatrice.
 - **All three use the one RPC node `besu-rpc-anson`**, over HTTP to submit and WebSocket to follow blocks. The validator is not reachable directly.
 - **Node to node traffic** uses gRPC on port 9000 with TLS in both directions. A node identifies its peer by the certificate's subject name, which must equal the peer's node name. The certificates here are self-signed demo certificates, committed on purpose.
-- **Only the HTTP RPC ports are published to your machine** (`8548`, `8648`, `8748`). The gRPC port stays inside the Compose network.
+- **Only the HTTP RPC ports are published to your machine** (`8548`, `8648`, `8748`), and each also serves that node's **web UI** at `/ui/`. The gRPC port stays inside the Compose network.
 - **Image and software:** `lfdecentralizedtrust/paladin:v1.0.0`. The domain (`libnoto.so`), the registry and the transport are native plugins shipped inside the image.
 
 ---
@@ -98,7 +112,7 @@ sequenceDiagram
   Note over N: nodes start and connect to Besu
   D->>N: deploy the registry and Noto contracts through node1
   N->>B: four contract deployments
-  D->>D: write the contract addresses into every node's config
+  Note over D: write the contract addresses into every node's config
   D->>N: restart the three nodes
   Note over N: domain noto loads on each node
   D->>N: register node1, node2 and node3 in the registry
@@ -121,16 +135,16 @@ sequenceDiagram
   participant B as Besu chain
 
   Dev->>N2: transfer 40 from anson@node2 to beatrice@node3
-  N2->>N2: assemble: pick Anson's coin of 100 as input, plan outputs 40 and 60
-  N2->>N1: ask the notary to endorse (private, gRPC)
-  N1-->>N2: endorsed
-  N2->>N3: send Beatrice her new coin of 40 (private, gRPC)
-  N2->>B: public transaction carrying only hashes and a proof
+  Note over N2: assemble: Anson's coin of 100 in, coins of 40 and 60 out
+  N2->>N1: signed proposal to the notary, over gRPC
+  Note over N1: validate the signature, the states, and inputs equal outputs
+  N1->>B: the notary submits the public transaction, hashes and signature only
   B-->>N1: block with the transaction
   B-->>N2: block with the transaction
   B-->>N3: block with the transaction
+  Note over N3: node3 receives the private data of its new coin of 40
   Note over N2,N3: each indexer sees the block and the transaction becomes final
-  Note over B: the chain never saw 40, 60, 100, or Anson's and Beatrice's addresses
+  Note over B: the chain never saw 40, 60, 100, or either address
 ```
 
 Points that this repository's own tests and runs establish:
@@ -140,7 +154,7 @@ Points that this repository's own tests and runs establish:
 - **An overspend fails early**, while the transfer is being assembled: `PD012616: Domain reverted transaction on assemble: PD200005: Insufficient funds`.
 - **The first call between two nodes opens their gRPC connection**, and each node's log then shows `Client TLS handshake completed` and `Server TLS handshake completed`.
 
-The finer steps in the diagram (which node submits the public transaction, and the exact messages of endorsement) follow Paladin's design for Noto's `basic` notary mode and were not separately checked in this project **(verify against the Paladin documentation if the precise order matters to you)**.
+**Who submits to the chain.** The Paladin documentation for Noto says the notary validates the sender's signed proposal and then uses **the notary's own account** to submit the transaction (the on-chain `Noto.transfer` and `mint` are `onlyNotary`). The live stack agrees: in the Paladin UI both demo transactions (the mint, then the transfer) come from the same account, with nonces 0 and 1. See [paladin-domains.md](paladin-domains.md) for the Noto design in full, and for Zeto and Pente.
 
 ### 3.3 Keys
 
@@ -156,7 +170,7 @@ Each node holds one secret **seed**, from which its key manager derives every ke
 | Base configs, TLS certificates, Postgres init script | `network-config/paladin/` (committed, demo only) |
 | The configs the nodes really read | `paladin-runtime/` (generated, not committed) |
 | The registry and Noto contract artifacts, the private Noto ABI | `contracts/paladin/` (vendored from the Paladin v1.0.0 release, Apache-2.0, with `SHA256SUMS`) |
-| Pure logic: config text, bootstrap steps, registry steps, Noto request bodies, privacy checks | `src/core/paladin/` |
+| Pure logic: config text (including the UI settings), bootstrap steps, registry steps, Noto request bodies, privacy checks | `src/core/paladin/` |
 | I/O: the Paladin JSON-RPC client, the bootstrap, registry and Noto runners, the demo | `src/adapters/paladin*.py` |
 | The demo | `python scripts/stack.py noto-demo` |
 | Tests | `tests/integration/test_noto_*.py`, `test_paladin_*.py` |
@@ -166,7 +180,7 @@ Each node holds one secret **seed**, from which its key manager derives every ke
 
 ## 5. How to observe it in this project
 
-Paladin has **no web page in this stack**: a request to `http://localhost:8548/ui` answers 404. You watch it through its JSON-RPC, its container logs, its database and the public chain. Everything below was run against the live stack. The stack must be up and deployed (README, quick route).
+Each node serves a **web UI**, switched on in this stack: **node1 `http://localhost:8548/ui/`, node2 `http://localhost:8648/ui/`, node3 `http://localhost:8748/ui/`** (no login; section 5.8 shows what it offers). You can also watch Paladin through its JSON-RPC, its container logs, its database and the public chain. Everything in this section was run against the live stack, which must be up and deployed (README, quick route).
 
 Set a small helper once so the commands stay short (Git Bash, macOS, Linux; in PowerShell use `Invoke-RestMethod`):
 
@@ -264,17 +278,44 @@ After it is healthy again (seconds to a minute; once, on a busy machine, almost 
 |---|---|---|
 | `domain_listDomains` returns `[]` | `deploy` has not finished, or the node has not finished restarting | Wait, check `docker compose ps -a` for `deployer` (exit 0) and the node's health |
 | A node is slow to answer after a restart | Docker Desktop can start the container late (almost 5 minutes seen) | Wait; `deploy` already allows up to 10 minutes |
+| The UI page is blank | You opened `/ui` on a node that has no redirect, or the node is still starting | Use `http://localhost:8548/ui/` with the trailing slash; check the node is `healthy` |
 | `PD200005: Insufficient funds` | You tried to send more than the owner's coins | Check the owner's balance on the owner's node |
 | `reg_queryEntriesWithProps` is missing a node | The registry index lags the chain by a moment | Ask again after a few seconds |
 | `PD200007: Parameter 'notary' is required` | A token deploy without the notary in its constructor data | Use the demo's request shape (`src/core/paladin/noto.py`) |
 
 ---
 
+### 5.8 The Paladin UI
+
+The Paladin image ships a UI, and this project switches it on for every node: the base config that `init` generates (`src/core/paladin/config.py`, committed in `network-config/paladin/`) has, under `rpcServer.http`:
+
+```yaml
+    staticServers:
+      - enabled: true
+        staticPath: /app/ui
+        urlPath: /ui
+        baseRedirect: /ui/
+```
+
+so the UI is on the same port as the node's RPC: **`http://localhost:8548/ui/`** (node1), `8648` (node2) and `8748` (node3). `baseRedirect` sends `/ui` to `/ui/`, which matters because the page loads its assets by relative path and is blank without the trailing slash. The first page it opens is the node's **transactions**; the UI also has panels for **events**, **submissions** (with a "pending only" filter) and the **registry** (the list of nodes), according to the Paladin documentation.
+
+After `noto-demo`, node1's UI shows the two Noto transactions, recognised as Noto and sent from the notary's account (nonces 0 and 1), to the token's address:
+
+![node1's UI after the Noto demo](images/paladin-ui/indexer.png)
+
+**What the UI does not show you** is the private data. Node3's UI lists the same two transactions, because it follows the same public chain and recognises the token:
+
+![node3's UI after the Noto demo](images/paladin-ui/node3-transactions.png)
+
+Privacy hides the **amounts and the parties**, not the fact that transactions on that token happened. The difference is in the coins each node holds (section 5.3): node3 has only the 40.
+
+Because the UI is part of the generated base config, a node that was started before this change needs `python scripts/stack.py reset` (or `docker compose down -v`) and a fresh start to get it; the committed configs already include it.
+
 ## 6. Limits of this setup
 
 - **One machine.** The three nodes are separate containers on one host. This demonstrates the protocol and the privacy between nodes, not the isolation real separate organisations would have.
 - **Demo secrets.** Seeds, passwords and TLS certificates are committed demo values.
 - **One notary.** Anything that is minted or moved needs `node1`'s approval, and node1 sees every transaction of the token. That is Noto's model, and a real deployment has to decide who the notary is (`docs/production-step-by-step.md`).
-- **Only Noto.** Paladin's other domains are not used or tested here.
+- **Only Noto.** Zeto and Pente are in the image but are not used or tested here (see [paladin-domains.md](paladin-domains.md)).
 - **Postgres, not SQLite.** With SQLite a node's indexer stalled under three-node load in the spike, so the stack uses Postgres.
 - **FireFly does not drive Paladin.** There are no Paladin commands in `besu-ff`; the Paladin side is run by `stack.py` and observed as above.

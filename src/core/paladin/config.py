@@ -15,6 +15,13 @@ RPC_HTTP_PORT = 8548
 RPC_WS_PORT = 8549
 GRPC_PORT = 9000
 
+# The Paladin image ships a web UI in /app/ui. It is served only when `staticServers` enables it,
+# on the HTTP RPC port: http://localhost:8548/ui/ on node1 (8648 and 8748 on the others).
+# `baseRedirect` sends `/ui` to `/ui/`, because the page loads its assets by relative path and is
+# blank without the trailing slash.
+UI_PATH = "/ui"
+UI_STATIC_PATH = "/app/ui"
+
 POSTGRES_HOST = "paladin-postgres"
 POSTGRES_PASSWORD = "paladin-demo-pw"  # demo only, internal to the Compose network
 BESU_HTTP_URL = "http://besu-rpc-anson:8545"
@@ -39,6 +46,11 @@ rpcServer:
   http:
     address: 0.0.0.0
     port: {rpc_http}
+    staticServers:
+      - enabled: true
+        staticPath: {ui_static}
+        urlPath: {ui_path}
+        baseRedirect: {ui_path}/
   ws:
     address: 0.0.0.0
     port: {rpc_ws}
@@ -95,6 +107,8 @@ def base_config(node: str, mnemonic: str) -> str:
         postgres_password=POSTGRES_PASSWORD,
         postgres_host=POSTGRES_HOST,
         rpc_http=RPC_HTTP_PORT,
+        ui_static=UI_STATIC_PATH,
+        ui_path=UI_PATH,
         rpc_ws=RPC_WS_PORT,
         grpc=GRPC_PORT,
         mnemonic=mnemonic,
