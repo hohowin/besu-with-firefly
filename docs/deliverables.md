@@ -34,6 +34,7 @@ This document is the single reference for what is deliverable and verifiable at 
 | DL-5.1 | Phase 5 — Caliper | N/A | infra | `perf/` Caliper sub-project and wallet setup | Done |
 | DL-5.2 | Phase 5 — Caliper | N/A | feature | Chain-layer and FireFly-layer rounds | Done |
 | DL-5.3 | Phase 5 — Caliper | N/A | doc | Results note | Done |
+| DL-6.1 | Phase 6 — One command | N/A | infra | `docker compose up -d` starts the whole stack and deploys the contracts | Done |
 
 ---
 
@@ -790,7 +791,59 @@ Exit codes: `0` done, `1` failed or refused by the contract, `2` bad usage (argp
 
 ---
 
-## §8 How to Run a Full End-to-End Demo
+## §8 Phase 6 — One `docker compose up`
+
+**Goal**: The whole stack, contracts included, starts with one command, so the full setup can be read in `docker-compose.yml`.
+
+**Prerequisites**:
+```
+- [ ] Docker Desktop with Docker Compose v2 (nothing else: no Python, no Node)
+- [ ] A clone of the repository, with no stack running (`docker compose down -v` first if one is)
+```
+
+### DL-6.1 — `docker compose up -d` starts and deploys everything
+
+| Field | Value |
+|---|---|
+| **Type** | infra |
+| **Phase** | Phase 6 — One command |
+| **Milestone** | N/A |
+| **Traces to** | plan D-09, D-16 |
+| **Demo surface** | CLI (`docker compose`) |
+
+**What it is**: Two one-shot services in `docker-compose.yml`. `paladin-seed` fills `paladin-runtime/` from the Paladin base configs. `deployer` (built from `deploy/Dockerfile`) waits until the stack is healthy and the chain is moving, then runs `python scripts/stack.py deploy` once. `python scripts/stack.py up | deploy | reset` still work.
+
+**How to try it**:
+```
+1. `docker compose up -d`
+   Expect the containers to start and the command to return after about 45 s to 1.5 min (the first time it also builds the deployer image).
+2. `docker wait deployer`
+   Expect `0` after a couple of minutes more (`docker compose logs -f deployer` shows the deploy as it runs).
+3. `curl -s -X POST -H "Content-Type: application/json" --data '{}' http://localhost:5000/api/v1/namespaces/default/apis/coin/query/name`
+   Expect `{"output":"Coin"}`; each Paladin node (`http://localhost:8548`, `:8648`, `:8748`) lists `noto` for `domain_listDomains`.
+4. `docker compose up -d` again
+   Expect the deployer to print `(already deployed)` lines and change nothing.
+5. `docker compose down -v`, then delete `paladin-runtime/` and `deployed-addresses.json` (or run `python scripts/stack.py reset`)
+   Expect no container left.
+```
+
+**Verification checklist**:
+- [x] From a clean state, one `docker compose up -d` ends with `deployer` exited 0, `Coin`, 1000 COIN for Anson and `noto` on all three nodes
+- [x] A second run changes nothing
+- [x] `pytest -m fresh_stack` passes three times in a row, and `pytest -m integration` (116 tests) passes on a stack started only by `docker compose up`
+- [x] From a fresh clone with no `.venv` and no `node_modules`, the README's quick route works
+
+**Verified 2026-10-05**: the steps above, three `fresh_stack` runs in 179 s, 183 s and 187 s, and 116 integration tests in 995 s on the compose-started stack; the fresh-clone run took 4 min 41 s including the image build. Details, including three causes found and fixed on the way (the deploy now waits for the RPC node to report blocks; a restarted Paladin node gets 600 s to load its domain; `stack.py up` skips the one-shot services), are in `tasks/todo.md` and `docs/spike-results.md`.
+
+**Known limitations at this phase**: the `deployer` mounts the Docker socket so it can restart the Paladin nodes, which gives the job control of Docker on the machine. That is for the local demo only; a real deployment runs from a pipeline with approvals (`docs/production-step-by-step.md`). On Linux and macOS the files the job writes into the clone are owned by `root`. `docker compose down -v` does not remove `paladin-runtime/` and `deployed-addresses.json`.
+
+**Phase exit gate summary**:
+- [x] `pytest -m fresh_stack` passes three times in a row
+- [x] `pytest -m integration` passes on a stack started by `docker compose up`
+
+---
+
+## §9 How to Run a Full End-to-End Demo
 
 Run this after Phase 4 (Phase 5 is optional for the demo).
 

@@ -2,7 +2,7 @@
 
 A local learning project: a single-validator QBFT Hyperledger Besu network with one RPC node, provisioned with **Hyperledger FireFly** (gateway mode) and **Paladin**, an ERC-3643 (T-REX) compliance token deployed through FireFly, a private **Noto** token on Paladin, a small Python CLI client for FireFly, and **Caliper** performance tests.
 
-> **Status: Phases 0 (spike), 1 (the Besu network), 2 (FireFly and the ERC-3643 `COIN` token), 3 (Paladin and the private Noto token), 4 (the `besu-ff` CLI) and 5 (Caliper) are built (2026-10-04), see [docs/plan.md](docs/plan.md) and [docs/spike-results.md](docs/spike-results.md).** The Phase 5 numbers and the configuration they were measured under are in [docs/perf-results.md](docs/perf-results.md).
+> **Status: Phases 0 (spike), 1 (the Besu network), 2 (FireFly and the ERC-3643 `COIN` token), 3 (Paladin and the private Noto token), 4 (the `besu-ff` CLI) 5 (Caliper) and 6 (one `docker compose up` for the whole stack) are built (2026-10-04 and 2026-10-05), see [docs/plan.md](docs/plan.md) and [docs/spike-results.md](docs/spike-results.md).** The Phase 5 numbers and the configuration they were measured under are in [docs/perf-results.md](docs/perf-results.md).
 
 ## Who it serves and how they interact
 
@@ -41,9 +41,9 @@ Caliper 0.6.0 (`perf/`, Node.js) and the Python CLI run on the host. Caliper 0.7
 
 ## Prerequisites
 
-- Docker Desktop with Docker Compose v2
-- Python 3.11+ (CLI, tests)
-- Node.js 24 (the pinned T-REX contract packages, installed with `npm ci` in `contracts/`, and Caliper 0.6.0 in `perf/`). Caliper needs `npm install --no-save web3@1.3.0` by hand because `caliper bind` fails on Windows
+- Docker Desktop with Docker Compose v2. **This is all the quick route needs** (see Getting started).
+- Python 3.11+ (the `besu-ff` CLI, the step-by-step route and the tests)
+- Node.js 24 (the step-by-step route installs the pinned T-REX contract packages with `npm ci` in `contracts/`, and the benchmark uses Caliper 0.6.0 in `perf/`; the quick route builds the contract packages into its own image, so it does not need Node). Caliper needs `npm install --no-save web3@1.3.0` by hand because `caliper bind` fails on Windows
 - *(optional)* FireFly CLI `ff`, only as a reference for generating config (no Windows release: `go install github.com/hyperledger-firefly/cli/ff@v1.5.0`). The stack uses its own Compose, not `ff start`.
 
 ## Getting started (from a fresh clone)
@@ -201,7 +201,7 @@ python scripts/stack.py reset
 
 This removes all the containers and their volumes (the chain, FireFly's database, Paladin's database), `deployed-addresses.json` and `paladin-runtime/` (it also clears a stack that was started with the quick route), so the next `up` starts again at block 0. It leaves your clone alone: the virtual environment, `node_modules/` and the Docker images stay, so a new `up` and `deploy` is quick. `reset` is also the way to get back to a clean 1000 COIN after demo A or the benchmark.
 
-To pause without losing anything, run `docker compose stop`; `python scripts/stack.py up` starts the containers again with the same chain, balances and Paladin state (checked: Anson's balance and the `noto` domain were still there after a stop and an `up`).
+To pause without losing anything, run `docker compose stop`; `docker compose up -d` (or `python scripts/stack.py up`) starts the containers again with the same chain, balances and Paladin state (checked: Anson's balance and the `noto` domain were still there after a stop and an `up`).
 
 ### Notes
 
@@ -237,7 +237,7 @@ The results note, with the configuration beside every number, is [docs/perf-resu
 
 | Environment | FireFly Explorer (web UI) | FireFly API (Swagger) | Contract API docs (Swagger), token `coin` | Paladin UI |
 |---|---|---|---|---|
-| **Local demo** (this repository, `python scripts/stack.py up`) | http://localhost:5000/ui | http://localhost:5000/api | http://localhost:5000/api/v1/namespaces/default/apis/coin/api | none (JSON-RPC only, see below) |
+| **Local demo** (this repository, `docker compose up -d`) | http://localhost:5000/ui | http://localhost:5000/api | http://localhost:5000/api/v1/namespaces/default/apis/coin/api | none (JSON-RPC only, see below) |
 | Development | not deployed | | | |
 | Pre-production | not deployed | | | |
 | Production | not deployed | | | |
