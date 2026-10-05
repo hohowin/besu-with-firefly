@@ -5,12 +5,14 @@ when they time out; a transaction is sent once, because sending is not idempoten
 """
 
 import json
+import os
 import time
 import urllib.error
 import urllib.request
 from collections.abc import Callable, Mapping
 from typing import Any
 
+from src.adapters.settings import service_url
 from src.core.paladin.rpc import (
     PaladinRpcError,
     ReceiptState,
@@ -23,12 +25,22 @@ from src.core.paladin.rpc import (
 # (URL, JSON-RPC request body) -> parsed JSON-RPC reply.
 Transport = Callable[[str, dict[str, Any]], dict[str, Any]]
 
-# Published HTTP RPC port of each node (see docker-compose.yml).
-PALADIN_NODES = {
+_NODE_DEFAULTS = {  # the published HTTP RPC port of each node (see docker-compose.yml)
     "node1": "http://localhost:8548",
     "node2": "http://localhost:8648",
     "node3": "http://localhost:8748",
 }
+
+
+def paladin_nodes(env: Mapping[str, str] = os.environ) -> dict[str, str]:
+    """Each node's RPC address from `PALADIN_NODE1_URL` to `PALADIN_NODE3_URL`, else its port."""
+    return {
+        node: service_url(f"PALADIN_{node.upper()}_URL", default, env)
+        for node, default in _NODE_DEFAULTS.items()
+    }
+
+
+PALADIN_NODES = paladin_nodes()
 READ_RETRIES = 3
 
 

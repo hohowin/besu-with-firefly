@@ -5,6 +5,7 @@ so FireFly answers with the final operation; a still-pending operation is polled
 """
 
 import json
+import os
 import socket
 import time
 import urllib.error
@@ -13,6 +14,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from src.adapters.settings import service_url
 from src.core.firefly.errors import (
     AlreadySubmitted,
     FireflyError,
@@ -45,6 +47,7 @@ __all__ = [
     "OperationTimeout",
     "Reverted",
     "Transport",
+    "firefly_url",
     "WriteUnconfirmed",
     "http_transport",
 ]
@@ -61,8 +64,17 @@ class DeployResult:
     operation: Operation
 
 
-def http_transport(base_url: str = "http://localhost:5000", timeout: float = 150.0) -> Transport:
-    """A transport over `urllib`. The long timeout covers `confirm=true`, which blocks."""
+def firefly_url(env: Mapping[str, str] = os.environ) -> str:
+    """FireFly's address: `FIREFLY_URL`, or `http://localhost:5000` when it is not set."""
+    return service_url("FIREFLY_URL", "http://localhost:5000", env)
+
+
+def http_transport(base_url: str | None = None, timeout: float = 150.0) -> Transport:
+    """A transport over `urllib`. The long timeout covers `confirm=true`, which blocks.
+
+    Without `base_url` the address comes from `FIREFLY_URL` (see `firefly_url`).
+    """
+    base_url = base_url or firefly_url()
 
     def send(method: str, path: str, body: Any = None) -> tuple[int, Any]:
         data = None if body is None else json.dumps(body).encode()

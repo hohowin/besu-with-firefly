@@ -1,13 +1,21 @@
 """Read the chain height of Besu RPC nodes over JSON-RPC (adapter, standard library only)."""
 
 import json
+import os
 import urllib.error
 import urllib.request
 from collections.abc import Mapping
 
 from src.adapters.docker_stack import ChainHeights
+from src.adapters.settings import service_url
 
-RPC_NODES = {"besu-rpc-anson": "http://localhost:8545"}
+
+def rpc_nodes(env: Mapping[str, str] = os.environ) -> dict[str, str]:
+    """The RPC node's address: `BESU_RPC_URL`, or `http://localhost:8545` when it is not set."""
+    return {"besu-rpc-anson": service_url("BESU_RPC_URL", "http://localhost:8545", env)}
+
+
+RPC_NODES = rpc_nodes()
 
 
 def _block_number(url: str, timeout: float) -> int:
