@@ -188,7 +188,7 @@ Sizes: no task is L or larger. Tasks 1, 5 and 7 are the largest (M).
 - [x] `python scripts/stack.py reset && up && deploy` leaves the Noto domain loaded on all three nodes and all three registered; a second `deploy` sends nothing (three cold cycles all exited 0; `pytest -m integration`: 91 passed in 10 min 40 s)
 - [x] M3.1 gate from `docs/plan.md` (steps 1 and 2) holds
 - [x] Anti-gate from `docs/plan.md` not triggered: Paladin runs from hand-written config on Compose
-- [ ] Human review before proceeding (**waiting for Howin**)
+- [x] Human review before proceeding (Howin)
 
 ---
 
@@ -294,7 +294,7 @@ Sizes: no task is L or larger. Tasks 1, 5 and 7 are the largest (M).
 - [x] Mint 100, transfer 40: Anson 60 on node2, Beatrice 40 on node3; node3 never sees the mint or Anson's change
 - [x] The public chain data for the token shows no amounts and no party addresses
 - [x] M3 gate steps 3 to 5 from `docs/plan.md` hold
-- [ ] Human review before proceeding (**waiting for Howin**)
+- [x] Human review before proceeding (Howin)
 
 ---
 
@@ -356,7 +356,7 @@ Note: a first full integration run was stopped by the tool's 30-minute backgroun
 - [x] The gate passes three times in a row from `reset`, `up` and `deploy`
 - [x] `ruff check .`, `mypy .` and `pytest` clean
 - [x] Anti-gate (not triggered) from `docs/plan.md`: if Paladin cannot run from hand-written config on Compose, fall back to Paladin on `kind` and record the change in D-09 (not expected, the spike ran it)
-- [ ] Human review of the Phase 3 exit gate (**waiting for Howin**)
+- [x] Human review of the Phase 3 exit gate (Howin)
 
 ---
 

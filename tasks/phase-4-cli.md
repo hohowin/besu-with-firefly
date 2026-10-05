@@ -1,7 +1,7 @@
 # Tasks — Phase 4: Python CLI
 
 > Source: `docs/plan.md` Phase 4 (steps 1 to 4, exit gate), `docs/prd.md` US-010, US-011, FR-9, FR-10, FR-12, `docs/deliverables.md` DL-4.1 and DL-4.2, `docs/use-cases.md` UC-05, UC-06, UC-11, `docs/architecture.md` §3 (failure handling), §5 (write lifecycle), §6 (per-module rationale). Decisions: D-06 (four commands: register, invoke, query, show tx/events; no Paladin). Phases 1 to 3 are complete; their lists are `tasks/phase-1-network.md`, `tasks/phase-2-firefly.md` and `tasks/phase-3-paladin.md` (Phase 3 was archived on 2026-10-03 with its three "human review" boxes still open, at Howin's choice).
-> **Status: draft, waiting for Howin's approval. No implementation has started.**
+> **Status: done 2026-10-04 and reviewed by Howin.**
 
 ## Overview
 
@@ -106,7 +106,7 @@ Sizes: no task is L or larger. Tasks 1, 2 and 3 are the largest (M).
 - [x] `ruff check .`, `mypy .`, `pytest` all pass; `src/core/` has no `print`, `input` or network call
 - [x] `query` and `tx` run against the live stack and their output is asserted in integration tests
 - [x] The events endpoint question (Task 3) is settled, or escalated
-- [ ] Human review before proceeding (**waiting for Howin**)
+- [x] Human review before proceeding (Howin)
 
 ---
 
@@ -189,7 +189,7 @@ Sizes: no task is L or larger. Tasks 1, 2 and 3 are the largest (M).
 - [x] `ruff check .`, `mypy .`, `pytest` all pass
 - [x] The DL-4.1 "how to try it" steps 1 to 4 ran against the live stack with the real command syntax (`--input _to=@beatrice`, base-unit amounts, not the planned `--to`/`--amount`; DL-4.1 is rewritten in Task 7)
 - [x] The pending/unknown test exists, passes, and fails when the rule is deliberately broken (mutation check done once by hand)
-- [ ] Human review before proceeding (**waiting for Howin**)
+- [x] Human review before proceeding (Howin)
 
 ---
 
@@ -224,7 +224,7 @@ Sizes: no task is L or larger. Tasks 1, 2 and 3 are the largest (M).
 - [x] All DL-4.x deliverables verified
 - [x] `ruff check .`, `mypy .`, `pytest` all pass
 - [x] Integration tests pass across 3 consecutive fresh-stack runs
-- [ ] Human review of the Phase 4 exit gate (**waiting for Howin**)
+- [x] Human review of the Phase 4 exit gate (Howin)
 
 ---
 

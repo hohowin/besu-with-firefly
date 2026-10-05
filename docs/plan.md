@@ -215,7 +215,7 @@ Phase 1 is sliced horizontally by layer, not by vertical slice (see rationale be
 
 **Goal**: A Noto private token on the same Besu network.
 
-**Status**: Built 2026-10-04, developer review of the exit gate pending. Evidence: `tasks/phase-3-paladin.md` and `docs/spike-results.md` (Phase 3 findings). From a reset stack `up` takes about 1 to 2 minutes and `deploy` (T-REX plus Paladin) about 2 minutes. Mint 100 and transfer 40 give Anson 60 and Beatrice 40; node3 sees only its own coin and the token's public logs carry no amounts or party addresses. A plain restart keeps keys, registry and balances. The gate `pytest -m integration` (103 tests) passed three times in a row from `reset`, `up` and `deploy`; unit tests (439), `ruff` and `mypy` are clean. All three Paladin nodes use the one Besu RPC node (D-17).
+**Status**: Built 2026-10-04, exit gate reviewed by the developer. Evidence: `tasks/phase-3-paladin.md` and `docs/spike-results.md` (Phase 3 findings). From a reset stack `up` takes about 1 to 2 minutes and `deploy` (T-REX plus Paladin) about 2 minutes. Mint 100 and transfer 40 give Anson 60 and Beatrice 40; node3 sees only its own coin and the token's public logs carry no amounts or party addresses. A plain restart keeps keys, registry and balances. The gate `pytest -m integration` (103 tests) passed three times in a row from `reset`, `up` and `deploy`; unit tests (439), `ruff` and `mypy` are clean. All three Paladin nodes use the one Besu RPC node (D-17).
 
 **Scope**:
 - Three Paladin nodes (notary and registry admin, Anson, Beatrice), one Postgres, demo TLS certificates, registry registration; Noto deploy, mint and transfer
@@ -253,7 +253,7 @@ Phase 1 is sliced horizontally by layer, not by vertical slice (see rationale be
 
 **Goal**: A small CLI over FireFly with logic in `src/core/`.
 
-**Status**: Built 2026-10-04, developer review of the exit gate pending. Evidence: `tasks/todo.md`. `besu-ff` has `query`, `invoke`, `tx` and `register`; `src/core/firefly/` holds the port, errors, outcome classification, inputs, invoke and register logic (no `print`, `input` or network call, checked by a test). A write is reported as done only for a `Succeeded` operation; pending, unknown and a write sent without an answer exit 3. The gate `pytest -m integration` (113 tests) passed three times in a row from `reset`, `up` and `deploy`; unit tests (528), `ruff` and `mypy` are clean. One earlier attempt failed on a Docker start stall (see `docs/deliverables.md` DL-4.2).
+**Status**: Built 2026-10-04, exit gate reviewed by the developer. Evidence: `tasks/phase-4-cli.md`. `besu-ff` has `query`, `invoke`, `tx` and `register`; `src/core/firefly/` holds the port, errors, outcome classification, inputs, invoke and register logic (no `print`, `input` or network call, checked by a test). A write is reported as done only for a `Succeeded` operation; pending, unknown and a write sent without an answer exit 3. The gate `pytest -m integration` (113 tests) passed three times in a row from `reset`, `up` and `deploy`; unit tests (528), `ruff` and `mypy` are clean. One earlier attempt failed on a Docker start stall (see `docs/deliverables.md` DL-4.2).
 
 **Scope**:
 - `core`, FireFly adapter, CLI adapter; four commands; unit and integration tests
