@@ -46,42 +46,147 @@ Caliper 0.6.0 (`perf/`, Node.js) and the Python CLI run on the host. Caliper 0.7
 - Node.js 24 (the pinned T-REX contract packages, installed with `npm ci` in `contracts/`, and Caliper 0.6.0 in `perf/`). Caliper needs `npm install --no-save web3@1.3.0` by hand because `caliper bind` fails on Windows
 - *(optional)* FireFly CLI `ff`, only as a reference for generating config (no Windows release: `go install github.com/hyperledger-firefly/cli/ff@v1.5.0`). The stack uses its own Compose, not `ff start`.
 
-## Getting started
+## Getting started (from a fresh clone)
 
-The commands run from the repo root. A one-validator Besu network, FireFly in gateway mode, the ERC-3643 token `COIN`, three Paladin nodes with a private Noto token, the `besu-ff` CLI and a Caliper benchmark are built.
+A one-validator Besu network, FireFly in gateway mode, the ERC-3643 token `COIN`, three Paladin nodes with a private Noto token, the `besu-ff` CLI and a Caliper benchmark. Every command runs from the repo root. Use any shell (the commands are written one per line, so they also work in Windows PowerShell); the only difference is how the virtual environment is activated.
+
+### 1. Check the prerequisites
 
 ```bash
-git clone <repo> && cd besu-with-firefly
-python -m venv .venv                  # then activate: .venv\Scripts\activate (Windows) or source .venv/bin/activate
-pip install -e ".[dev]"
-(cd contracts && npm ci)              # the pinned T-REX and OnchainID contract artifacts
-python scripts/stack.py up            # 1 validator, 1 RPC node, FireFly, 3 Paladin nodes; waits until all is healthy and the chain moves
-python scripts/stack.py deploy        # T-REX through FireFly, the COIN APIs, onboarding of Anson and Beatrice, 1000 COIN minted;
-                                      # then the Paladin contracts, the Noto domain and the node registry (about 2 minutes)
-python scripts/stack.py noto-demo     # a new Noto token: mint 100 to Anson, he sends 40 to Beatrice, what each node sees
-pytest -m integration                 # proves it all (about 13 minutes)
-python scripts/stack.py reset         # removes containers, volumes and deployed-addresses.json; the next `up` starts at block 0
+docker compose version      # Docker Desktop must be running; Compose v2
+python --version            # 3.11 or newer
+node --version              # 24 (needed for the contract packages in step 3)
 ```
+
+The stack runs 10 containers (a validator, an RPC node, FireFly with its signer, connector and database, and three Paladin nodes with their database). Measured on a machine given 15.5 GiB, they used about 2 GiB; the first `up` also pulls the images, which takes longer.
+
+### 2. Clone and install the Python tools
+
+```bash
+git clone <repo-url> besu-with-firefly
+cd besu-with-firefly
+python -m venv .venv
+.venv\Scripts\activate        # Windows (PowerShell or cmd)
+source .venv/bin/activate     # macOS, Linux or Git Bash: use this line instead
+pip install -e ".[dev]"       # installs the `besu-ff` command and the test tools
+```
+
+### 3. Install the contract packages
+
+```bash
+cd contracts
+npm ci                        # the pinned T-REX and OnchainID contract artifacts; nothing is compiled
+cd ..
+```
+
+### 4. Stand up the network
+
+```bash
+python scripts/stack.py up
+```
+
+This starts the containers and waits until every one is healthy and the chain is producing blocks (2 to 3 minutes, up to 5; longer the first time). It ends with one line per container, each `running healthy`. The genesis, validator keys, demo wallets and the FireFly and Paladin base configs are committed in `network-config/`, so there is no generation step.
+
+### 5. Deploy the contracts
+
+```bash
+python scripts/stack.py deploy
+```
+
+About 2 minutes. It deploys the T-REX suite through FireFly, creates the `COIN` token and its contract APIs, onboards the demo investors (Anson and Beatrice, both verified) and mints 1000 COIN to Anson. Then it deploys the Paladin registry and Noto contracts, gives the three Paladin nodes their Noto domain, and registers the nodes. It writes `deployed-addresses.json`. It only does what is missing, so it is safe to run again, and running it again finishes an interrupted run.
+
+### 6. Check that it works
+
+```bash
+besu-ff query name --contract coin                                   # Coin
+besu-ff query balanceOf --contract coin --input _userAddress=@anson  # 1000000000000000000000 (1000 COIN, 18 decimals)
+```
+
+Open the FireFly Explorer at http://localhost:5000/ui (no login: nothing here has authentication, and every port is bound to localhost).
+
+### 7. Run the demos
+
+**Demo A: Anson sends COIN to Beatrice, on the public chain through FireFly (ERC-3643).** Amounts are in base units (18 decimals), so `25000000000000000000` is 25 COIN, and `@anson` means that wallet's address.
+
+```bash
+besu-ff invoke transfer --contract coin --as anson --input _to=@beatrice --input _amount=25000000000000000000
+```
+
+Expect `sent       transfer as anson`, an operation id, and the new balances (Anson 975, Beatrice 25). Show the operation and its FireFly events with `besu-ff tx <operation-id>`.
+
+The same transfer to Admin, who is not a verified investor, is refused by the contract, and nothing moves:
+
+```bash
+besu-ff invoke transfer --contract coin --as anson --input _to=@admin --input _amount=10000000000000000000
+```
+
+Expect `error: refused by the contract: Transfer not possible` and `balances unchanged`; the command exits with code 1.
+
+**Demo B: Anson sends a private Noto token to Beatrice, on Paladin.**
+
+```bash
+python scripts/stack.py noto-demo
+```
+
+It deploys a new Noto token (node1 is the notary), mints 100 to Anson, and has Anson send 40 to Beatrice. The last lines are:
+
+```
+balance anson@node2     60
+balance beatrice@node3  40
+node1 (notary) sees coins [40, 60, 100]
+node2 (Anson) sees coins [40, 60, 100]
+node3 (Beatrice) sees coins [40]
+privacy ok: the third node never saw Anson's 100 or his 60
+```
+
+So node3 (Beatrice) sees only her own 40, and the public chain's logs show no amounts or party addresses. It deploys a new token on every run and needs `deploy` first.
+
+### 8. Optional: the tests and the benchmark
+
+```bash
+pytest                         # unit tests, no stack needed
+pytest -m integration          # against the running stack (about 13 minutes)
+```
+
+The benchmark has its own section below. It mints extra COIN, so tear the stack down and bring it back up before running the integration tests afterwards.
+
+### 9. Tear down
+
+```bash
+python scripts/stack.py reset
+```
+
+This removes all the containers and their volumes (the chain, FireFly's database, Paladin's database), `deployed-addresses.json` and `paladin-runtime/`, so the next `up` starts again at block 0. It leaves your clone alone: the virtual environment, `node_modules/` and the Docker images stay, so a new `up` and `deploy` is quick. `reset` is also the way to get back to a clean 1000 COIN after demo A or the benchmark.
+
+To pause without losing anything, run `docker compose stop`; `python scripts/stack.py up` starts the containers again with the same chain, balances and Paladin state (checked: Anson's balance and the `noto` domain were still there after a stop and an `up`).
+
+### Notes
 
 The genesis, validator keys, `static-nodes.json`, demo wallets and the FireFly config and signer keystores are already committed in `network-config/`, so `up` needs no generation step. `python scripts/stack.py init --force` regenerates them (it needs Docker for Besu's own generator and refuses to overwrite without `--force`).
 
 `deploy` and `onboard` only do what is missing, so running them again sends nothing, and running `deploy` again finishes an interrupted run. `python scripts/stack.py onboard` repeats just the investor onboarding.
+
+A cold `up` takes 2 to 3 minutes (it waits up to 5) and can take longer on a busy machine. `deploy` takes about 2 minutes with Paladin. `noto-demo` needs `deploy` first and deploys a new token on every run.
+
+The Paladin base configs, certificates and database init script are committed in `network-config/paladin/`. `up` copies the configs to `paladin-runtime/` (gitignored), and `deploy` adds the Noto domain and registry to that copy. `reset` removes the Paladin database volume, `paladin-runtime/` and the Paladin entries of `deployed-addresses.json` together with the chain. A plain `docker restart` of a Paladin container keeps its keys and state, because the database is a volume.
 
 ## Benchmark (Caliper)
 
 Chain layer (direct JSON-RPC) against FireFly layer, the same `COIN.transfer`. Needs the stack up and deployed.
 
 ```bash
-cd perf && npm ci && npm install --no-save web3@1.3.0 && cd ..
+cd perf
+npm ci
+npm install --no-save web3@1.3.0
+cd ..
 python scripts/stack.py perf-setup --wallets 10 --coins 100    # 20 verified wallets holding COIN, 10 per layer (2 to 4 minutes)
-(cd perf && npm run round:chain && npm run round:firefly)       # about 1 minute each; results in perf/results/
+cd perf
+npm run round:chain                                            # about 1 minute; results in perf/results/
+npm run round:firefly                                          # about 1 minute
+cd ..
 ```
 
 The results note, with the configuration beside every number, is [docs/perf-results.md](docs/perf-results.md). **The setup mints new COIN, so run `python scripts/stack.py reset` after benchmarking, before the integration tests** (`totalSupply` is 1000 in those tests). Details, the load options and why the layers use separate wallets: [perf/README.md](perf/README.md).
-
-A cold `up` takes 2 to 3 minutes (it waits up to 5) and can take longer on a busy machine. `deploy` takes about 2 minutes with Paladin. `noto-demo` needs `deploy` first and deploys a new token on every run.
-
-The Paladin base configs, certificates and database init script are committed in `network-config/paladin/`. `up` copies the configs to `paladin-runtime/` (gitignored), and `deploy` adds the Noto domain and registry to that copy. `reset` removes the Paladin database volume, `paladin-runtime/` and the Paladin entries of `deployed-addresses.json` together with the chain. A plain `docker restart` of a Paladin container keeps its keys and state, because the database is a volume.
 
 ## Accessing the application
 
