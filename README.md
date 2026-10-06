@@ -79,6 +79,40 @@ docker compose logs -f deployer     # the deploy output, live; Ctrl+C stops watc
 docker compose ps -a                # every container; `deployer` shows `exited (0)` when it is done
 ```
 
+**Reading the deployer log.** `docker compose logs -f deployer` prints one line per step, in four stages, and ends with `deployer exited with code 0` (success; any other code is a failure, and the last line before it says why). On a fresh chain the addresses are the same every time, so yours should match the ones below.
+
+```text
+identity-implementation  0x0936...                      <- stage 1: a contract was deployed, and where
+...
+trex-implementation-authority.addAndUseTREXVersion       <- stage 1: a call to a contract that already exists
+...
+api coin  0x960b...                                      <- stage 2: FireFly APIs, then onboarding
+anson  verified (KYC claim added)
+coin  minted 1000 to anson
+paladin registry  0x7938...                              <- stage 3: Paladin
+paladin node1  restarted with the noto domain
+paladin registry  node1 transport.grpc set
+deployer exited with code 0                              <- stage 4: done
+```
+
+| Stage and lines | What is happening |
+|---|---|
+| **1. The T-REX (ERC-3643) contracts**, sent through FireFly. A line `name  0xaddress` is a **contract that was just deployed**. | First the building blocks: `identity-implementation`, `identity-implementation-authority` and `id-factory` (the identity contracts, called OnchainID), then the implementations of the token's parts (`token-implementation`, `claim-topics-registry-...`, `identity-registry-...`, `identity-registry-storage-...`, `trusted-issuers-registry-...`, `modular-compliance-...`), then `trex-implementation-authority` and `trex-factory`, and `claim-issuer` (the party that signs KYC claims). |
+| A line **with no address**, such as `trex-implementation-authority.addAndUseTREXVersion`, is a **call to a contract that already exists**. | These wire the pieces together: register the T-REX version, tell the authority and the identity factory about the `trex-factory`, and finally `trex-factory.deployTREXSuite`, which creates the actual token and its helpers. |
+| `token`, `identity-registry`, `identity-registry-storage`, `claim-topics-registry`, `trusted-issuers-registry`, `modular-compliance`, each with an address | The **instances** the factory just created. `token` is the **`COIN`** token; `identity-registry` is the list of verified investors; `modular-compliance` holds the transfer rules. Their addresses are read back from the factory. |
+| **2. FireFly and onboarding.** `api coin` and `api identity-registry` | FireFly now has a ready-made web API for the token and for the identity registry (the same addresses as `token` and `identity-registry` above). |
+| `token  unpaused` | A new T-REX token starts paused; Admin unpaused it so it can move. |
+| `anson  identity created` and `registered`, the same for `beatrice` | Each investor gets an on-chain identity and is entered in the identity registry. Admin signs these. |
+| `anson  verified (KYC claim added)`, the same for `beatrice` | The claim issuer signs a "KYC verified" claim and each investor adds it to their identity. This is what makes them **verified**, and the token only moves between verified holders. Admin is never verified, which is why a transfer to Admin is refused. |
+| `coin  minted 1000 to anson` | The initial supply: 1000 COIN to Anson. Beatrice starts with 0. |
+| **3. Paladin.** `paladin registry`, `paladin noto`, `paladin noto_factory`, `paladin noto_factory_proxy`, each with an address | The four Paladin contracts, deployed **through Paladin's node1**: the node registry, the Noto implementation, the factory that creates Noto tokens, and the proxy the Noto domain is configured with. |
+| `paladin node1`, `node2`, `node3  restarted with the noto domain` | The nodes were started without the Noto domain (its contract addresses did not exist yet). Now their config has the addresses, so each is restarted once, and then loads Noto. |
+| `paladin registry  registered node1` (and `node2`, `node3`) | The three nodes are entered in the registry contract. |
+| `paladin registry  node1 transport.grpc set` (and `node2`, `node3`) | Each node publishes how the others can reach it (its gRPC address), so they can talk to each other privately. |
+| **4. `deployer exited with code 0`** | The job finished and succeeded. `docker wait deployer` prints the same `0`. |
+
+**Running it again.** The job only does what is missing, so a second `docker compose up -d` prints the same lines with `(already deployed)` after the addresses and `(already unpaused)`, and sends nothing. **Timing:** the Paladin node restarts are the slowest part (a node can take a minute or more, and once almost five), so the log can pause for a while after `restarted with the noto domain`; that is normal. The meaning of these addresses and where to use them: `deployed-addresses.json` in your clone lists them, `besu-ff query ... --contract coin` talks to `api coin`, and `python scripts/stack.py noto-demo` uses the Paladin ones.
+
 **When it is done** you have the same stack as steps 4 and 5 below. To use it, jump to step 6 (install `besu-ff` first with `pip install -e ".[dev]"`) or run `python scripts/stack.py noto-demo`.
 
 **If the deployer fails** (`docker wait deployer` prints a number other than `0`): `docker compose logs deployer` shows why. The job only does what is missing, so `docker compose up -d` again finishes an interrupted run.

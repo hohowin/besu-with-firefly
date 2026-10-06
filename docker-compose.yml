@@ -258,6 +258,7 @@ services:
     working_dir: /work
     command: ["python", "scripts/stack.py", "deploy"]
     environment:
+      PYTHONUNBUFFERED: "1"  # so `docker compose logs -f deployer` shows each line as it happens
       FIREFLY_URL: http://firefly-core:5000
       BESU_RPC_URL: http://besu-rpc-anson:8545
       PALADIN_NODE1_URL: http://paladin-node1:8548
