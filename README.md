@@ -259,6 +259,16 @@ The Paladin base configs, certificates and database init script are committed in
 
 **Before you start.** The stack is up and deployed (the quick route, or steps 4 and 5), and `besu-ff` is installed (`pip install -e ".[dev]"` with the virtual environment active). The numbers below assume a freshly deployed stack (Anson 1000 COIN, Beatrice 0, total supply 1000); if you have been trying things, run `python scripts/stack.py reset` and start again. Amounts are in base units with 18 decimals: **1 COIN = 1000000000000000000**. Open **http://localhost:5000/ui** in a browser now and keep it beside the terminal. Each write takes a few seconds (it waits for a block, 2 s).
 
+**Names and addresses.** "Anson" and "Beatrice" are only aliases that `besu-ff` reads from `network-config/wallets.json`. The chain and the FireFly Explorer know only addresses, so every `key`, `_to` and `_userAddress` you see in the Explorer is a `0x...` value. Use this table to translate:
+
+| Name | Address (demo wallet) |
+|---|---|
+| admin | `0x6789a6e90e2a7ede268916170a43ce658ae4aae1` |
+| anson | `0x5bee25122377a77de6a98af10eaef20464658279` |
+| beatrice | `0x1077b3dded596660c258dcb702035efb5ec24f45` |
+
+(The Explorer's **Tokens** pages stay empty: `COIN` is used through its contract API, not a token plugin, so its activity is under **Activity**.)
+
 ### Step 0: look at the starting point
 
 ```bash
