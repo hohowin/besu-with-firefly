@@ -247,6 +247,106 @@ A cold `up` takes 2 to 3 minutes (it waits up to 5) and can take longer on a bus
 
 The Paladin base configs, certificates and database init script are committed in `network-config/paladin/`. `up` copies the configs to `paladin-runtime/` (gitignored), and `deploy` adds the Noto domain and registry to that copy. `reset` removes the Paladin database volume, `paladin-runtime/` and the Paladin entries of `deployed-addresses.json` together with the chain. A plain `docker restart` of a Paladin container keeps its keys and state, because the database is a volume.
 
+## Try mint, transfer and burn on COIN, and watch them in FireFly
+
+`COIN` has three ways to change who holds it. Each one is a write that you send through FireFly and then follow in the FireFly Explorer.
+
+| Write | Who may send it | What must be true | Effect |
+|---|---|---|---|
+| **Mint** | An *agent* of the token: Admin | The receiver is a **verified** investor | Creates new COIN, so the total supply **goes up** |
+| **Transfer** | The holder | Sender and receiver are both verified, and the compliance rules allow it | Moves COIN, the total supply is **unchanged** |
+| **Burn** | An agent: Admin | The holder has at least that much | Destroys COIN, so the total supply **goes down** |
+
+**Before you start.** The stack is up and deployed (the quick route, or steps 4 and 5), and `besu-ff` is installed (`pip install -e ".[dev]"` with the virtual environment active). The numbers below assume a freshly deployed stack (Anson 1000 COIN, Beatrice 0, total supply 1000); if you have been trying things, run `python scripts/stack.py reset` and start again. Amounts are in base units with 18 decimals: **1 COIN = 1000000000000000000**. Open **http://localhost:5000/ui** in a browser now and keep it beside the terminal. Each write takes a few seconds (it waits for a block, 2 s).
+
+### Step 0: look at the starting point
+
+```bash
+besu-ff query balanceOf --contract coin --input _userAddress=@anson      # 1000000000000000000000   (1000 COIN)
+besu-ff query balanceOf --contract coin --input _userAddress=@beatrice   # 0
+besu-ff query totalSupply --contract coin                                # 1000000000000000000000   (1000 COIN)
+```
+
+In the Explorer, open **Dashboard**: the Operations card counts the writes made so far by `deploy` (all succeeded, no red badge).
+
+### Step 1: mint 50 COIN to Beatrice
+
+```bash
+besu-ff invoke mint --contract coin --as admin --input _to=@beatrice --input _amount=50000000000000000000
+```
+
+Expect `sent       mint as admin`, an `operation` id and a `tx` id (copy the operation id). Then check the effect:
+
+```bash
+besu-ff query balanceOf --contract coin --input _userAddress=@beatrice   # 50000000000000000000   (50 COIN)
+besu-ff query totalSupply --contract coin                                # 1050000000000000000000 (1050 COIN: it went up)
+```
+
+**Observe it in FireFly**
+1. **Activity > Operations**: the newest row is a **Blockchain Invoke**, status **SUCCEEDED**. Click it. In **Input, Output and Detail**:
+   - **Input** shows what was asked: `"method": { "name": "mint", ... }`, the arguments `"_to"` (Beatrice's address) and `"_amount"` (`50000000000000000000`), the `"location"` (the COIN contract's address) and the `"key"`, the wallet that **signed** it: Admin's address.
+   - **Output** shows the result: the `transactionHash` on the chain and a `protocolId` (block number and position, e.g. `000000000077/000000`), and `"type": "TransactionSuccess"` under `headers`.
+   - **Detail** shows `gasPrice` 0 (this chain is free) and the gas used.
+2. **Activity > Transactions**: a **Contract Invoke** with a **Blockchain ID** (the transaction hash on the chain). Click it to see its operations.
+3. **Activity > Events**: two events for the same transaction, `Transaction Submitted` and then `Blockchain Invoke Succeeded`.
+4. The same facts in the terminal: `besu-ff tx <operation id>`.
+
+### Step 2: transfer 25 COIN from Anson to Beatrice
+
+```bash
+besu-ff invoke transfer --contract coin --as anson --input _to=@beatrice --input _amount=25000000000000000000
+```
+
+Expect the operation and transaction ids, then the new balances: `balance    anson  975000000000000000000` and `balance    beatrice  75000000000000000000` (Beatrice had 50, now 75). The supply does not change; confirm with `besu-ff query totalSupply --contract coin` (still 1050 COIN).
+
+**Observe it in FireFly**: a new **Blockchain Invoke** under **Activity > Operations**, SUCCEEDED. Open it: `"method"` is now `transfer`, the arguments are `_to` and `_amount`, and the `"key"` is **Anson's** address, because Anson signed this one (compare with Admin's in step 1). The Dashboard's Transactions count went up by one for each write you have made.
+
+### Step 3: burn 30 COIN from Beatrice
+
+Only an agent can burn, so this is sent **as Admin**, naming the holder whose COIN is destroyed:
+
+```bash
+besu-ff invoke burn --contract coin --as admin --input _userAddress=@beatrice --input _amount=30000000000000000000
+```
+
+Expect `sent       burn as admin` and the ids (burn does not print balances), then:
+
+```bash
+besu-ff query balanceOf --contract coin --input _userAddress=@beatrice   # 45000000000000000000   (75 - 30 = 45 COIN)
+besu-ff query totalSupply --contract coin                                # 1020000000000000000000 (1050 - 30 = 1020 COIN: it went down)
+```
+
+**Observe it in FireFly**: the newest **Blockchain Invoke** has `"method"` `burn`, the arguments `_userAddress` (Beatrice) and `_amount`, and Admin's address as the `"key"`.
+
+**Where you are now:** Anson 975, Beatrice 45, total supply 1020 COIN (1000 + 50 minted - 30 burned; the transfer only moved COIN).
+
+### Step 4: see the contract say no
+
+Three writes that the token refuses. Each prints a reason and exits with code 1, and nothing changes:
+
+```bash
+besu-ff invoke mint --contract coin --as admin --input _to=@admin --input _amount=1000000000000000000
+# error: refused by the contract: Identity is not verified.            (the receiver, Admin, is not a verified investor)
+
+besu-ff invoke mint --contract coin --as anson --input _to=@anson --input _amount=1000000000000000000
+# error: refused by the contract: AgentRole: caller does not have the Agent role   (Anson is not an agent)
+
+besu-ff invoke burn --contract coin --as admin --input _userAddress=@beatrice --input _amount=999000000000000000000
+# error: refused by the contract: cannot burn more than balance        (Beatrice holds only 45 COIN)
+```
+
+**Observe it in FireFly**
+1. **Dashboard**: the Operations card now shows a red **3 Failed** badge. Click it to open **Activity > Operations** already filtered to the failed ones.
+2. Click a red **FAILED** operation. The **Error Message** ends with `EVM reverted: Error("...")` and the text in the quotes is the contract's own reason, the same one the terminal printed. The contract, not the CLI or FireFly, refused it.
+3. **Activity > Transactions**: the refused attempts are the rows with **no Blockchain ID**: they were refused before they were mined, so no gas was used and no block contains them. **Activity > Events** shows `Blockchain Invoke Failed` for each.
+4. Run Step 0's balance and supply queries again: nothing moved.
+
+### Step 5 (optional): ask the contract from the browser
+
+Open **Blockchain > APIs** in the Explorer, or go straight to http://localhost:5000/api/v1/namespaces/default/apis/coin/api (the generated API documentation for `coin`). Use **POST /query/totalSupply** and **POST /query/balanceOf** with **Try it out** (`balanceOf` needs `_userAddress`: the demo wallet addresses are in `network-config/wallets.json`). The answers match the terminal. Use only the `/query/` ones here: the `/invoke/` ones send real writes.
+
+To go on, [docs/firefly-user-guide.md](docs/firefly-user-guide.md) explains each Explorer page, and `python scripts/stack.py reset` followed by `up` and `deploy` (or `docker compose down -v` and the quick route) returns everything to 1000 COIN.
+
 ## Benchmark (Caliper)
 
 Chain layer (direct JSON-RPC) against FireFly layer, the same `COIN.transfer`. Needs the stack up and deployed.
