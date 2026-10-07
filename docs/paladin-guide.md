@@ -23,6 +23,33 @@ Paladin organises this as **domains**: each domain is a kind of private logic wi
 
 The two are independent: Paladin does not use FireFly, and FireFly does not know about Noto. They share only the Besu chain.
 
+### What the chain shows without Paladin, and what it shows with it
+
+"Without Paladin" here means the project's other token, `COIN`: an ERC-3643 contract (an ERC-20 with identity and compliance checks) called through FireFly. Take the same payment in both: Anson sends 40 to Beatrice.
+
+| On the public chain, for that payment | `COIN` (no Paladin) | Noto (Paladin) |
+|---|---|---|
+| Transaction sender | Anson's own wallet (FireFly signs with his key) | The notary's account, whoever the payer is |
+| Who paid whom | Both addresses, readable in the event | Neither address appears |
+| Amount | Readable (40, as `40000000000000000000` with 18 decimals) | Not present; the logs hold hashes and a proof |
+| Balances | Anyone can call `balanceOf` for any address, and `totalSupply` | No balance exists on chain; each owner's node holds its own coins, and only that node can answer |
+| Event shape | The ERC-20 `Transfer(from, to, value)`, with the addresses as topics and the amount as data | Opaque: hashes of the new and spent coins and the notary's signature. |
+| Can a stranger rebuild the history | Yes, by reading logs from block 0 | No. They see that transactions on the token happened, how many, and when |
+| Who must be trusted for correctness | Nobody: the contract runs the rules and every node re-executes them | The notary (in `basic` mode), plus Paladin's nodes to keep the private data. The chain checks the notary's signature, not the amounts |
+| Who can still see everything | Everyone | The notary sees every transaction of its token |
+
+The first rows of the `COIN` column follow the ERC-20 event standard; they were not run as a separate check here. The Noto column is what `test_the_public_chain_shows_no_amounts_and_no_party_addresses` asserts (section 5.4). Section 5.4 also gives the `eth_getLogs` command: run it against `COIN`'s address instead of a Noto token's and the amounts and both addresses appear in clear.
+
+**What is the same.** Both are on the same Besu chain, both are ordered and made final by the same validators, and in both a transaction is public as an event: its existence, its block, its timing and the contract it touched. Privacy here hides **who and how much**, not **that something happened**. The Paladin UI makes this visible: node3 lists a transfer it was not part of (section 5.8).
+
+**What you pay for the difference.**
+- The chain no longer enforces the rules by itself; for Noto, the notary does (section 6). `COIN`'s compliance checks (only verified investors may hold it) have no equivalent on chain for Noto in `basic` mode.
+- Balances and history are held off chain, in each Paladin node's database. Lose that database and you lose the data; the chain alone cannot rebuild it.
+- Other contracts cannot read a Noto balance, so a Noto token does not compose with on-chain logic the way `COIN` does.
+- Reading a balance means asking the owner's own node, not any node.
+
+Zeto goes further than Noto on the trust point: the chain verifies a zero-knowledge proof, so even the notary role disappears (section "The other two domains" below; not run here).
+
 ### The words you need
 
 | Word | Meaning here |
