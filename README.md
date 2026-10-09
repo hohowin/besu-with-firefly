@@ -1,5 +1,7 @@
 # besu-with-firefly
 
+![One command in 10 seconds: docker compose up -d starts 10 containers, the four layers (Besu, FireFly, COIN, Paladin), then a mined, a refused and a private transfer](docs/images/stack-motion-v2.gif)
+
 A local learning project: a single-validator QBFT Hyperledger Besu network with one RPC node, provisioned with **Hyperledger FireFly** (gateway mode) and **Paladin**, an ERC-3643 (T-REX) compliance token deployed through FireFly, a private **Noto** token on Paladin, a small Python CLI client for FireFly, and **Caliper** performance tests.
 
 > **Status: Phases 0 (spike), 1 (the Besu network), 2 (FireFly and the ERC-3643 `COIN` token), 3 (Paladin and the private Noto token), 4 (the `besu-ff` CLI) 5 (Caliper) and 6 (one `docker compose up` for the whole stack) are built (2026-10-04 and 2026-10-05), see [docs/plan.md](docs/plan.md) and [docs/spike-results.md](docs/spike-results.md).** The Phase 5 numbers and the configuration they were measured under are in [docs/perf-results.md](docs/perf-results.md).

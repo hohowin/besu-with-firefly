@@ -23,3 +23,6 @@ perf/generated/
 # prefix. The committed ones stay tracked; a new committed wallet needs `git add -f`.
 network-config/firefly/signer-data/keystore/*
 perf/results/
+# Motion graphic projects (videos/<name>/): the source and the final asset in docs/images are committed
+videos/*/renders/
+videos/*/snapshots/
