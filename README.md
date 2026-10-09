@@ -1,6 +1,4 @@
-# besu-with-firefly
-
-![One command in 10 seconds: docker compose up -d starts 10 containers, the four layers (Besu, FireFly, COIN, Paladin), then a mined, a refused and a private transfer](docs/images/stack-motion-v2.gif)
+# Besu with Firefly & Paladin
 
 A local learning project: a single-validator QBFT Hyperledger Besu network with one RPC node, provisioned with **Hyperledger FireFly** (gateway mode) and **Paladin**, an ERC-3643 (T-REX) compliance token deployed through FireFly, a private **Noto** token on Paladin, a small Python CLI client for FireFly, and **Caliper** performance tests.
 
