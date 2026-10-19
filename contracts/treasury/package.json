@@ -1,0 +1,13 @@
+{
+  "name": "besu-with-firefly-treasury-contracts",
+  "private": true,
+  "type": "module",
+  "description": "Treasury contracts (CurrencyToken, FundingRequest). Compiled and tested with Hardhat 3; the compiled artifacts in compiled/ are committed and are what `stack.py treasury` deploys.",
+  "scripts": {
+    "build": "hardhat build && node scripts/export-artifacts.mjs",
+    "test": "hardhat test solidity"
+  },
+  "devDependencies": {
+    "hardhat": "3.20.0"
+  }
+}

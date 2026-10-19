@@ -50,7 +50,7 @@ The single RPC node and single FireFly in your assumption are what the repo alre
 | `src/core/firefly/` | none | The existing `FireflyPort`, `outcome` and error model are reused as they are |
 | `src/adapters/` | `treasury_deploy.py` (deploy, register, roles), `treasury_service.py` (the orchestration: reacts to `Approved`, recovery sweep), `treasury_fx_file.py` (reads the JSON file), `treasury_http.py` (HTTP server, static page, JSON API), `treasury_command.py` (CLI for `stack.py treasury`) | I/O only; calls core |
 | `scripts/` | `treasury_app.py` (entry point that starts the HTTP server) | Thin |
-| `contracts/treasury/` | `FundingRequest.sol`, `CurrencyToken.sol`, compiled artifacts, `SHA256SUMS`, tests | Vendored like `contracts/paladin/` |
+| `contracts/treasury/` | `contracts/*.sol`, `test/*.t.sol` (Hardhat 3 Solidity tests), `compiled/` (committed ABI, bytecode and `SHA256SUMS`) | Compiled once, committed like `contracts/paladin/` |
 | `tests/unit/core/test_treasury_*.py` (flat, as the rest of `tests/unit/core`), `tests/unit/adapters/`, `tests/integration/test_treasury_*.py` | | Mirror the code |
 
 ## 3. Contracts
@@ -84,21 +84,21 @@ struct Request {
     address requester;      // also the beneficiary
     uint32  processingDate; // yyyymmdd of the requester's local date
     Status  status;
-    uint128 amountCad;      // minor units
-    uint128 amountGbp;      // 0 until Settled
+    uint256 amountCad;      // minor units
+    uint256 amountGbp;      // 0 until Settled
     uint32  ratePpm;        // 0 until Settled, GBP per 1 CAD x 1,000,000
     address approver;       // set on approve or reject
 }
 
-// roles: set by the admin in the constructor, changeable only by the admin
+// roles: fixed in the constructor (no role-management functions in v1, fewer ways to go wrong)
 mapping(address => bool) requesters;   // ldn
 mapping(address => bool) approvers;    // tor
 address public treasury;               // the treasury wallet
-uint128 public immutable maxAmountCad; // cap, default 100000000 (CAD 1,000,000.00)
+uint256 public immutable maxAmountCad; // cap, default 100000000 (CAD 1,000,000.00)
 uint32  public immutable minRatePpm;   // sanity bounds on the rate
 uint32  public immutable maxRatePpm;
 
-function createRequest(bytes32 id, uint128 amountCad, uint32 processingDate) external;
+function createRequest(bytes32 id, uint256 amountCad, uint32 processingDate) external;
 function approve(bytes32 id) external;                  // mints CADC to treasury
 function reject(bytes32 id, string calldata reason) external;
 function settle(bytes32 id, uint32 ratePpm) external;   // burn CADC, mint GBPC
@@ -107,11 +107,11 @@ function getRequest(bytes32 id) external view returns (Request memory);
 function requestCount() external view returns (uint256);
 function requestIdAt(uint256 index) external view returns (bytes32);
 
-event Requested(bytes32 indexed id, address indexed requester, uint128 amountCad, uint32 processingDate);
-event Approved(bytes32 indexed id, address indexed approver, uint128 amountCad);
+event Requested(bytes32 indexed id, address indexed requester, uint256 amountCad, uint32 processingDate);
+event Approved(bytes32 indexed id, address indexed approver, uint256 amountCad);
 event Rejected(bytes32 indexed id, address indexed approver, string reason);
-event Settled(bytes32 indexed id, uint128 amountCad, uint128 amountGbp, uint32 ratePpm);
-event Redeemed(bytes32 indexed id, address indexed beneficiary, uint128 amountGbp);
+event Settled(bytes32 indexed id, uint256 amountCad, uint256 amountGbp, uint32 ratePpm);
+event Redeemed(bytes32 indexed id, address indexed beneficiary, uint256 amountGbp);
 ```
 
 **Rules inside each function** (checks, then state change, then the token call):
