@@ -12,6 +12,7 @@ dependencies = [
     "eth-account>=0.13",
     "eth-keys>=0.5",
     "eth-utils>=5",
+    "tzdata>=2024.1",  # IANA zones for the treasury processing date (Windows and slim Linux have none)
 ]
 
 [project.optional-dependencies]

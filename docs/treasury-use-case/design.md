@@ -51,7 +51,7 @@ The single RPC node and single FireFly in your assumption are what the repo alre
 | `src/adapters/` | `treasury_deploy.py` (deploy, register, roles), `treasury_service.py` (the orchestration: reacts to `Approved`, recovery sweep), `treasury_fx_file.py` (reads the JSON file), `treasury_http.py` (HTTP server, static page, JSON API), `treasury_command.py` (CLI for `stack.py treasury`) | I/O only; calls core |
 | `scripts/` | `treasury_app.py` (entry point that starts the HTTP server) | Thin |
 | `contracts/treasury/` | `FundingRequest.sol`, `CurrencyToken.sol`, compiled artifacts, `SHA256SUMS`, tests | Vendored like `contracts/paladin/` |
-| `tests/unit/core/treasury/`, `tests/unit/adapters/`, `tests/integration/test_treasury_*.py` | | Mirror the code |
+| `tests/unit/core/test_treasury_*.py` (flat, as the rest of `tests/unit/core`), `tests/unit/adapters/`, `tests/integration/test_treasury_*.py` | | Mirror the code |
 
 ## 3. Contracts
 
@@ -227,7 +227,7 @@ The new keys go into `wallets.json` and the FireFly signer keystore as the exist
 | TD-09 | No login. Roles are on chain and the UI "act as" is a demo selector | Add auth (violates the project's non-goal FR-21, no value on localhost) | Proposed; revisit before any non-local use |
 | TD-10 | Three new wallets `ldn`, `tor`, `treasury` | Reuse `anson`/`beatrice` (confusing names for this story) | Proposed |
 | TD-11 | Integer minor units, 2 decimals; GBP rounded down; cap per request | Floats (never); 18 decimals (needless) | Proposed (Q3, Q8) |
-| TD-12 | The request id is a UUID made when the form loads, hashed to `bytes32`; the idempotency key is `<id>:<action>` | Server-generated id (a retried POST would create a second request) | Proposed |
+| TD-12 | The request id is a UUID made when the form loads, left-padded to `bytes32` (reversible, so the UI can show the UUID); the idempotency key is `<id>:<action>` | Server-generated id (a retried POST would create a second request) | Proposed |
 
 Once you sign off, the accepted rows move into `docs/plan.md` §3 as D-18 and up.
 

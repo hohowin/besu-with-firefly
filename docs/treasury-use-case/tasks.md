@@ -30,15 +30,15 @@ Sizes: S under 1 hour, M a few hours. No task is larger than M.
 - [ ] `100000 × 580000` gives `58000`; `10001 × 580000` gives `5800` (floor); a result of 0 is an error
 - [ ] "1,000", "1000.001", "-5", "0", "abc", "1e3" and above-cap amounts are rejected with a specific error each
 - [ ] A rate with 7 decimals, a negative rate or a non-numeric rate is rejected; no `float` appears in the package (a test scans the source)
-**Verification:** `pytest tests/unit/core/treasury/test_money.py tests/unit/core/treasury/test_fx.py`, `ruff check .`, `mypy .` · **Size:** M
+**Verification:** `pytest tests/unit/core/test_treasury_money.py tests/unit/core/test_treasury_fx.py`, `ruff check .`, `mypy .` · **Size:** M
 
 ### Task 2: Request model, state machine, ids and dates
 **Description:** `request.py`: `Status`, `allowed(from, action)`, `validate_create(...)`. `ids.py`: UUID to `bytes32`, `idempotency_key(id, action)`. `dates.py`: `processing_date(now_utc, zone) -> 20261018` with the clock passed in. `ledger.py`: `check_conservation(requests, cadc_supply, gbpc_supply)`.
 **Acceptance:**
-- [ ] Every transition not in the state machine is refused (table test over all 6×5 pairs)
+- [ ] Every transition not in the state machine is refused (table test over all 6 states × 5 actions; 5 are legal)
 - [ ] `processing_date` at 2026-10-18T22:30Z gives `20261018` for `Europe/London` (BST, UTC+1, so 23:30 local) and `20261019` for `Asia/Tokyo`; a DST-boundary case is included
 - [ ] The conservation check accepts the four valid stages of one request and rejects a supply that is off by 1
-**Verification:** `pytest tests/unit/core/treasury` · **Size:** M
+**Verification:** `pytest tests/unit/core -k treasury` · **Size:** M
 
 ### Task 3: Treasury errors and outcome mapping
 **Description:** `errors.py` (validation, `FxRateMissing`, wrong state) and a function that maps a FireFly outcome (`Succeeded`, `Failed`, `ComplianceRevert`, `Pending`) plus the request state into what the UI shows. Reuse `src/core/firefly/outcome.py`; do not copy it.
@@ -46,7 +46,7 @@ Sizes: S under 1 hour, M a few hours. No task is larger than M.
 - [ ] Only `Succeeded` maps to a success message; `Pending` carries the operation id
 - [ ] Contract revert names (`NotApprover`, `SelfApproval`, `BadState`, `NotTreasury`, `BadRate`, `NotBeneficiary`, `BadAmount`, `BadDate`, `Exists`, `ReasonTooLong`) map to a readable message each
 - [ ] Core has no `print`, `input` or network call (same scan test as Phase 4)
-**Verification:** `pytest tests/unit/core/treasury` · **Size:** S
+**Verification:** `pytest tests/unit/core -k treasury` · **Size:** S
 
 **Checkpoint A:** unit tests, `ruff`, `mypy` green. Core can be used without Docker.
 

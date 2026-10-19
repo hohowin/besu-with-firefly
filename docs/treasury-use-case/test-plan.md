@@ -38,7 +38,7 @@ The most important rule: **negative tests call the contract API directly**, not 
 | `test_fx_lookup_order` | table with a date and a default | date wins; no date falls to default; neither raises `FxRateMissing` |
 | `test_fx_rate_format` | `"0.58"`, `"0.5800001"`, `"-0.5"`, `"x"` | 580000 ok; the last three rejected |
 | `test_processing_date_zone` | 2026-10-18T22:30Z; the DST change days | `20261018` London; `20261019` Tokyo; correct on both DST days |
-| `test_transition_table` | all state and action pairs | only the 6 legal ones allowed |
+| `test_transition_table` | all state and action pairs | only the 5 legal ones allowed |
 | `test_idempotency_key` | id, action | `<id>:<action>`; different actions differ |
 | `test_conservation_detects_drift` | supply off by 1 | error |
 | `test_core_has_no_io` | scan package source | no `print`, `input`, `open`, `float`, network import |

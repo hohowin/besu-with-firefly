@@ -19,3 +19,15 @@ class FxRateMissing(TreasuryError):
 
 class AmountTooSmall(TreasuryError):
     """The converted amount rounds down to nothing."""
+
+
+class InvalidTransition(TreasuryError):
+    """An action the request's current state does not allow."""
+
+
+class InvalidReason(TreasuryError):
+    """A rejection reason that is empty or too long."""
+
+
+class LedgerMismatch(TreasuryError):
+    """The token supplies and the requests disagree (a conservation check failed)."""
