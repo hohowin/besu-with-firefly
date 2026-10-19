@@ -126,6 +126,8 @@ event Redeemed(bytes32 indexed id, address indexed beneficiary, uint128 amountGb
 
 If `gbp` rounds to 0 the call reverts (`BadAmount`), so a request can never settle to nothing.
 
+**Revert reasons are strings.** Each check is `require(cond, "NotApprover")`, not a Solidity custom error, because FireFly's error text carries only `Error("...")` reasons and the existing `revert_reason` reads only those. A custom error would reach the UI as "no reason given".
+
 **Security checklist** (use the `solidity-security` skill at review): state is changed before the token calls; the tokens are our own code, so reentrancy is not reachable, and the order is still checks-effects-interactions; Solidity ≥ 0.8 checked arithmetic; no `tx.origin`; no unbounded loops in writes (`requestIdAt` is a view); roles are not transferable by users.
 
 ## 4. FireFly usage
