@@ -1,7 +1,9 @@
 # Tasks: Treasury branch funding
 
 > Source: [prd.md](prd.md) TR-US-01 to 06, TR-FR-01 to 12; [design.md](design.md) TD-01 to TD-12; [use-case.md](use-case.md) UC-T1 to T5. Format follows `tasks/phase-4-cli.md`.
-> **Status: draft. Do not start until Howin has answered the Open Questions in prd.md §9 (at least Q1, Q2, Q5, Q6).**
+> **Status (2026-10-19): in progress. "start implement" was taken as acceptance of the recommended answer to every Open Question in prd.md §9.**
+> Done and committed, checked offline (879 unit tests, `ruff`, `mypy`, 31 contract tests): tasks 1, 2, 3, 5, 7, 8, 9, 10, and the offline parts of 4 and 6. **Not yet done, needs Docker running:** task 4's deploy on the live stack, the live check of task 6, and tasks 11, 12. Task 13 (folding into the project docs) waits for the live run.
+> Where the code differs from the first draft of this list: the gateway, the service and the views are in `src/core/treasury/` (they do no I/O; everything is passed in); `tzdata` was added as a dependency (Windows has no time-zone data); `stack.py treasury` reuses the T-REX `run_plan`.
 > Verification commands (PROJECT.md): `ruff check .`, `mypy .`, `pytest`, `pytest -m integration`. Work on `main`, one commit per task (memory: no feature branches). Tests first: write the failing test, see it fail, then implement.
 
 ## Overview
