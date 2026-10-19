@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Branch Funding</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <header class="top">
+    <h1>Branch Funding</h1>
+    <p class="demo">Demo, no login. The contracts decide who may do what; the tab only chooses the wallet that signs.</p>
+    <nav class="tabs" role="tablist" aria-label="Branch">
+      <button role="tab" id="tab-ldn" aria-controls="view-ldn" aria-selected="true">London</button>
+      <button role="tab" id="tab-tor" aria-controls="view-tor" aria-selected="false">Toronto</button>
+      <button role="tab" id="tab-ledger" aria-controls="view-ledger" aria-selected="false">Ledger</button>
+    </nav>
+  </header>
+
+  <p id="notice" class="notice" role="status" aria-live="polite" hidden></p>
+
+  <main>
+    <section id="view-ldn" role="tabpanel" aria-labelledby="tab-ldn">
+      <h2>Ask Toronto for funding</h2>
+      <form id="create" class="card" autocomplete="off">
+        <label for="amount">Amount (CAD)</label>
+        <input id="amount" name="amount" inputmode="decimal" placeholder="1000.00" required>
+        <p class="hint">Digits with up to 2 decimals. Above 0, up to 1,000,000.00.</p>
+        <label for="date">Processing date (London)</label>
+        <input id="date" name="date" readonly>
+        <button type="submit" class="primary">Send request</button>
+      </form>
+      <h2>My requests</h2>
+      <div id="mine" class="list"></div>
+    </section>
+
+    <section id="view-tor" role="tabpanel" aria-labelledby="tab-tor" hidden>
+      <h2>Requests waiting for you</h2>
+      <div class="card actas">
+        <label for="actas">Sign as</label>
+        <select id="actas">
+          <option value="tor">tor (approver)</option>
+          <option value="ldn">ldn (requester, to see the contract refuse)</option>
+        </select>
+      </div>
+      <div id="pending" class="list"></div>
+      <h2>Approved, with the treasury</h2>
+      <div id="approved" class="list"></div>
+    </section>
+
+    <section id="view-ledger" role="tabpanel" aria-labelledby="tab-ledger" hidden>
+      <h2>Balances</h2>
+      <div id="books" class="card"></div>
+      <h2>All requests</h2>
+      <div id="all" class="list"></div>
+      <h2>FX rates (CAD to GBP)</h2>
+      <div id="fx" class="card"></div>
+    </section>
+  </main>
+  <script src="/app.js"></script>
+</body>
+</html>
