@@ -78,7 +78,7 @@ Sizes: S under 1 hour, M a few hours. No task is larger than M.
 ## Group C: deploy
 
 ### Task 6: Wallets and `stack.py treasury` deploy
-**Description:** Add `ldn`, `tor`, `treasury` to `wallets.json` and the signer keystore using the existing generator code (see `docs/wallets.md` §5), only if missing. `src/adapters/treasury_deploy.py` deploys `CADC`, `GBPC`, `FundingRequest` through FireFly (constructor: roles, bounds, token addresses), sets the token controller, registers interfaces and APIs, and writes the addresses to `deployed-addresses.json` under a `treasury` key. Add `treasury` to `stack_cli.py`.
+**Description:** Add `ldn`, `tor`, `treasury` to `wallets.json` and the signer keystore using the existing generator code (see `docs/wallets.md` §5), only if missing. `src/adapters/treasury_deploy.py` deploys `CADC`, `GBPC`, `FundingRequest` through FireFly (constructor: roles, bounds, token addresses), sets the token controller, registers interfaces and APIs, and writes the addresses (`cadc`, `gbpc`, `funding-request`) to `deployed-addresses.json`. Add `treasury` to `stack_cli.py`.
 **Acceptance:**
 - [ ] After `up`, `deploy`, `treasury` the three addresses are non-zero and `FundingRequest.treasury()` equals the `treasury` wallet
 - [ ] A second `treasury` run sends no transaction (idempotent), proven by an unchanged block-count of transactions from `admin`

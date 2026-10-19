@@ -48,8 +48,9 @@ The single RPC node and single FireFly in your assumption are what the repo alre
 |---|---|---|
 | `src/core/treasury/` | `money.py` (parse and format minor units), `fx.py` (rate table, lookup, conversion), `request.py` (state, transitions, validation), `dates.py` (processing date from a clock and a zone), `ids.py` (request id to `bytes32`, idempotency key), `ledger.py` (conservation check), `errors.py` | Pure. No `print`, `input`, network, file or clock access: the clock and the rate table are passed in |
 | `src/core/firefly/` | none | The existing `FireflyPort`, `outcome` and error model are reused as they are |
-| `src/adapters/` | `treasury_deploy.py` (deploy, register, roles), `treasury_service.py` (the orchestration: reacts to `Approved`, recovery sweep), `treasury_fx_file.py` (reads the JSON file), `treasury_http.py` (HTTP server, static page, JSON API), `treasury_command.py` (CLI for `stack.py treasury`) | I/O only; calls core |
-| `scripts/` | `treasury_app.py` (entry point that starts the HTTP server) | Thin |
+| `src/core/treasury/` (also) | `plan.py` (deploy plan), `gateway.py` (who signs which write, idempotency keys, reading a request, balances), `service.py` (steps 5 to 7: settle `Approved`, redeem `Settled`), `messages.py`, `views.py` | Pure: the FireFly port, the rate-table reader and the log sink are passed in |
+| `src/adapters/` | `treasury_artifacts.py` (loads `compiled/`, checks `SHA256SUMS`), `treasury_deploy.py` (wallets, deploy, register, wiring check), `treasury_api.py` (routes, no sockets), `treasury_http.py` (server, the page's files, the guards), `treasury_app.py` (puts it together, reads `fx-rates.json`), `treasury_ui/` (page) | I/O only; calls core |
+| `scripts/` | `treasury_app.py` (entry point that starts the HTTP server); `stack.py treasury` is a new command of the existing script | Thin |
 | `contracts/treasury/` | `contracts/*.sol`, `test/*.t.sol` (Hardhat 3 Solidity tests), `compiled/` (committed ABI, bytecode and `SHA256SUMS`) | Compiled once, committed like `contracts/paladin/` |
 | `tests/unit/core/test_treasury_*.py` (flat, as the rest of `tests/unit/core`), `tests/unit/adapters/`, `tests/integration/test_treasury_*.py` | | Mirror the code |
 

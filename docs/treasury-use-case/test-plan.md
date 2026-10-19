@@ -84,7 +84,7 @@ The most important rule: **negative tests call the contract API directly**, not 
 | `test_redeem_by_other_reverts` | F10 | `tor` redeems; `NotBeneficiary` |
 | `test_missing_fx_rate_blocks_then_recovers` | F6 | remove rate and default; approve; request stays `Approved`, CADC at treasury; add rate; retry settle; reaches `Redeemed` |
 | `test_dated_rate_beats_default` | TR-US-03 | two requests, one date with its own rate; GBP amounts use the right ones |
-| `test_idempotent_retry` | F4 | send the same create twice; one request, API answers with the first operation |
+| `test_idempotent_retry` | F4 | send the same create twice; one request on the chain, the second answer is `pending` naming the first transaction (the gateway never reports a repeated write as done) |
 | `test_restart_recovery` | F8 | approve, stop the app before settle, start it; the request settles once |
 | `test_pending_is_not_success` | F5 | with a very short poll window the API returns `Pending`, later reads show `Succeeded` |
 | `test_ledger_matches_chain` | UC-T4, TR-US-05 | Ledger numbers equal independent reads through `tests/support/firefly.py` |
