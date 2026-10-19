@@ -49,12 +49,30 @@ def test_format_rejects_negative() -> None:
         format_amount(-1)
 
 
+def _timeout_nodes(tree: ast.AST) -> set[ast.AST]:
+    """The annotation and default of every `timeout` parameter: seconds, not money."""
+    allowed: set[ast.AST] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.FunctionDef):
+            continue
+        positional = node.args.args
+        defaults = [None] * (len(positional) - len(node.args.defaults)) + list(node.args.defaults)
+        for arg, default in zip(positional, defaults, strict=True):
+            if arg.arg == "timeout":
+                allowed.update(n for n in (arg.annotation, default) if n is not None)
+    return allowed
+
+
 def test_treasury_core_uses_no_floating_point() -> None:
-    """TR-NFR-01: money is integers end to end."""
+    """TR-NFR-01: money is integers end to end. Only a `timeout` in seconds may be a float."""
     package = Path(__file__).resolve().parents[3] / "src" / "core" / "treasury"
     problems: list[str] = []
     for path in package.rglob("*.py"):
-        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        allowed = _timeout_nodes(tree)
+        for node in ast.walk(tree):
+            if node in allowed:
+                continue
             if isinstance(node, ast.Name) and node.id == "float":
                 problems.append(f"{path.name}:{node.lineno}")
             if isinstance(node, ast.Constant) and isinstance(node.value, float):
