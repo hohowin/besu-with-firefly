@@ -10,8 +10,8 @@ contract CurrencyToken {
     uint8 public constant decimals = 2;
 
     uint256 public totalSupply;
-    mapping(address => uint256) public balanceOf;
-    mapping(address => mapping(address => uint256)) public allowance;
+    mapping(address => uint256) private balances;
+    mapping(address => mapping(address => uint256)) private allowances;
 
     address public immutable admin;
     address public controller;
@@ -27,6 +27,15 @@ contract CurrencyToken {
         admin = admin_;
     }
 
+    // Explicit getters, not public mappings: FireFly passes inputs by name and a mapping getter has none.
+    function balanceOf(address account) external view returns (uint256) {
+        return balances[account];
+    }
+
+    function allowance(address owner, address spender) external view returns (uint256) {
+        return allowances[owner][spender];
+    }
+
     function setController(address controller_) external {
         require(msg.sender == admin, "NotAdmin");
         require(controller == address(0), "ControllerSet");
@@ -39,14 +48,14 @@ contract CurrencyToken {
         require(msg.sender == controller, "NotController");
         require(to != address(0), "BadRecipient");
         totalSupply += amount;
-        balanceOf[to] += amount;
+        balances[to] += amount;
         emit Transfer(address(0), to, amount);
     }
 
     function burn(address from, uint256 amount) external {
         require(msg.sender == controller, "NotController");
-        require(balanceOf[from] >= amount, "InsufficientBalance");
-        balanceOf[from] -= amount;
+        require(balances[from] >= amount, "InsufficientBalance");
+        balances[from] -= amount;
         totalSupply -= amount;
         emit Transfer(from, address(0), amount);
     }
@@ -57,16 +66,16 @@ contract CurrencyToken {
     }
 
     function approve(address spender, uint256 amount) external returns (bool) {
-        allowance[msg.sender][spender] = amount;
+        allowances[msg.sender][spender] = amount;
         emit Approval(msg.sender, spender, amount);
         return true;
     }
 
     function transferFrom(address from, address to, uint256 amount) external returns (bool) {
-        uint256 allowed = allowance[from][msg.sender];
+        uint256 allowed = allowances[from][msg.sender];
         require(allowed >= amount, "InsufficientAllowance");
         if (allowed != type(uint256).max) {
-            allowance[from][msg.sender] = allowed - amount;
+            allowances[from][msg.sender] = allowed - amount;
         }
         _transfer(from, to, amount);
         return true;
@@ -74,9 +83,9 @@ contract CurrencyToken {
 
     function _transfer(address from, address to, uint256 amount) private {
         require(to != address(0), "BadRecipient");
-        require(balanceOf[from] >= amount, "InsufficientBalance");
-        balanceOf[from] -= amount;
-        balanceOf[to] += amount;
+        require(balances[from] >= amount, "InsufficientBalance");
+        balances[from] -= amount;
+        balances[to] += amount;
         emit Transfer(from, to, amount);
     }
 }

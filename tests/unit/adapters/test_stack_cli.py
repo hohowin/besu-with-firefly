@@ -405,3 +405,47 @@ def test_perf_setup_reports_a_stack_that_is_not_deployed_and_exits_one(
 
     assert main(["perf-setup"], perf_runner=runner) == 1
     assert "stack.py deploy" in capsys.readouterr().err
+
+
+def test_treasury_runs_the_treasury_deployer_and_exits_zero(tmp_path: Path) -> None:
+    seen: list[Path] = []
+
+    def treasury_deployer(network_dir: Path) -> dict[str, str]:
+        seen.append(network_dir)
+        return {}
+
+    code = main(
+        ["treasury", "--network-dir", str(tmp_path)], treasury_deployer=treasury_deployer
+    )
+    assert code == 0
+    assert seen == [tmp_path]
+
+
+def test_treasury_failure_exits_one_with_the_reason(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from src.adapters.trex_deploy import DeployStepError
+
+    def treasury_deployer(_network_dir: Path) -> dict[str, str]:
+        raise DeployStepError("funding-request", "HTTP 500: boom")
+
+    code = main(
+        ["treasury", "--network-dir", str(tmp_path)], treasury_deployer=treasury_deployer
+    )
+    assert code == 1
+    assert "funding-request: HTTP 500: boom" in capsys.readouterr().err
+
+
+def test_treasury_names_a_missing_artifact_build_step(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from src.adapters.trex_artifacts import ArtifactsMissingError
+
+    def treasury_deployer(_network_dir: Path) -> dict[str, str]:
+        raise ArtifactsMissingError("compiled not found. Run `npm run build`")
+
+    code = main(
+        ["treasury", "--network-dir", str(tmp_path)], treasury_deployer=treasury_deployer
+    )
+    assert code == 1
+    assert "npm run build" in capsys.readouterr().err

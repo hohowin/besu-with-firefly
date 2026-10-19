@@ -8,7 +8,7 @@ from typing import Any, Protocol, TypeVar
 from src.adapters.firefly import AlreadySubmitted, DeployResult, FireflyError
 from src.adapters.trex_artifacts import LoadedArtifact
 from src.core.firefly.operations import Operation, find_method, is_transient
-from src.core.trex.plan import Artifact, Call, Deploy, Step, validate_plan
+from src.core.trex.plan import KNOWN_ACCOUNTS, Artifact, Call, Deploy, Step, validate_plan
 from src.core.trex.resolve import call_input, resolve_args
 
 
@@ -76,13 +76,14 @@ def run_plan(
     log: Callable[[str], None],
     sleep: Callable[[float], None] = time.sleep,
     clock: Callable[[], float] = time.monotonic,
+    known_accounts: frozenset[str] = KNOWN_ACCOUNTS,
 ) -> dict[str, str]:
     """Run every step in order and return the address of each deployed contract.
 
     A contract that is already in `existing` and still has code on chain is skipped. Addresses are
     saved after each deploy. The first failure stops the run with a `DeployStepError`.
     """
-    validate_plan(plan)
+    validate_plan(plan, known_accounts)
     addresses: dict[str, str] = {}
     artifacts: dict[str, LoadedArtifact] = {}
     for step in plan:

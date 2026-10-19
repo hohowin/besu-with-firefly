@@ -1,6 +1,6 @@
 """Command line for the stack: `python scripts/stack.py <command>`.
 
-`init`, `up`, `deploy`, `onboard`, `perf-setup`, `noto-demo` and `reset`.
+`init`, `up`, `deploy`, `onboard`, `treasury`, `perf-setup`, `noto-demo` and `reset`.
 """
 
 import argparse
@@ -27,6 +27,7 @@ from src.adapters.paladin_deploy import PaladinBootstrapError
 from src.adapters.paladin_files import CertMaker, docker_cert_maker, seed_runtime
 from src.adapters.perf_setup import perf_setup
 from src.adapters.rpc import chain_heights_reader
+from src.adapters.treasury_deploy import deploy_treasury
 from src.adapters.trex_artifacts import ArtifactsMissingError
 from src.adapters.trex_command import deploy_trex, onboard_trex
 from src.adapters.trex_deploy import DeployStepError
@@ -81,6 +82,16 @@ def build_parser() -> argparse.ArgumentParser:
         default=REPO_ROOT / "network-config",
         help="where wallets.json is (default: network-config/)",
     )
+    treasury = commands.add_parser(
+        "treasury",
+        help="add the treasury wallets and contracts (CADC, GBPC, FundingRequest) through FireFly",
+    )
+    treasury.add_argument(
+        "--network-dir",
+        type=Path,
+        default=REPO_ROOT / "network-config",
+        help="where wallets.json is (default: network-config/)",
+    )
     perf = commands.add_parser(
         "perf-setup",
         help="make N verified wallets holding COIN for the Caliper benchmark (needs deploy)",
@@ -122,6 +133,7 @@ def main(
     stack: Stack | None = None,
     deployer: Callable[[Path], dict[str, str]] | None = None,
     onboarder: Callable[[Path], None] | None = None,
+    treasury_deployer: Callable[[Path], dict[str, str]] | None = None,
     paladin_deployer: Callable[[], None] | None = None,
     demo_runner: Callable[[], str] | None = None,
     perf_runner: Callable[[Path, int, int], float] | None = None,
@@ -131,8 +143,9 @@ def main(
 ) -> int:
     """Run a command and return the process exit code.
 
-    Tests inject `generator`, `cert_maker`, `stack`, `deployer`, `onboarder`, `paladin_deployer`,
-    `demo_runner`, `perf_runner`, `addresses_file`, `paladin_source` and `paladin_runtime`.
+    Tests inject `generator`, `cert_maker`, `stack`, `deployer`, `onboarder`, `treasury_deployer`,
+    `paladin_deployer`, `demo_runner`, `perf_runner`, `addresses_file`, `paladin_source` and
+    `paladin_runtime`.
     """
     args = build_parser().parse_args(argv)
     if args.command == "init":
@@ -179,6 +192,12 @@ def main(
         try:
             (onboarder or onboard_trex)(args.network_dir)
         except (DeployStepError, FireflyError, OSError) as error:
+            print(f"error: {error}", file=sys.stderr)
+            return 1
+    if args.command == "treasury":
+        try:
+            (treasury_deployer or deploy_treasury)(args.network_dir)
+        except (DeployStepError, ArtifactsMissingError, FireflyError, StackError, OSError) as error:
             print(f"error: {error}", file=sys.stderr)
             return 1
     if args.command == "perf-setup":

@@ -33,8 +33,8 @@ contract FundingRequest {
     uint32 public immutable minRatePpm;
     uint32 public immutable maxRatePpm;
 
-    mapping(address => bool) public isRequester;
-    mapping(address => bool) public isApprover;
+    mapping(address => bool) private requesters;
+    mapping(address => bool) private approvers;
 
     mapping(bytes32 => Request) private requests;
     bytes32[] private ids;
@@ -65,15 +65,15 @@ contract FundingRequest {
         minRatePpm = minRatePpm_;
         maxRatePpm = maxRatePpm_;
         for (uint256 i = 0; i < requesters_.length; i++) {
-            isRequester[requesters_[i]] = true;
+            requesters[requesters_[i]] = true;
         }
         for (uint256 i = 0; i < approvers_.length; i++) {
-            isApprover[approvers_[i]] = true;
+            approvers[approvers_[i]] = true;
         }
     }
 
     function createRequest(bytes32 id, uint256 amountCad, uint32 processingDate) external {
-        require(isRequester[msg.sender], "NotRequester");
+        require(requesters[msg.sender], "NotRequester");
         require(requests[id].status == Status.None, "Exists");
         require(amountCad > 0 && amountCad <= maxAmountCad, "BadAmount");
         require(_validDate(processingDate), "BadDate");
@@ -130,6 +130,14 @@ contract FundingRequest {
         gbpc.burn(msg.sender, r.amountGbp);
     }
 
+    function isRequester(address account) external view returns (bool) {
+        return requesters[account];
+    }
+
+    function isApprover(address account) external view returns (bool) {
+        return approvers[account];
+    }
+
     function getRequest(bytes32 id) external view returns (Request memory) {
         return requests[id];
     }
@@ -146,7 +154,7 @@ contract FundingRequest {
     function _decidable(bytes32 id) private view returns (Request storage r) {
         r = requests[id];
         require(r.status == Status.Requested, "BadState");
-        require(isApprover[msg.sender], "NotApprover");
+        require(approvers[msg.sender], "NotApprover");
         require(msg.sender != r.requester, "SelfApproval");
     }
 

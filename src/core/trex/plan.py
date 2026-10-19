@@ -189,35 +189,36 @@ def build_plan() -> list[Step]:
     return plan
 
 
-def validate_plan(plan: list[Step]) -> None:
-    """Raise `PlanError` unless every reference points to something deployed earlier."""
+def validate_plan(plan: list[Step], accounts: frozenset[str] = KNOWN_ACCOUNTS) -> None:
+    """Raise `PlanError` unless every reference points to something deployed earlier and every
+    account is one of `accounts`."""
     deployed: set[str] = set()
     for step in plan:
         if isinstance(step, Deploy):
             if step.name in deployed:
                 raise PlanError(f"'{step.name}' is deployed twice")
-            _check_args(step.name, step.args, deployed)
+            _check_args(step.name, step.args, deployed, accounts)
             deployed.add(step.name)
         else:
             if step.contract not in deployed:
                 raise PlanError(
                     f"{step.method} calls '{step.contract}', which is not deployed before it"
                 )
-            _check_args(f"{step.contract}.{step.method}", step.args, deployed)
-            if step.sender not in KNOWN_ACCOUNTS:
+            _check_args(f"{step.contract}.{step.method}", step.args, deployed, accounts)
+            if step.sender not in accounts:
                 raise PlanError(f"unknown account '{step.sender}' sends {step.method}")
 
 
-def _check_args(owner: str, value: Any, deployed: set[str]) -> None:
+def _check_args(owner: str, value: Any, deployed: set[str], accounts: frozenset[str]) -> None:
     if isinstance(value, Ref):
         if value.name not in deployed:
             raise PlanError(f"'{owner}' uses '{value.name}', which is not deployed before it")
     elif isinstance(value, Account):
-        if value.name not in KNOWN_ACCOUNTS:
+        if value.name not in accounts:
             raise PlanError(f"'{owner}' uses unknown account '{value.name}'")
     elif isinstance(value, dict):
         for item in value.values():
-            _check_args(owner, item, deployed)
+            _check_args(owner, item, deployed, accounts)
     elif isinstance(value, (list, tuple)):
         for item in value:
-            _check_args(owner, item, deployed)
+            _check_args(owner, item, deployed, accounts)
