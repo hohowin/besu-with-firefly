@@ -1,0 +1,6 @@
+{
+  "notice": "DEMO ONLY. Fixed rates, not market data. Rates are text with at most 6 decimals: GBP per 1 CAD. A YYYY-MM-DD key applies to requests with that processing date; 'default' applies to every other date.",
+  "CADGBP": {
+    "default": "0.580000"
+  }
+}
