@@ -15,6 +15,21 @@
       "name": "beatrice",
       "address": "0x1077b3dded596660c258dcb702035efb5ec24f45",
       "privateKey": "0x71cf6a92fd2f498e73ba40dbeef53c4725929d65d71b29707a6104c632a25e97"
+    },
+    {
+      "name": "ldn",
+      "address": "0x205b28bb3bb87a95ab8527e36c937b3556de3603",
+      "privateKey": "0x2f8add164c2181181e6cd59f7914de6a8887d46ac51e835ebf82972c6d5603c8"
+    },
+    {
+      "name": "tor",
+      "address": "0xe725c98fb2fc1381b3104ad9fb619ff47ba2c136",
+      "privateKey": "0xeadca9fa3591269bda1114dbfb3acb6027d2b495b470cc48a30250aac1e2fc0d"
+    },
+    {
+      "name": "treasury",
+      "address": "0xab5c492ef23ff5364a06eecfab5454670fda0803",
+      "privateKey": "0x81d889006e902bc5070b46ab77b864607b3b5ffcd31a5d7b379145176eecad3a"
     }
   ]
 }

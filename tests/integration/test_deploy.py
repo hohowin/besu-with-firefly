@@ -34,7 +34,10 @@ def invoke_operations() -> list[dict[str, Any]]:
 
 
 def test_every_contract_has_a_non_zero_address_with_code_on_chain(deployed: dict[str, str]) -> None:
-    assert sorted(deployed) == sorted(PLAN_NAMES + SUITE_NAMES + list(PALADIN_NAMES.values()))
+    # `stack.py treasury` adds three contracts to the same file; nothing else may appear
+    treasury = {"cadc", "gbpc", "funding-request"}
+    expected = set(PLAN_NAMES + SUITE_NAMES + list(PALADIN_NAMES.values()))
+    assert expected <= set(deployed) <= expected | treasury
     for name, address in deployed.items():
         assert int(address, 16) != 0, f"{name} has the zero address"
         assert rpc_call(RPC_ANSON, "eth_getCode", [address, "latest"]) not in ("0x", ""), name

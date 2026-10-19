@@ -51,7 +51,10 @@ def test_the_signer_holds_the_three_demo_wallets(stack: DockerStack) -> None:
     wallets = json.loads(
         (REPO_ROOT / "network-config" / "wallets.json").read_text(encoding="utf-8")
     )["wallets"]
-    assert [w["name"] for w in wallets] == ["admin", "anson", "beatrice"]
+    names = [w["name"] for w in wallets]
+    assert names[:3] == ["admin", "anson", "beatrice"]
+    # `stack.py treasury` adds three wallets of its own; nothing else may be there
+    assert names[3:] in ([], ["ldn", "tor", "treasury"])
     # The benchmark wallets (`perf-setup`) are loaded into the same signer, so it may hold more.
     assert {w["address"] for w in wallets} <= {a.lower() for a in signer_rpc("eth_accounts")}
 
