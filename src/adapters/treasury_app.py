@@ -128,7 +128,10 @@ def main(argv: list[str] | None = None) -> int:
     except (ValueError, OSError, KeyError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 1
-    print(f"treasury app on http://{args.host}:{server.server_address[1]}/  (demo: no login)")
+    print(
+        f"treasury app on http://{args.host}:{server.server_address[1]}/  (demo: no login)",
+        flush=True,
+    )
     sweeper.trigger()  # finish what an earlier run left approved or settled
     try:
         server.serve_forever()

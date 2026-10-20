@@ -22,6 +22,7 @@ UI_DIR = Path(__file__).resolve().parent / "treasury_ui"
 
 _PAGE_FILES = {
     "/": ("index.html", "text/html; charset=utf-8"),
+    "/index.html": ("index.html", "text/html; charset=utf-8"),
     "/app.js": ("app.js", "text/javascript; charset=utf-8"),
     "/app.css": ("app.css", "text/css; charset=utf-8"),
 }
@@ -67,7 +68,7 @@ def route_http(
     if method == "GET" and path in _PAGE_FILES:
         return _page(ui_dir, path)
     if not path.startswith("/api/"):
-        return _json(404, _problem("not_found", f"no route for {method} {path}"))
+        return _json(404, _problem("not_found", f"no page at {path}: the app is at /"))
     if method == "POST":
         content_type = lowered.get("content-type", "").split(";")[0].strip().lower()
         if content_type != "application/json":

@@ -118,6 +118,7 @@ def test_the_page_and_its_two_files_are_served_with_a_strict_policy(ui: Path) ->
     host = {"Host": "127.0.0.1:8080"}
     for path, ctype in (
         ("/", "text/html"),
+        ("/index.html", "text/html"),
         ("/app.js", "text/javascript"),
         ("/app.css", "text/css"),
     ):
