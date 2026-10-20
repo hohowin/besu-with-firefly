@@ -430,8 +430,8 @@ curl -s -X POST .../apis/funding-request/query/getRequest -H 'Content-Type: appl
 
 | Layer | Where | What |
 |---|---|---|
-| Contract tests | `contracts/treasury/test/*.t.sol`, run by `cd contracts/treasury && npm test` | 31 tests (11 for the token, 20 for this contract): every success and every revert in the table of section 5, plus a fuzz test that tries random amounts and rates and checks the conversion formula and that CADC and GBPC supplies follow the four stages |
-| Mutation check | done once by hand | Five deliberate bugs (remove the self-approval check, remove the treasury check, round up instead of down, remove the CADC burn, let anyone mint) were each caught by a failing test |
+| Contract tests | `contracts/treasury/test/*.t.sol`, run by `cd contracts/treasury && npm test` | 34 tests (11 for the token, 20 for this contract, 3 for atomicity): every success and every revert in the table of section 5, plus a fuzz test that tries random amounts and rates and checks the conversion formula and that CADC and GBPC supplies follow the four stages |
+| Mutation check | done by hand | Seven deliberate bugs (remove the self-approval check, remove the treasury check, round up instead of down, remove the CADC burn, let anyone mint, and hide a failing GBPC mint or CADC mint with `try`/`catch`) were each caught by a failing test. The last two are why the atomicity tests exist: see [middleman-and-atomicity.md](middleman-and-atomicity.md) |
 | Python mirror | `tests/unit/core/test_treasury_*.py` | The same state machine and conversion in Python, so the app and the contract cannot disagree silently |
 | Live | `tests/integration/test_treasury_flow.py` | 17 tests through FireFly on a real chain, including direct calls that bypass the web page to prove the **chain** refuses |
 
