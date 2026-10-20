@@ -22,7 +22,7 @@
 
 **Trigger:** LDN end user opens the UI and submits the form.
 
-**Preconditions:** the stack is up and `deploy` and `treasury` (task 7) have run; the wallets `ldn`, `tor`, `treasury` exist with roles; the FX file has a rate for the processing date or a `default`.
+**Preconditions:** the stack is up and `python scripts/stack.py deploy` and `python scripts/stack.py treasury` have run; the wallets `ldn`, `tor`, `treasury` exist with roles; the FX file has a rate for the processing date or a `default`.
 
 ```mermaid
 sequenceDiagram
@@ -43,32 +43,59 @@ sequenceDiagram
     FF-->>UI: operation Succeeded
     UI-->>L: request id, status Requested
 
+    Note over CAD,GBP: Before approval: CADC supply 0, GBPC supply 0. Nothing is minted yet.
+
     T->>UI: open pending list, approve id
     UI->>FF: invoke approve as tor (id:approve)
     FF->>FR: transaction
-    FR->>CAD: mint(treasury, 100000)
+    FR->>CAD: MINT CADC 1000.00 to treasury wallet
+    Note over CAD: CADC minted. treasury holds 1000.00, supply 1000.00
     FR-->>FF: Approved event
     FF-->>UI: operation Succeeded
     UI-->>T: status Approved
 
-    UI->>TS: request id is Approved
-    TS->>FF: query CADC balanceOf treasury
-    FF-->>TS: 100000
+    UI->>TS: start the treasury steps
+    TS->>FF: query getRequest (state is Approved, amount, processing date)
+    FF-->>TS: Approved, CAD 1000.00, date 2026-10-18
     Note over TS: look up CADGBP rate for the processing date: 0.580000
     TS->>FF: invoke settle(id, 580000) as treasury (id:settle)
     FF->>FR: transaction
-    FR->>CAD: burn(treasury, 100000)
-    FR->>GBP: mint(ldn, 58000)
+    FR->>CAD: BURN CADC 1000.00 from treasury wallet
+    Note over CAD: CADC burned. treasury holds 0.00, supply 0.00
+    FR->>GBP: MINT GBPC 580.00 to ldn wallet
+    Note over GBP: GBPC minted. ldn holds 580.00, supply 580.00
     FR-->>FF: Settled event with cad, gbp and rate
     FF-->>TS: operation Succeeded
 
     TS->>FF: invoke redeem(id) as ldn (id:redeem)
     FF->>FR: transaction
-    FR->>GBP: burn(ldn, 58000)
+    FR->>GBP: BURN GBPC 580.00 from ldn wallet
+    Note over GBP: GBPC burned. ldn holds 0.00, supply 0.00
     FR-->>FF: Redeemed event
     FF-->>TS: operation Succeeded
     UI-->>L: status Redeemed, GBP 580.00 at 0.580000
+    Note over CAD,GBP: After redemption: CADC supply 0, GBPC supply 0. The money has left the chain as GBP paid out off-chain.
 ```
+
+### When each currency is minted and burnt
+
+| Step | Request becomes | Who signs | Contract call | CADC | GBPC |
+|---|---|---|---|---|---|
+| 1 Create | `Requested` | `ldn` | `createRequest` | nothing | nothing |
+| 3 Approve | `Approved` | `tor` | `approve` | **mint** 1000.00 to the `treasury` wallet | nothing |
+| 6 Settle | `Settled` | `treasury` | `settle` | **burn** 1000.00 from the `treasury` wallet | **mint** 580.00 to the `ldn` wallet |
+| 7 Redeem | `Redeemed` | `ldn` | `redeem` | nothing | **burn** 580.00 from the `ldn` wallet |
+| Reject instead of 3 | `Rejected` | `tor` | `reject` | nothing | nothing |
+
+What is outstanding at any moment (this is what the test `assert_conserved` checks):
+
+| Request is | CADC outstanding | GBPC outstanding |
+|---|---|---|
+| `Requested`, `Rejected`, `Redeemed` | 0 | 0 |
+| `Approved` | its CAD amount, held by `treasury` | 0 |
+| `Settled` | 0 | its GBP amount, held by `ldn` |
+
+Each of the three money steps is one transaction, so a mint and the burn that pairs with it never happen apart: `settle` burns the CADC and mints the GBPC together, or does neither. No wallet mints or burns by itself; only the `FundingRequest` contract can, and only inside these three calls.
 
 **Success criteria:**
 - The request ends `Redeemed`.
@@ -86,10 +113,10 @@ sequenceDiagram
 ```mermaid
 stateDiagram-v2
     [*] --> Requested: createRequest (ldn)
-    Requested --> Approved: approve (tor), mints CADC
-    Requested --> Rejected: reject (tor)
-    Approved --> Settled: settle (treasury), burns CADC, mints GBPC
-    Settled --> Redeemed: redeem (ldn), burns GBPC
+    Requested --> Approved: approve (tor)<br/>MINT CADC to treasury
+    Requested --> Rejected: reject (tor)<br/>no mint
+    Approved --> Settled: settle (treasury)<br/>BURN CADC, MINT GBPC to ldn
+    Settled --> Redeemed: redeem (ldn)<br/>BURN GBPC
     Rejected --> [*]
     Redeemed --> [*]
 ```
