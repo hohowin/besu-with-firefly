@@ -232,7 +232,7 @@ The new keys go into `wallets.json` and the FireFly signer keystore as the exist
 | TD-11 | Integer minor units, 2 decimals; GBP rounded down; cap per request | Floats (never); 18 decimals (needless) | Proposed (Q3, Q8) |
 | TD-12 | The request id is a UUID made when the form loads, left-padded to `bytes32` (reversible, so the UI can show the UUID); the idempotency key is `<id>:<action>` | Server-generated id (a retried POST would create a second request) | Proposed |
 
-Once you sign off, the accepted rows move into `docs/plan.md` §3 as D-18 and up.
+The accepted rows are in `docs/plan.md` §3 as D-18 to D-24. Where they differ from this table, the code and `plan.md` win: roles are fixed at deploy and a repeated write is reported as pending.
 
 ## 10. Failure handling summary
 

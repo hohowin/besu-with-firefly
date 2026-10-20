@@ -1,6 +1,6 @@
 # Treasury use case: cross-border branch funding
 
-> **Owner:** Howin Ho · **Created:** 2026-10-18 · **Status:** Draft, waiting for sign-off on the Open Questions in [prd.md](prd.md) §9
+> **Owner:** Howin Ho · **Created:** 2026-10-18 · **Status:** Implemented and checked on the live stack (2026-10-19). The recommended answers to [prd.md](prd.md) §9 were used; the decisions are D-18 to D-24 in `docs/plan.md`
 > Source: `/grill-me` interview (2026-10-18). Decisions are numbered TD-01 and up so they do not collide with the project's D-xx in `docs/plan.md`.
 
 ## What this adds

@@ -357,6 +357,24 @@ Open **Blockchain > APIs** in the Explorer, or go straight to http://localhost:5
 
 To go on, [docs/firefly-user-guide.md](docs/firefly-user-guide.md) explains each Explorer page, and `python scripts/stack.py reset` followed by `up` and `deploy` (or `docker compose down -v` and the quick route) returns everything to 1000 COIN.
 
+## Try the treasury branch-funding flow
+
+London asks Toronto for CAD, Toronto approves, the treasury converts to GBP at a fixed rate, and London redeems the GBP. Everything is on the chain and visible in the FireFly Explorer. Design: [docs/treasury-use-case/](docs/treasury-use-case/README.md).
+
+```bash
+python scripts/stack.py up
+python scripts/stack.py deploy
+python scripts/stack.py treasury        # three wallets, three contracts; safe to repeat
+python scripts/treasury_app.py          # then open http://127.0.0.1:8080/
+```
+
+1. **London** tab: enter `1000.00` and send the request.
+2. **Toronto** tab: approve it. CADC is minted to the treasury wallet.
+3. The app converts at the rate in `network-config/treasury/fx-rates.json` (0.58 by default), burns the CADC, mints `580.00` GBPC to London's wallet, and London redeems it.
+4. **Ledger** tab: the request is `redeemed`, both supplies are `0.00`, and "Books balance" is green. Change a rate in the file and the next request uses it, with no restart.
+
+Try "Sign as ldn" on the Toronto tab to see the contract refuse a wallet that has no approver role. There is no login: the page only picks which wallet signs, and the contracts decide.
+
 ## Benchmark (Caliper)
 
 Chain layer (direct JSON-RPC) against FireFly layer, the same `COIN.transfer`. Needs the stack up and deployed.
@@ -417,6 +435,7 @@ The local demo is the only environment that exists today. Its Explorer needs no 
 | [docs/wallets.md](docs/wallets.md) | What a wallet is here, how one is created, accepted by the network and added (tested live) |
 | [docs/paladin-guide.md](docs/paladin-guide.md) | What Paladin does here, how it is integrated and works, and how to observe it |
 | [docs/paladin-domains.md](docs/paladin-domains.md) | Paladin's three domains (Noto, Zeto, Pente): differences, their smart contracts, and how to build custom contracts or replace parts |
+| [docs/treasury-use-case/](docs/treasury-use-case/README.md) | Branch funding use case: London asks in CAD, Toronto approves, the treasury converts to GBP. Use case, PRD, design, tasks, test plan |
 | [docs/production-step-by-step.md](docs/production-step-by-step.md) | Discussion draft: what it would take to run this for real, step by step |
 
 ## Development notes

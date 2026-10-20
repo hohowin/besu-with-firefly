@@ -553,3 +553,9 @@ sequenceDiagram
 | UC-11 | US-010 | unit test, mocked port |
 
 All use cases are MVP. Post-MVP flows (Zeto, Pente, Paladin in the CLI, multi-party) have no use case yet and would need a new `/grill-me` pass.
+
+---
+
+## Treasury branch funding (UC-T1 to UC-T5)
+
+A second set of flows, for cross-border branch funding, is in [treasury-use-case/use-case.md](treasury-use-case/use-case.md). It has its own numbering so it does not collide with UC-01 to UC-11. Requirements: [treasury-use-case/prd.md](treasury-use-case/prd.md).
