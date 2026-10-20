@@ -1,9 +1,10 @@
 # The tokens: CADC and GBPC, line by line
 
 > Companion docs: [README.md](README.md) · [chaincode-explained.md](chaincode-explained.md) · [wallets-explained.md](wallets-explained.md) · [use-case.md](use-case.md)
+> **Where the program is:** [README.md, "Where everything is"](README.md#where-everything-is) lists every file and shows what runs where.
 > Source: [contracts/treasury/contracts/CurrencyToken.sol](../../contracts/treasury/contracts/CurrencyToken.sol) (91 lines). Every line is explained below. You need no blockchain background.
 
-**Short answer.** A token here is **a table inside a contract**: it lists addresses and how much each one holds. There is no coin object anywhere else. `CADC` stands for Canadian dollars on the chain, `GBPC` for pounds. They are the **same code deployed twice**, with different names. Only one other contract, `FundingRequest`, may create (**mint**) or destroy (**burn**) them, and it does so only at three moments in the funding flow.
+**Short answer.** A token here is **a table inside a contract**: it lists addresses and how much each one holds. There is no coin object anywhere else. `CADC` stands for Canadian dollars on the chain, `GBPC` for pounds. They are the **same code deployed twice** (source: `contracts/treasury/contracts/CurrencyToken.sol`; on the chain at the addresses `cadc` and `gbpc` in `deployed-addresses.json`), with different names. Only one other contract, `FundingRequest`, may create (**mint**) or destroy (**burn**) them, and it does so only at three moments in the funding flow.
 
 **Contents:** [1. The ideas](#1-the-ideas) · [2. The two tokens](#2-the-two-tokens) · [3. How a balance moves through the flow](#3-how-a-balance-moves-through-the-flow) · [4. The code, line by line](#4-the-code-line-by-line) · [5. What the tokens do not do](#5-what-the-tokens-do-not-do) · [6. Try it](#6-try-it) · [7. Check yourself](#7-check-yourself)
 

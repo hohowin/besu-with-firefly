@@ -1,6 +1,7 @@
 # The treasury wallets: ldn, tor and treasury
 
 > Companion docs: [README.md](README.md) · [tokens-explained.md](tokens-explained.md) · [chaincode-explained.md](chaincode-explained.md) · [use-case.md](use-case.md)
+> **Where the program is:** [README.md, "Where everything is"](README.md#where-everything-is) lists every file and shows what runs where.
 > For what a wallet is in general here (key, keystore, how the signer accepts it), read [../wallets.md](../wallets.md). This page covers only what the treasury use case adds. You need no blockchain background.
 
 **Short answer.** The use case adds **three wallets**: `ldn`, `tor` and `treasury`. Each is a private key with a name. The `FundingRequest` contract is told, when it is deployed, which address plays which role, and from then on it accepts that role only from that address. **No wallet mints or burns by itself, and there is no "minter" wallet**: a wallet only asks the contract, and the contract does the minting and burning. The fourth wallet you will see, `admin`, already existed; it deploys the contracts and then has no power over the money.

@@ -1,9 +1,10 @@
 # The chain code: FundingRequest, line by line
 
 > Companion docs: [README.md](README.md) · [tokens-explained.md](tokens-explained.md) · [wallets-explained.md](wallets-explained.md) · [use-case.md](use-case.md) · [design.md](design.md) §3
+> **Where the program is:** [README.md, "Where everything is"](README.md#where-everything-is) lists every file and shows what runs where.
 > Source: [contracts/treasury/contracts/FundingRequest.sol](../../contracts/treasury/contracts/FundingRequest.sol) (166 lines). You need no blockchain background; read [tokens-explained.md](tokens-explained.md) first if "mint" and "burn" are new.
 
-**Short answer.** "Chain code" is the program that runs **on the chain**: here one Solidity contract, `FundingRequest`, running inside the Besu network at one address. It is the rule book and the memory of the funding flow. It stores each request and its state, it decides who may take each step, and it is the only thing that can mint or burn `CADC` and `GBPC`. The web page, the FireFly server and the treasury service only *ask* it to do things; **the contract decides**.
+**Short answer.** "Chain code" is the program that runs **on the chain**: here one Solidity contract, `FundingRequest`, running inside the Besu network at one address. Its source is `contracts/treasury/contracts/FundingRequest.sol`; once deployed it lives at one address on the chain (`funding-request` in `deployed-addresses.json`). It is the rule book and the memory of the funding flow. It stores each request and its state, it decides who may take each step, and it is the only thing that can mint or burn `CADC` and `GBPC`. The web page, the FireFly server and the treasury service only *ask* it to do things; **the contract decides**.
 
 **Contents:** [1. What chain code is](#1-what-chain-code-is) · [2. Where it lives and how it is called](#2-where-it-lives-and-how-it-is-called) · [3. What it stores and who may do what](#3-what-it-stores-and-who-may-do-what) · [4. The code, line by line](#4-the-code-line-by-line) · [5. Why each rule exists](#5-why-each-rule-exists) · [6. Reading it from outside](#6-reading-it-from-outside) · [7. How it is tested](#7-how-it-is-tested) · [8. Changing it safely](#8-changing-it-safely)
 
