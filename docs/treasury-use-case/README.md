@@ -38,6 +38,9 @@ flowchart LR
 | [design.md](design.md) | Contracts, FireFly API shape, UI/API, layering, decisions TD-01 to TD-12, risks |
 | [tasks.md](tasks.md) | Ordered task list with a verification step for each task |
 | [test-plan.md](test-plan.md) | Unit, contract and integration tests, invariants, traceability |
+| [tokens-explained.md](tokens-explained.md) | **Teaching guide:** what CADC and GBPC are, and `CurrencyToken.sol` explained line by line |
+| [chaincode-explained.md](chaincode-explained.md) | **Teaching guide:** the `FundingRequest` contract (the chain code) explained line by line, why each rule exists, how to read and change it |
+| [wallets-explained.md](wallets-explained.md) | **Teaching guide:** the `ldn`, `tor` and `treasury` wallets, how they are made and sign, what each can and cannot do |
 
 ## Scope change you need to accept
 
