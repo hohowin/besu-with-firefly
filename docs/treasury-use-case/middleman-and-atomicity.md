@@ -119,6 +119,7 @@ flowchart LR
 | The app stops after `approve` | The state `Approved` is on the chain. At the next start the service reads every request and settles those still `Approved` |
 | The app stops after `settle` | Same: it finds `Settled` and redeems |
 | The same click or retry is sent twice | Each write has the key `<request UUID>:<action>`. FireFly refuses a second write with the same key, and the app reports it as `pending`, never as done twice. Even without the key, the contract refuses a repeat with `BadState` |
+| A try was **refused** (wrong wallet, rate outside the bounds) and the cause is now fixed | FireFly keeps the key of a refused try, so the same key can never succeed, and the first version of the app got stuck here. The gateway now asks FireFly about the earlier transaction: if it never went out (its operation is `Failed`, or `Initialized`, which is what a contract refusal at gas estimation leaves), the write is sent again under a new key (`<key>-after-<first 8 characters of the old transaction id>`, the same every time, up to 5 times). If the earlier try succeeded or is still `Pending`, it is **not** sent again |
 | FireFly does not answer in time | The result is unknown, so the app shows **pending** and never "done". It reads the chain to see what really happened |
 | The FX rate is missing | The request waits as `Approved` with the reason shown; adding the rate and pressing **Retry settle** continues it |
 | A step fails | The request stays in its last good state. Retrying is safe because a failed step changed nothing (section 3) |

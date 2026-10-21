@@ -3,7 +3,13 @@ from typing import Any
 
 import pytest
 
-from src.core.firefly.errors import AlreadySubmitted, OperationFailed, Reverted, WriteUnconfirmed
+from src.core.firefly.errors import (
+    AlreadySubmitted,
+    FireflyError,
+    OperationFailed,
+    Reverted,
+    WriteUnconfirmed,
+)
 from src.core.firefly.operations import Operation
 from src.core.firefly.outcome import ComplianceRevert, Failed, Pending, Succeeded
 from src.core.treasury.gateway import TreasuryGateway, parse_request
@@ -40,6 +46,8 @@ class FakePort:
         self.writes: list[tuple[str, str, dict[str, Any], str | None, str | None]] = []
         self.queries: list[tuple[str, str, dict[str, Any]]] = []
         self.write_error: Exception | None = None
+        self.script: list[Exception | None] = []  # one entry per call, consumed first
+        self.earlier: dict[str, list[Operation]] = {}
         self.operation = Operation("op1", "Succeeded", tx="tx1")
         self.answers: dict[tuple[str, str], Any] = {}
 
@@ -53,9 +61,13 @@ class FakePort:
         timeout: float = 0,
     ) -> Operation:
         self.writes.append((api, method, dict(inputs), key, idempotency_key))
-        if self.write_error:
-            raise self.write_error
+        step = self.script.pop(0) if self.script else self.write_error
+        if step:
+            raise step
         return self.operation
+
+    def transaction_operations(self, transaction_id: str) -> list[Operation]:
+        return self.earlier.get(transaction_id, [Operation("opx", "Succeeded")])
 
     def api_query(self, api: str, method: str, inputs: Mapping[str, Any]) -> Any:
         self.queries.append((api, method, dict(inputs)))
@@ -159,8 +171,76 @@ def test_a_repeated_write_is_pending_and_names_the_first_transaction(
     port: FakePort, gateway: TreasuryGateway
 ) -> None:
     port.write_error = AlreadySubmitted("tx-first")
+    port.earlier["tx-first"] = [Operation("op0", "Succeeded")]
     outcome = gateway.create(UUID, 100, 20261018, "ldn")
     assert outcome == Pending(None, "tx-first", "already submitted")
+    assert len(port.writes) == 1  # not sent a second time
+
+
+def test_a_repeat_while_the_first_try_is_still_pending_stays_pending(
+    port: FakePort, gateway: TreasuryGateway
+) -> None:
+    port.write_error = AlreadySubmitted("tx-slow")
+    port.earlier["tx-slow"] = [Operation("op0", "Pending")]
+    assert gateway.approve(UUID, "tor") == Pending(None, "tx-slow", "already submitted")
+    assert len(port.writes) == 1
+
+
+def test_a_repeat_after_a_failed_first_try_is_sent_again_under_a_new_key(
+    port: FakePort, gateway: TreasuryGateway
+) -> None:
+    """FireFly keeps the key of a failed transaction, so the same key can never succeed. The
+    first try was refused (wrong wallet, bad rate); after the cause is fixed the retry must go
+    out under a new key, the same every time for the same failed transaction."""
+    port.script = [AlreadySubmitted("tx-failed-1234"), None]
+    port.earlier["tx-failed-1234"] = [Operation("op0", "Failed", error="reverted")]
+    outcome = gateway.approve(UUID, "tor")
+    assert isinstance(outcome, Succeeded)
+    keys = [write[4] for write in port.writes]
+    assert keys == [f"{UUID}:approve", f"{UUID}:approve-after-tx-faile"]
+
+
+def test_a_second_failure_chains_to_a_third_key_and_a_refusal_is_returned_as_it_is(
+    port: FakePort, gateway: TreasuryGateway
+) -> None:
+    port.script = [
+        AlreadySubmitted("tx-aaaaaaaa"),
+        AlreadySubmitted("tx-bbbbbbbb"),
+        Reverted("BadRate", "HTTP 400: EVM reverted"),
+    ]
+    port.earlier["tx-aaaaaaaa"] = [Operation("op1", "Failed")]
+    port.earlier["tx-bbbbbbbb"] = [Operation("op2", "Failed")]
+    outcome = gateway.settle(UUID, 900000, "treasury")
+    assert outcome == ComplianceRevert("BadRate")
+    keys = [write[4] for write in port.writes]
+    assert keys == [
+        f"{UUID}:settle",
+        f"{UUID}:settle-after-tx-aaaaa",
+        f"{UUID}:settle-after-tx-aaaaa-after-tx-bbbbb",
+    ]
+
+
+def test_the_retries_stop_so_a_broken_key_cannot_loop_forever(
+    port: FakePort, gateway: TreasuryGateway
+) -> None:
+    port.write_error = AlreadySubmitted("tx-failed-0000")
+    port.earlier["tx-failed-0000"] = [Operation("op0", "Failed")]
+    outcome = gateway.redeem(UUID, "ldn")
+    assert isinstance(outcome, Pending)  # unknown, never reported as done
+    assert 1 < len(port.writes) <= 6
+
+
+def test_asking_about_the_earlier_try_can_fail_without_hiding_the_cause(
+    port: FakePort, gateway: TreasuryGateway
+) -> None:
+    port.write_error = AlreadySubmitted("tx-first")
+
+    def broken(_transaction_id: str) -> list[Operation]:
+        raise FireflyError("connection refused")
+
+    port.transaction_operations = broken  # type: ignore[assignment]
+    outcome = gateway.create(UUID, 100, 20261018, "ldn")
+    assert isinstance(outcome, Failed) and "connection refused" in str(outcome.error)
 
 
 def test_a_pending_operation_is_pending(port: FakePort, gateway: TreasuryGateway) -> None:
@@ -253,3 +333,25 @@ def test_balances_cover_every_wallet_and_both_supplies(port: FakePort) -> None:
     assert result.balances["treasury"] == {"cadc": 100000, "gbpc": 0}
     assert result.balances["ldn"] == {"cadc": 0, "gbpc": 0}
     assert set(result.balances) == {"ldn", "tor", "treasury"}
+
+
+def test_a_refused_try_that_stayed_initialized_is_retried_too(
+    port: FakePort, gateway: TreasuryGateway
+) -> None:
+    """A write the contract refuses while the gas is estimated never becomes `Failed`: FireFly
+    leaves its operation `Initialized` (seen on a live stack). It never went out, so retry."""
+    port.script = [AlreadySubmitted("tx-refused-1"), None]
+    port.earlier["tx-refused-1"] = [Operation("op0", "Initialized")]
+    assert isinstance(gateway.approve(UUID, "tor"), Succeeded)
+    assert len(port.writes) == 2
+
+
+def test_a_try_that_is_pending_or_succeeded_is_never_sent_again(
+    port: FakePort, gateway: TreasuryGateway
+) -> None:
+    for status in ("Pending", "Succeeded"):
+        port.writes.clear()
+        port.write_error = AlreadySubmitted("tx-live")
+        port.earlier["tx-live"] = [Operation("op0", status)]
+        assert gateway.approve(UUID, "tor") == Pending(None, "tx-live", "already submitted")
+        assert len(port.writes) == 1

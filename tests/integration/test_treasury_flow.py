@@ -377,3 +377,15 @@ def test_a_rate_outside_the_contract_bounds_is_refused_and_explained(app: App) -
     assert status == 202
     assert wait_status(request_uuid, 5)["amountGbp"] == "3480"
     assert_conserved()
+
+
+def test_a_refused_approve_can_be_retried_by_the_right_wallet(app: App) -> None:
+    """The page lets you pick the wallet: a refusal as `ldn` must not block a later approve as
+    `tor`. FireFly keeps the idempotency key of the refused try, so the retry needs a new key."""
+    request_uuid, _, _ = app.create("15.00")
+    status, body = app.call("POST", f"/api/requests/{request_uuid}/approve", {"as": "ldn"})
+    assert (status, body["error"]) == (403, "NotApprover")
+    status, body = app.call("POST", f"/api/requests/{request_uuid}/approve", {"as": "tor"})
+    assert (status, body["status"]) == (202, "done")
+    assert wait_status(request_uuid, 5)["amountGbp"] == "870"
+    assert_conserved()
