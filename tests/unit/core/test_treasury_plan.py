@@ -3,6 +3,8 @@ import pytest
 from src.core.treasury.money import MAX_AMOUNT_MINOR
 from src.core.treasury.plan import (
     APIS,
+    MAX_RATE_PPM,
+    MIN_RATE_PPM,
     ROLE_ACCOUNTS,
     TREASURY_ACCOUNTS,
     build_plan,
@@ -61,3 +63,24 @@ def test_each_contract_gets_an_api() -> None:
     ]
     deployed = {s.name for s in build_plan() if isinstance(s, Deploy)}
     assert {name for _, name, _ in APIS} <= deployed
+
+
+def test_the_rate_bounds_are_tight_around_a_real_cad_to_gbp_rate() -> None:
+    """0.40 to 0.80: wide enough for months of market moves, narrow enough that a typo such as
+    0.90 or 0.058 is refused by the contract (TD-05, middleman-and-atomicity.md section 2)."""
+    assert (MIN_RATE_PPM, MAX_RATE_PPM) == (400_000, 800_000)
+    request = next(s for s in build_plan() if isinstance(s, Deploy) and s.name == "funding-request")
+    assert request.args[-2:] == (MIN_RATE_PPM, MAX_RATE_PPM)
+
+
+def test_the_demo_rate_file_is_inside_the_bounds_the_contract_will_accept() -> None:
+    import json
+    from pathlib import Path
+
+    from src.core.treasury.fx import parse_rates
+
+    path = Path(__file__).resolve().parents[3] / "network-config" / "treasury" / "fx-rates.json"
+    rates = parse_rates(json.loads(path.read_text(encoding="utf-8")))
+    every_rate = [*rates.by_date.values(), *([rates.default] if rates.default else [])]
+    assert every_rate
+    assert all(MIN_RATE_PPM <= rate <= MAX_RATE_PPM for rate in every_rate)

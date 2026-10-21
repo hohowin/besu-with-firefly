@@ -92,31 +92,44 @@ contract CurrencyTokenTest {
         token.mint(address(0), 1);
     }
 
-    function test_TransferAndAllowanceFollowErc20() public {
+    /// The tokens cannot be moved by their holders: only the controller creates or destroys them.
+    /// A holder calling `transfer`, `approve` or `transferFrom` is refused (the functions do not
+    /// exist), and the balances do not change.
+    function test_AHolderCannotMoveTokens() public {
         token.setController(CONTROLLER);
         vm.prank(CONTROLLER);
         token.mint(ALICE, 100);
 
         vm.prank(ALICE);
-        token.transfer(BOB, 40);
-        require(token.balanceOf(ALICE) == 60 && token.balanceOf(BOB) == 40, "transfer");
+        (bool sent,) = address(token).call(abi.encodeWithSignature("transfer(address,uint256)", BOB, 40));
+        require(!sent, "transfer must not exist");
 
         vm.prank(ALICE);
-        token.approve(BOB, 25);
-        vm.prank(BOB);
-        token.transferFrom(ALICE, BOB, 25);
-        require(token.balanceOf(ALICE) == 35 && token.balanceOf(BOB) == 65, "transferFrom");
-        require(token.allowance(ALICE, BOB) == 0, "allowance used");
+        (bool approved,) = address(token).call(abi.encodeWithSignature("approve(address,uint256)", BOB, 25));
+        require(!approved, "approve must not exist");
 
         vm.prank(BOB);
-        vm.expectRevert("InsufficientAllowance");
-        token.transferFrom(ALICE, BOB, 1);
-        require(token.totalSupply() == 100, "transfers do not change the supply");
+        (bool pulled,) = address(token).call(
+            abi.encodeWithSignature("transferFrom(address,address,uint256)", ALICE, BOB, 1)
+        );
+        require(!pulled, "transferFrom must not exist");
+
+        (bool allowed,) = address(token).staticcall(
+            abi.encodeWithSignature("allowance(address,address)", ALICE, BOB)
+        );
+        require(!allowed, "allowance must not exist");
+
+        require(token.balanceOf(ALICE) == 100 && token.balanceOf(BOB) == 0, "balances unchanged");
+        require(token.totalSupply() == 100, "supply unchanged");
     }
 
-    function test_TransferMoreThanTheBalanceReverts() public {
-        vm.prank(ALICE);
-        vm.expectRevert("InsufficientBalance");
-        token.transfer(BOB, 1);
+    /// Mint and burn are the only ways the supply changes, and they undo each other.
+    function test_MintThenBurnReturnsTheSupplyToZero() public {
+        token.setController(CONTROLLER);
+        vm.prank(CONTROLLER);
+        token.mint(ALICE, 7);
+        vm.prank(CONTROLLER);
+        token.burn(ALICE, 7);
+        require(token.totalSupply() == 0, "back to zero");
     }
 }

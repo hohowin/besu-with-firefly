@@ -291,16 +291,29 @@ contract FundingRequestTest {
         fr.redeem(ID);
     }
 
-    function test_RedeemFailsIfTheBeneficiarySentTheGbpAway() public {
+    /// The GBPC of a settled request cannot be sent elsewhere, so `redeem` always has it to burn.
+    function test_TheBeneficiaryCannotSendTheGbpAwayBeforeRedeeming() public {
         _create(ID, 100000);
         _approve(ID);
         _settle(ID, RATE);
         vm.prank(LDN);
-        gbpc.transfer(OTHER, 1);
+        (bool sent,) = address(gbpc).call(abi.encodeWithSignature("transfer(address,uint256)", OTHER, 1));
+        require(!sent, "the GBP cannot be moved");
+        require(gbpc.balanceOf(LDN) == 58000, "all of it is still there");
         vm.prank(LDN);
-        vm.expectRevert("InsufficientBalance");
         fr.redeem(ID);
-        require(_status(ID) == FundingRequest.Status.Settled, "nothing changed");
+        require(_status(ID) == FundingRequest.Status.Redeemed, "redeemed");
+    }
+
+    /// The same for the treasury: the CADC it holds cannot be moved away, so `settle` can burn it.
+    function test_TheTreasuryCannotSendTheCadAwayBeforeSettling() public {
+        _create(ID, 100000);
+        _approve(ID);
+        vm.prank(TREASURY);
+        (bool sent,) = address(cadc).call(abi.encodeWithSignature("transfer(address,uint256)", OTHER, 1));
+        require(!sent, "the CAD cannot be moved");
+        _settle(ID, RATE);
+        require(_status(ID) == FundingRequest.Status.Settled, "settled");
     }
 
     // ---- constructor ----

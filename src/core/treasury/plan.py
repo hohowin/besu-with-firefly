@@ -16,9 +16,10 @@ ROLE_ACCOUNTS = {"requester": "ldn", "approver": "tor", "treasury": "treasury"}
 NEW_WALLETS = ("ldn", "tor", "treasury")
 TREASURY_ACCOUNTS = KNOWN_ACCOUNTS | frozenset(NEW_WALLETS)
 
-# Bounds the contract enforces on the rate passed to `settle`, in parts per million.
-MIN_RATE_PPM = 10_000  # 0.010000
-MAX_RATE_PPM = 5_000_000  # 5.000000
+# Bounds the contract enforces on the rate passed to `settle`, in parts per million. Tight on
+# purpose: a real CAD to GBP rate is about 0.55 to 0.60, so a typo is refused, not paid.
+MIN_RATE_PPM = 400_000  # 0.400000
+MAX_RATE_PPM = 800_000  # 0.800000
 
 # FireFly API name, the deployed contract it points at, and the artifact that describes it.
 APIS = [

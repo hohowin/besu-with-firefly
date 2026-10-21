@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.28;
 
-/// A minimal ERC-20 for one currency (2 decimals). Only the `controller` can mint and burn.
-/// The controller is the FundingRequest contract and is set once by the admin (TD-02).
+/// A ledger token for one currency (2 decimals). It has the ERC-20 read functions and events, but
+/// it is NOT transferable: there is no transfer, approve or transferFrom. Tokens are only created
+/// (mint) and destroyed (burn), and only by the `controller`, which is the FundingRequest contract
+/// and is set once by the admin (TD-02). So a holder can neither send tokens away nor block a
+/// step by moving them.
 /// Reverts use plain strings: FireFly's error text carries only Error("...") reasons.
 contract CurrencyToken {
     string public name;
@@ -11,13 +14,13 @@ contract CurrencyToken {
 
     uint256 public totalSupply;
     mapping(address => uint256) private balances;
-    mapping(address => mapping(address => uint256)) private allowances;
 
     address public immutable admin;
     address public controller;
 
+    // The standard ERC-20 event. A mint is a Transfer from the zero address, a burn is a Transfer
+    // to the zero address, so wallets and the Explorer show them correctly.
     event Transfer(address indexed from, address indexed to, uint256 value);
-    event Approval(address indexed owner, address indexed spender, uint256 value);
     event ControllerSet(address indexed controller);
 
     constructor(string memory name_, string memory symbol_, address admin_) {
@@ -27,13 +30,9 @@ contract CurrencyToken {
         admin = admin_;
     }
 
-    // Explicit getters, not public mappings: FireFly passes inputs by name and a mapping getter has none.
+    // Explicit getter, not a public mapping: FireFly passes inputs by name and a mapping getter has none.
     function balanceOf(address account) external view returns (uint256) {
         return balances[account];
-    }
-
-    function allowance(address owner, address spender) external view returns (uint256) {
-        return allowances[owner][spender];
     }
 
     function setController(address controller_) external {
@@ -58,34 +57,5 @@ contract CurrencyToken {
         balances[from] -= amount;
         totalSupply -= amount;
         emit Transfer(from, address(0), amount);
-    }
-
-    function transfer(address to, uint256 amount) external returns (bool) {
-        _transfer(msg.sender, to, amount);
-        return true;
-    }
-
-    function approve(address spender, uint256 amount) external returns (bool) {
-        allowances[msg.sender][spender] = amount;
-        emit Approval(msg.sender, spender, amount);
-        return true;
-    }
-
-    function transferFrom(address from, address to, uint256 amount) external returns (bool) {
-        uint256 allowed = allowances[from][msg.sender];
-        require(allowed >= amount, "InsufficientAllowance");
-        if (allowed != type(uint256).max) {
-            allowances[from][msg.sender] = allowed - amount;
-        }
-        _transfer(from, to, amount);
-        return true;
-    }
-
-    function _transfer(address from, address to, uint256 amount) private {
-        require(to != address(0), "BadRecipient");
-        require(balances[from] >= amount, "InsufficientBalance");
-        balances[from] -= amount;
-        balances[to] += amount;
-        emit Transfer(from, to, amount);
     }
 }
