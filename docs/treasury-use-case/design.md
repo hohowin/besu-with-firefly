@@ -62,7 +62,7 @@ The single RPC node and single FireFly in your assumption are what the repo alre
 |---|---|---|
 | Solidity source files | 2 | `CurrencyToken.sol`, `FundingRequest.sol` |
 | Deployed contracts | 3 | `CADC`, `GBPC` (the same source twice), `FundingRequest` |
-| ERC-20 tokens | 2 | `CADC`, `GBPC` (`COIN` is unchanged) |
+| Tokens | 2 | `CADC`, `GBPC`: the ERC-20 read functions and `Transfer` event, but **not transferable** (`COIN` is unchanged) |
 | Logical ledgers on the one Besu chain | 3 | `CADC` (CAD balances), `GBPC` (GBP balances), `FundingRequest` (the state, amounts and rate of every request). With `COIN` the chain has 4 |
 | Private ledgers (Paladin Noto) | 0 | none, see TD-01 |
 | New wallets | 3 | `ldn`, `tor`, `treasury` (`admin` already exists) |
@@ -72,7 +72,7 @@ The single RPC node and single FireFly in your assumption are what the repo alre
 
 ### 3.1 `CurrencyToken` (deployed twice: `CADC`, `GBPC`)
 
-A minimal ERC-20 (balances, transfers, `totalSupply`, 2 decimals) with one extra rule: `mint(to, amount)` and `burn(from, amount)` are callable only by a single `controller` address. `controller` is set once by the admin after `FundingRequest` is deployed and cannot change again (TD-02). Plain transfers between holders are allowed (it is an ERC-20) but the flow never uses them.
+A ledger token with the ERC-20 read side (`name`, `symbol`, `decimals`, `totalSupply`, `balanceOf`) and the `Transfer` event, but **no `transfer`, `approve`, `transferFrom` or `allowance`** (TD-13). `mint(to, amount)` and `burn(from, amount)` are callable only by a single `controller` address. `controller` is set once by the admin after `FundingRequest` is deployed and cannot change again (TD-02). A holder cannot move tokens, so the CADC the treasury holds and the GBPC the requester holds are always still there when `settle` and `redeem` burn them.
 
 > `burn(from, amount)` by the controller needs no allowance. This is the key trust point: only `FundingRequest` can reach it, and it only burns from the treasury wallet (CADC) or the beneficiary (GBPC) of a request in the right state.
 
@@ -231,6 +231,8 @@ The new keys go into `wallets.json` and the FireFly signer keystore as the exist
 | TD-10 | Three new wallets `ldn`, `tor`, `treasury` | Reuse `anson`/`beatrice` (confusing names for this story) | Proposed |
 | TD-11 | Integer minor units, 2 decimals; GBP rounded down; cap per request | Floats (never); 18 decimals (needless) | Proposed (Q3, Q8) |
 | TD-12 | The request id is a UUID made when the form loads, left-padded to `bytes32` (reversible, so the UI can show the UUID); the idempotency key is `<id>:<action>` | Server-generated id (a retried POST would create a second request) | Proposed |
+| TD-13 | `CADC` and `GBPC` are **not transferable**: `CurrencyToken` has no `transfer`, `approve`, `transferFrom` or `allowance`. Why: found while writing `middleman-and-atomicity.md`: a holder could move its tokens away and make `settle` or `redeem` fail. What is given up: wallets cannot send these tokens (nothing in the flow needs it). Proven by `test_AHolderCannotMoveTokens` and two tests on the request contract | Locked 2026-10-20 |
+| TD-14 | The `settle` rate bounds are **0.40 to 0.80** (were 0.01 to 5.00), so a typo such as `0.90` or `0.058` is refused by the contract. They are deploy-time constants (`MIN_RATE_PPM`, `MAX_RATE_PPM` in `src/core/treasury/plan.py`); changing them means a redeploy. A unit test keeps the demo `fx-rates.json` inside them | Locked 2026-10-20 |
 
 The accepted rows are in `docs/plan.md` §3 as D-18 to D-24. Where they differ from this table, the code and `plan.md` win: roles are fixed at deploy and a repeated write is reported as pending.
 

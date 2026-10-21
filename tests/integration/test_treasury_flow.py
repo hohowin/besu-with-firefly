@@ -339,3 +339,41 @@ def test_the_ledger_matches_the_chain(app: App) -> None:
     assert books["supply"]["gbpc"] == f"{gbpc // 100}.{gbpc % 100:02d}"
     status, listing = app.call("GET", "/api/requests")
     assert len(listing["requests"]) == len(all_requests())
+
+
+def test_the_tokens_cannot_be_moved_by_a_holder(app: App) -> None:
+    """The tokens have no transfer, approve or transferFrom: the FireFly API does not offer them."""
+    for api, method, inputs in (
+        ("cadc", "transfer", {"to": wallets()["ldn"], "amount": "1"}),
+        ("gbpc", "approve", {"spender": wallets()["ldn"], "amount": "1"}),
+        ("gbpc", "transferFrom", {"from": wallets()["ldn"], "to": wallets()["tor"], "amount": "1"}),
+    ):
+        request = urllib.request.Request(
+            f"http://localhost:5000{NS}/apis/{api}/invoke/{method}?confirm=true",
+            data=json.dumps({"input": inputs, "key": wallets()["ldn"]}).encode(),
+            headers={"Content-Type": "application/json"},
+        )
+        with pytest.raises(urllib.error.HTTPError) as refused:
+            urllib.request.urlopen(request, timeout=30)  # noqa: S310
+        assert refused.value.code in (400, 404)
+        refused.value.close()
+
+
+def test_a_rate_outside_the_contract_bounds_is_refused_and_explained(app: App) -> None:
+    app.set_rates({"CADGBP": {"default": "0.900000"}})  # a typo for 0.58: outside 0.40 to 0.80
+    request_uuid, _, _ = app.create("60.00")
+    app.call("POST", f"/api/requests/{request_uuid}/approve", {"as": "tor"})
+    time.sleep(10)  # the background sweep has tried and been refused
+    assert chain_request(request_uuid)["status"] == "2"  # still Approved, nothing converted
+    _, view = app.call("GET", f"/api/requests/{request_uuid}")
+    assert "outside the range" in (view["note"] or "")
+    ok, text = direct(
+        "settle", {"id": request_id_from_uuid(request_uuid), "ratePpm": "900000"}, "treasury"
+    )
+    assert not ok and "BadRate" in text  # the contract itself says no
+
+    app.set_rates(RATES)  # the rate is corrected, then it goes through
+    status, _ = app.call("POST", f"/api/requests/{request_uuid}/retry-settle", {})
+    assert status == 202
+    assert wait_status(request_uuid, 5)["amountGbp"] == "3480"
+    assert_conserved()

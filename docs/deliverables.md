@@ -35,7 +35,7 @@ This document is the single reference for what is deliverable and verifiable at 
 | DL-5.2 | Phase 5 — Caliper | N/A | feature | Chain-layer and FireFly-layer rounds | Done |
 | DL-5.3 | Phase 5 — Caliper | N/A | doc | Results note | Done |
 | DL-6.1 | Phase 6 — One command | N/A | infra | `docker compose up -d` starts the whole stack and deploys the contracts | Done |
-| DL-7.1 | Phase 7 — Treasury use case | N/A | contract | `CurrencyToken` and `FundingRequest` with 34 Solidity tests; compiled artifacts and `SHA256SUMS` in `contracts/treasury/compiled/` | Done |
+| DL-7.1 | Phase 7 — Treasury use case | N/A | contract | `CurrencyToken` and `FundingRequest` with 35 Solidity tests; compiled artifacts and `SHA256SUMS` in `contracts/treasury/compiled/` | Done |
 | DL-7.2 | Phase 7 — Treasury use case | N/A | infra | `python scripts/stack.py treasury`: wallets `ldn`, `tor`, `treasury`, three contracts through FireFly, APIs, wiring check; a second run sends nothing | Done |
 | DL-7.3 | Phase 7 — Treasury use case | N/A | feature | `python scripts/treasury_app.py`: web page (London, Toronto, Ledger) and JSON API on `127.0.0.1:8080` | Done |
 | DL-7.4 | Phase 7 — Treasury use case | N/A | test | 17 integration tests of the funding flow; documents in `docs/treasury-use-case/` | Done |

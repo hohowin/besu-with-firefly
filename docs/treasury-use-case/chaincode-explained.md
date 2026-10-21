@@ -132,7 +132,7 @@ Who may call what (roles are fixed when the contract is deployed):
 | 29, 30 | The two token contracts, as `ICurrency` so the code can call `mint` and `burn` on them. `immutable` = set once in the constructor, never changed. `public` creates a free read function (`cadc()`, `gbpc()`), which the deploy check uses to confirm the wiring |
 | 31 | The treasury wallet: the only address allowed to `settle`. Also where approved CADC is minted to |
 | 32 | The largest CAD amount in one request (`100000000` = 1,000,000.00) |
-| 33, 34 | The smallest and largest rate `settle` accepts (`10000` = 0.01 to `5000000` = 5.00). A safety net against a typo in the FX file |
+| 33, 34 | The smallest and largest rate `settle` accepts (`400000` = 0.40 to `800000` = 0.80). A safety net against a typo in the FX file: a real CAD to GBP rate is about 0.55 to 0.60, so `0.90` or `0.058` is refused |
 
 ### Lines 36 to 40: what is stored
 
@@ -401,7 +401,7 @@ All are `view`: free, no signature.
 | Approver, not the requester (157, 158) | Paying yourself | `test_ApproveRules`, `test_ARequesterWhoIsAlsoAnApproverCannotApproveTheirOwnRequest` |
 | One decision only (156) | Minting CADC twice for one request | `test_ApproveTwiceReverts` |
 | Only the treasury settles (112) | A branch picking its own rate | `test_SettleRules` |
-| Rate bounds (113) | A rate of `0` or `580` instead of `0.58` | `test_SettleRules` |
+| Rate bounds (113) | A rate of `0.90`, `0.058` or `580` instead of `0.58` | `test_SettleRules` |
 | Round down, never to zero (114, 115) | Creating money from rounding; settling to nothing | `test_SettleRoundsDown`, `test_SettleThatRoundsToZeroReverts`, the fuzz test |
 | Only the beneficiary redeems (127) | Someone else cashing out the GBP | `test_RedeemRules` |
 | **State before tokens** (95 before 98, 116 to 118 before 120, 128 before 130) | A call that re-enters the function through a token and acts on stale state. The tokens are our own code and cannot do that today, but writing "checks, then state, then outside calls" is the habit that keeps it safe if they ever change | reviewed with the `solidity-security` checklist |
@@ -430,7 +430,7 @@ curl -s -X POST .../apis/funding-request/query/getRequest -H 'Content-Type: appl
 
 | Layer | Where | What |
 |---|---|---|
-| Contract tests | `contracts/treasury/test/*.t.sol`, run by `cd contracts/treasury && npm test` | 34 tests (11 for the token, 20 for this contract, 3 for atomicity): every success and every revert in the table of section 5, plus a fuzz test that tries random amounts and rates and checks the conversion formula and that CADC and GBPC supplies follow the four stages |
+| Contract tests | `contracts/treasury/test/*.t.sol`, run by `cd contracts/treasury && npm test` | 35 tests (11 for the token, 21 for this contract, 3 for atomicity): every success and every revert in the table of section 5, plus a fuzz test that tries random amounts and rates and checks the conversion formula and that CADC and GBPC supplies follow the four stages |
 | Mutation check | done by hand | Seven deliberate bugs (remove the self-approval check, remove the treasury check, round up instead of down, remove the CADC burn, let anyone mint, and hide a failing GBPC mint or CADC mint with `try`/`catch`) were each caught by a failing test. The last two are why the atomicity tests exist: see [middleman-and-atomicity.md](middleman-and-atomicity.md) |
 | Python mirror | `tests/unit/core/test_treasury_*.py` | The same state machine and conversion in Python, so the app and the contract cannot disagree silently |
 | Live | `tests/integration/test_treasury_flow.py` | 17 tests through FireFly on a real chain, including direct calls that bypass the web page to prove the **chain** refuses |

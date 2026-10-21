@@ -46,20 +46,20 @@ The contract limits what the middleman can do, but not everything. Be clear abou
 
 | If the `treasury` key is... | What can happen | What cannot happen |
 |---|---|---|
-| **Stolen** | The thief can settle any `Approved` request at any rate between `minRatePpm` and `maxRatePpm` (0.01 to 5.00), so a wrong rate can cause an over- or under-payment up to those bounds. The thief can also `transfer` the CADC the wallet holds to another address (the tokens are ordinary ERC-20s): `settle` then fails with `InsufficientBalance` and those requests stay `Approved` until the CADC is returned. That blocks money, it does not steal any | Mint tokens freely, touch a request that is not `Approved`, settle twice, change who may approve |
+| **Stolen** | The thief can settle any `Approved` request at any rate between `minRatePpm` and `maxRatePpm` (0.40 to 0.80), so a wrong rate can cause an over- or under-payment up to those bounds | Mint tokens freely, send the CADC it holds to another wallet (the tokens cannot be moved), touch a request that is not `Approved`, settle twice, change who may approve |
 | **Absent** (stopped, lost) | Approved requests wait. Nothing is lost; CADC stays outstanding | Anyone else settling in its place |
-| **Wrong** (a bad rate in `fx-rates.json`) | A wrong GBP amount, if the typo is inside the bounds. The rate is recorded in the `Settled` event, so it is visible and auditable | A rate outside 0.01 to 5.00 (the contract refuses) |
+| **Wrong** (a bad rate in `fx-rates.json`) | A wrong GBP amount, if the typo is inside the bounds. The rate is recorded in the `Settled` event, so it is visible and auditable | A rate outside 0.40 to 0.80 (the contract refuses) |
 | **Colluding with `tor`** | Approve and settle a request of their own making | Anything beyond the CAD cap per request, or minting outside the flow |
 
-**The honest weak point is the rate.** The contract does not know the market: it accepts any rate the treasury passes within a wide bound. Today the bound (0.01 to 5.00) is far wider than a real CAD to GBP rate (about 0.5 to 0.6), so it catches a typo like `580` for `0.58` but not `0.90` for `0.58`. Ways to tighten it, none built in v1:
+**The honest weak point is the rate.** The contract does not know the market: it accepts any rate the treasury passes within a bound. The bound is 0.40 to 0.80, around a real CAD to GBP rate of about 0.55 to 0.60, so it catches typos like `580`, `0.058` or `0.90` for `0.58`, but not `0.62` for `0.58`. Inside the bound a wrong rate is still paid, and it is visible in the `Settled` event. Ways to tighten it further:
 
 | Option | Effect |
 |---|---|
-| Narrow `minRatePpm` and `maxRatePpm` at deploy (for example 0.40 to 0.80) | Cheap, immediate. Needs a redeploy to change |
+| ~~Narrow `minRatePpm` and `maxRatePpm` at deploy~~ **done: 0.40 to 0.80** (it was 0.01 to 5.00). Narrower still, for example 0.55 to 0.60, works until the market moves out of it | Cheap. Needs a redeploy to change |
 | A rate oracle contract that `settle` reads, so the treasury passes no number | The rate is on-chain and not chosen by the treasury. Bigger scope |
 | Two-person control: a second approver for the rate | A second signature before `settle` |
 | A daily rate committed on-chain by one wallet, `settle` checks against it | Separates "setting the rate" from "settling" |
-| Make `CADC` and `GBPC` **non-transferable** (only mint and burn) | Closes the "transfer the CADC away" hole above, and the same hole for `ldn`'s GBPC. A change to `CurrencyToken` and a redeploy |
+| ~~Make `CADC` and `GBPC` non-transferable~~ **done** | It closed a hole found while writing this page: a holder could `transfer` its tokens away, so `settle` or `redeem` would fail with `InsufficientBalance` and the request would be stuck. The functions no longer exist, and tests prove it |
 
 ## 3. One unit of work: what is atomic
 
@@ -136,7 +136,7 @@ The rule that makes this work: **the service decides from the state it reads bac
 | `settle`: no rate, bad rate, wrong wallet | `Approved` | outstanding | 0 | Add the rate and press **Retry settle** |
 | `settle`: the GBPC mint fails (after the CADC burn) | `Approved` (burn undone) | outstanding | 0 | Retry |
 | `settle` succeeds, app stops | `Settled` | 0 | outstanding | The next start redeems it |
-| `redeem`: the beneficiary already sent the GBPC away | `Settled` | 0 | outstanding | The GBPC must come back first; then redeem |
+| `redeem`: the burn fails (cannot happen in normal use: the GBPC cannot be moved, so it is still there) | `Settled` | 0 | outstanding | Retry |
 | `redeem` succeeds | `Redeemed` | 0 | 0 | none needed |
 
 In no row do both currencies exist for one request, and in no row is a token created or destroyed without its state change.
@@ -148,12 +148,12 @@ In no row do both currencies exist for one request, and in no row is a token cre
 | `test_SettleUndoesTheBurnWhenTheMintFails` | [contracts/treasury/test/Atomicity.t.sol](../../contracts/treasury/test/Atomicity.t.sol) | GBPC is replaced by a token whose mint always fails. `settle` reverts and afterwards the request is still `Approved`, the CADC supply is untouched, the treasury still holds it, and no rate or GBP amount was recorded. The burn really did run first, and it was undone |
 | `test_ApproveUndoesTheStateWhenTheMintFails` | same | CADC mint fails: `approve` reverts, state is still `Requested`, no approver recorded |
 | `test_ARetryAfterAFailedSettleWorks` | same | A bad first attempt changes nothing; the retry then settles exactly once |
-| `test_RedeemFailsIfTheBeneficiarySentTheGbpAway` | [FundingRequest.t.sol](../../contracts/treasury/test/FundingRequest.t.sol) | A failing burn leaves the request `Settled` |
+| `test_TheBeneficiaryCannotSendTheGbpAwayBeforeRedeeming`, `test_TheTreasuryCannotSendTheCadAwayBeforeSettling`, `test_AHolderCannotMoveTokens` | [FundingRequest.t.sol](../../contracts/treasury/test/FundingRequest.t.sol), [CurrencyToken.t.sol](../../contracts/treasury/test/CurrencyToken.t.sol) | Tokens cannot be moved, so the CADC and GBPC the burns need are always there |
 | Fuzz test, 256 random amounts and rates | same file | After each step the supplies follow the four stages exactly |
 | **Mutation check** (done 2026-10-20) | by hand | The contract was changed to hide a failing mint with `try { gbpc.mint(...) } catch {}`, then the same for the CADC mint. In both cases the atomicity test failed. So the tests would notice if someone broke the guarantee |
 | Live invariant | `assert_conserved()` in [test_treasury_flow.py](../../tests/integration/test_treasury_flow.py), also the green "Books balance" line on the Ledger tab | On a real chain, after every step, CADC outstanding = CAD of `Approved` requests and GBPC outstanding = GBP of `Settled` requests |
 
-Run them: `cd contracts/treasury && npm test` (34 tests).
+Run them: `cd contracts/treasury && npm test` (35 tests).
 
 ## 7. What would break it
 

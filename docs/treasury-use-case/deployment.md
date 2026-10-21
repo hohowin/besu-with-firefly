@@ -23,9 +23,9 @@ So: **2 sources, 3 deployments**. The two currencies are one source deployed twi
 
 | # | Name | Source | Constructor arguments | Size (init / runtime) |
 |---|---|---|---|---|
-| 1 | `cadc` | `CurrencyToken.sol` | `"Canadian Dollar Coin"`, `"CADC"`, the `admin` address | 3,591 / 2,771 bytes |
-| 2 | `gbpc` | `CurrencyToken.sol` | `"Pound Sterling Coin"`, `"GBPC"`, the `admin` address | 3,591 / 2,771 bytes |
-| 3 | `funding-request` | `FundingRequest.sol` | the `cadc` and `gbpc` addresses, the `treasury` wallet, `[ldn]` as requesters, `[tor]` as approvers, the cap `100000000` (CAD 1,000,000.00), the lowest rate `10000` (0.01), the highest `5000000` (5.00) | 5,830 / 4,698 bytes |
+| 1 | `cadc` | `CurrencyToken.sol` | `"Canadian Dollar Coin"`, `"CADC"`, the `admin` address | 2,641 / 1,821 bytes |
+| 2 | `gbpc` | `CurrencyToken.sol` | `"Pound Sterling Coin"`, `"GBPC"`, the `admin` address | 2,641 / 1,821 bytes |
+| 3 | `funding-request` | `FundingRequest.sol` | the `cadc` and `gbpc` addresses, the `treasury` wallet, `[ldn]` as requesters, `[tor]` as approvers, the cap `100000000` (CAD 1,000,000.00), the lowest rate `400000` (0.40), the highest `800000` (0.80) | 5,830 / 4,698 bytes |
 
 Then two wiring calls, and the FireFly registration:
 
@@ -115,7 +115,7 @@ The tokens start with **no controller** and the admin sets it afterwards, exactl
 | Who may approve | `tor` |
 | Who settles | `treasury` |
 | The cap per request | CAD 1,000,000.00 |
-| The rate bounds | 0.01 to 5.00 |
+| The rate bounds | 0.40 to 0.80 |
 | The code | the compiled bytecode, never edited |
 
 **Comparison with Hyperledger Fabric chaincode**, in case that is the picture in your head:

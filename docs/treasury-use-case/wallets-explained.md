@@ -101,6 +101,7 @@ Tried against the live chain (integration tests) and in the contract tests:
 | `tor` or `treasury` | `redeem` someone else's GBP (once it is settled; before that, `BadState`) | `NotBeneficiary` |
 | `treasury` | `approve` | `NotApprover` |
 | anyone | `mint` or `burn` on `CADC` or `GBPC` directly | `NotController` |
+| any holder | `transfer`, `approve` or `transferFrom` on `CADC` or `GBPC` | refused: the functions do not exist, so tokens stay where the flow put them |
 | `admin` | `mint` on `CADC` or `GBPC` | `NotController` |
 | `admin` | `setController` a second time | `ControllerSet` |
 | a wallet that is both requester and approver (not in this deploy) | approve its own request | `SelfApproval` |
