@@ -100,6 +100,7 @@ The web app is **not** started by `docker compose up`. That is a deliberate v1 c
 | [test-plan.md](test-plan.md) | Unit, contract and integration tests, invariants, traceability |
 | [tokens-explained.md](tokens-explained.md) | **Teaching guide:** what CADC and GBPC are, and `CurrencyToken.sol` explained line by line |
 | [chaincode-explained.md](chaincode-explained.md) | **Teaching guide:** the `FundingRequest` contract (the chain code) explained line by line, why each rule exists, how to read and change it |
+| [deployment.md](deployment.md) | **Guide:** how the currencies, the contracts and the chain code are deployed: the plan, the order, the safety checks, how to run and verify it, and redeploy, reset and upgrade |
 | [middleman-and-atomicity.md](middleman-and-atomicity.md) | **Discussion:** the `treasury` wallet as the middleman and how far to trust it; how burning CAD and minting GBP stays one unit of work; what is and is not atomic; failure matrix; proof |
 | [wallets-explained.md](wallets-explained.md) | **Teaching guide:** the `ldn`, `tor` and `treasury` wallets, how they are made and sign, what each can and cannot do |
 
