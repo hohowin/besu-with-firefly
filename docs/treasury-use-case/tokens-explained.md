@@ -257,7 +257,7 @@ curl -s -X POST http://localhost:5000/api/v1/namespaces/default/apis/cadc/query/
 # {"output": "0"}
 ```
 
-Then run the funding flow ([README](../../README.md), "Try the treasury branch-funding flow") and repeat the calls while a request sits in `Approved` (remove the `default` rate from `network-config/treasury/fx-rates.json` so settlement waits): `totalSupply` and the treasury balance both show `100000` for a CAD 1,000.00 request.
+Then run the funding flow ([README](../../README.md), "Run the treasury branch-funding use case, step by step") and repeat the calls while a request sits in `Approved` (change the key `default` in `network-config/treasury/fx-rates.json` to `2000-01-01` so settlement waits): `totalSupply` and the treasury balance both show `100000` for a CAD 1,000.00 request.
 
 To see that nobody can move a token, ask FireFly to call `transfer` on `cadc`:
 

@@ -357,23 +357,125 @@ Open **Blockchain > APIs** in the Explorer, or go straight to http://localhost:5
 
 To go on, [docs/firefly-user-guide.md](docs/firefly-user-guide.md) explains each Explorer page, and `python scripts/stack.py reset` followed by `up` and `deploy` (or `docker compose down -v` and the quick route) returns everything to 1000 COIN.
 
-## Try the treasury branch-funding flow
+## Run the treasury branch-funding use case, step by step
 
-London asks Toronto for CAD, Toronto approves, the treasury converts to GBP at a fixed rate, and London redeems the GBP. Everything is on the chain and visible in the FireFly Explorer. Design: [docs/treasury-use-case/](docs/treasury-use-case/README.md).
+London asks Toronto for CAD, Toronto approves, the treasury converts it to GBP at a fixed rate, and London redeems the GBP. Every step is a transaction on the chain, and you can watch it in the FireFly Explorer. Design and background: [docs/treasury-use-case/](docs/treasury-use-case/README.md).
+
+**You need:** Docker Desktop running, Python 3.11+ with the tools installed (`pip install -e ".[dev]"`, getting started steps 1 and 2), and Node.js with `npm ci` done in `contracts/` (getting started step 3, for the `COIN` deploy). Run every command from the repository root with the virtual environment active.
+
+**What runs where:** the network, FireFly and the contracts run in Docker and on the chain. The web page is **one Python program on your computer** (`treasury_app.py`) that you start yourself in a second terminal. It is not part of `docker compose up`.
+
+### Step 1: start from a clean network
 
 ```bash
-python scripts/stack.py up
-python scripts/stack.py deploy
-python scripts/stack.py treasury        # three wallets, three contracts; safe to repeat
-python scripts/treasury_app.py          # then open http://127.0.0.1:8080/
+python scripts/stack.py reset     # removes the containers and the chain: everything starts from genesis
+python scripts/stack.py up        # about 1 to 3 minutes; waits until all 10 containers are healthy
 ```
 
-1. **London** tab: enter `1000.00` and send the request.
-2. **Toronto** tab: approve it. CADC is minted to the treasury wallet.
-3. The app converts at the rate in `network-config/treasury/fx-rates.json` (0.58 by default), burns the CADC, mints `580.00` GBPC to London's wallet, and London redeems it.
-4. **Ledger** tab: the request is `redeemed`, both supplies are `0.00`, and "Books balance" is green. Change a rate in the file and the next request uses it, with no restart.
+Do the `reset` whenever you pull a new version of this repository: the contracts are immutable, so a changed contract needs a fresh chain. A first run on a clean clone can skip it.
 
-Try "Sign as ldn" on the Toronto tab to see the contract refuse a wallet that has no approver role. There is no login: the page only picks which wallet signs, and the contracts decide.
+### Step 2: deploy `COIN` and Paladin (the base stack)
+
+```bash
+python scripts/stack.py deploy    # about 2 minutes
+```
+
+### Step 3: add the treasury wallets and contracts
+
+```bash
+python scripts/stack.py treasury
+```
+
+Expected output (the addresses differ on every fresh chain):
+
+```text
+cadc  0x01fc7b7feb7492e69b2a6aaa36958591743a3269
+gbpc  0x1933c75c79ce39e962eff868d71ff161de7dc599
+funding-request  0x2433e797229a8640c80070fbc8ec695add46d738
+cadc.setController
+gbpc.setController
+api cadc  0x01fc...
+api gbpc  0x1933...
+api funding-request  0x2433...
+treasury  wired
+```
+
+It created the wallets `ldn`, `tor` and `treasury`, deployed three contracts through FireFly, and checked that they point at each other correctly. It is safe to run again: a second run prints `(already deployed)` and sends nothing.
+
+### Step 4: start the web app (second terminal)
+
+Open a **new terminal** in the repository root, activate the virtual environment, and run:
+
+```bash
+python scripts/treasury_app.py
+```
+
+You should see `treasury app on http://127.0.0.1:8080/  (demo: no login)`. Leave this terminal open: the app prints one JSON line for each step it takes, and closing the terminal stops the app. Then open **http://127.0.0.1:8080/** in a browser. If port 8080 is busy, add `--port 8081` and open that port instead.
+
+### Step 5: the main flow (CAD 1,000.00)
+
+1. **London** tab: type `1000.00` in Amount and press **Send request**. A green message says the request was created, and "My requests" shows it as `requested`. The date is today's date in London.
+2. **Toronto** tab: the request is under "Requests waiting for you". Leave "Sign as" on `tor` and press **Approve**. CADC `1000.00` is created in the treasury wallet.
+3. **Wait 5 to 20 seconds. Do nothing.** The app converts at 0.58 on its own: it burns the CADC, creates GBPC `580.00` in London's wallet, and then London redeems (burns) it.
+4. **Ledger** tab: the request shows `redeemed`, `GBP 580.00 at 0.580000`. Balances are all `0.00`, and the green line says "Books balance". Press **Steps** to see `create`, `approve`, `settle` and `redeem` with their FireFly operation ids.
+
+| Money step | Wallet that signs | CADC | GBPC |
+|---|---|---|---|
+| Approve | `tor` | +1000.00 to the treasury | none |
+| Settle | `treasury` | -1000.00 | +580.00 to London |
+| Redeem | `ldn` | none | -580.00 |
+
+### Step 6: try the other cases
+
+| Try | Do this | You should see |
+|---|---|---|
+| **A refusal** | On the Toronto tab set "Sign as" to `ldn` and press Approve | A red message: "This wallet may not approve or reject requests." Then set it back to `tor` and press Approve again: it works |
+| **Reject** | Create a request, then on the Toronto tab type a reason and press **Reject** | The request becomes `rejected`; nothing is created |
+| **A bad amount** | Send `0`, `-5`, `1000.001` or `abc` | Refused at once with a message, nothing is sent |
+| **No FX rate** | Open `network-config/treasury/fx-rates.json` and change the key `"default"` to `"2000-01-01"` (a date that is not today), then create and approve a request | It stops at `approved` and says "no CADGBP rate for <today> and no default". Change the key back to `"default"` and press **Retry settle** on the Toronto tab: it finishes |
+| **A rate that is too far off** | Set `"default": "0.90"`, create and approve a request | It stops at `approved` with "The FX rate is outside the range the contract accepts" (the contract allows 0.40 to 0.80). Set `0.58` and press **Retry settle** |
+| **A different rate** | Set `"default": "0.60"`, then send `100.00` | `60.00` GBP. The file is read at every settlement, so there is no restart |
+| **Stop and resume** | Approve a request, then stop the app with Ctrl+C at once and start it again | The app finishes whatever was left `approved` or `settled` when it starts |
+
+### Step 7: see it on the chain
+
+- **FireFly Explorer:** http://localhost:5000/ui, then Blockchain, Operations. Each request shows as `createRequest`, `approve`, `settle` and `redeem`, signed by the wallet addresses in `network-config/wallets.json`.
+- **From the command line:**
+
+```bash
+# how many requests exist, and the total of each currency (both 0 once every request is finished)
+curl -s -X POST http://localhost:5000/api/v1/namespaces/default/apis/funding-request/query/requestCount -H "Content-Type: application/json" -d "{}"
+curl -s -X POST http://localhost:5000/api/v1/namespaces/default/apis/cadc/query/totalSupply -H "Content-Type: application/json" -d "{}"
+curl -s -X POST http://localhost:5000/api/v1/namespaces/default/apis/gbpc/query/totalSupply -H "Content-Type: application/json" -d "{}"
+```
+
+### Step 8: run the tests
+
+```bash
+pytest                                   # unit tests, no Docker needed
+cd contracts/treasury && npm ci && npm test && cd ../..   # 35 Solidity tests of the contracts
+pytest -m integration tests/integration/test_treasury_flow.py   # about 3 minutes, needs the stack from steps 1 to 3
+```
+
+The treasury integration tests start their own copy of the app, so stop the app from step 4 first if it uses the same port (they pick a free port, so it is usually fine). The whole integration suite (`pytest -m integration`) takes about 20 minutes.
+
+### Step 9: stop and clean up
+
+- Stop the web app: press Ctrl+C in its terminal.
+- Remove the network and everything on it: `python scripts/stack.py reset`.
+
+### If something is wrong
+
+| You see | Likely cause | Fix |
+|---|---|---|
+| The page says "Cannot reach the app: Failed to fetch" | The app is not running (the terminal was closed, or it stopped) | Run `python scripts/treasury_app.py` again. Nothing on the chain is lost |
+| 404 in the browser | A wrong address | Use exactly `http://127.0.0.1:8080/` |
+| `error: ...` and no page when starting the app | The network is not up, or `treasury` was not run | Steps 1 to 3 |
+| `stack.py treasury` says `ArtifactsMissingError` or `ChecksumError` | `contracts/treasury/compiled/` is missing or was edited | `cd contracts/treasury && npm ci && npm run build`, or restore the files from git |
+| A request stays `approved` | The reason is shown under it: a missing or out-of-range rate | Fix `fx-rates.json`, then press **Retry settle** |
+| Requests from an older run, or a test, are listed | The chain remembers them | `python scripts/stack.py reset`, then steps 1 to 3 |
+
+More: [what each wallet is](docs/treasury-use-case/wallets-explained.md), [the tokens line by line](docs/treasury-use-case/tokens-explained.md), [the contract line by line](docs/treasury-use-case/chaincode-explained.md), [how it is deployed](docs/treasury-use-case/deployment.md), [the middleman wallet and atomicity](docs/treasury-use-case/middleman-and-atomicity.md).
 
 ## Benchmark (Caliper)
 
